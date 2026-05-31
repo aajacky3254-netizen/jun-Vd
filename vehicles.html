@@ -47,7 +47,7 @@
       <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
     </div>
 
-    <div class="control-panel">
+    <div id="adminControlPanel" class="control-panel">
       <div class="input-group" style="width: 180px;">
         <label>車牌號碼</label>
         <input type="text" id="inputPlate" placeholder="如: KKA-1234" required>
@@ -86,7 +86,7 @@
           <th style="width: 25%;">車輛型號</th>
           <th style="width: 15%;">目前狀態</th>
           <th style="width: 25%;">備註說明 / 保養紀錄</th>
-          <th style="width: 20%; text-align: center;">操作</th>
+          <th class="admin-action-col" style="width: 20%; text-align: center;">操作</th>
         </tr>
       </thead>
       <tbody id="vehiclesBody">
@@ -97,36 +97,39 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole, logout } from './auth.js'; 
+    import { getFirestore, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-// 1. 放寬進入頁面的權限，加入 '駕駛長' 
-const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長'];
+    // 安全防護
+    const escapeHTML = (str) => {
+        return str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
+    };
 
-// 2. 合併為單一的權限驗證區塊
-checkAuthAndGetRole(allowedRoles).then((user) => {
-    // --- A. 顯示畫面與設定導覽列 ---
-    document.body.style.display = 'block'; 
-    const nav = document.querySelector('.navbar');
-    nav.innerHTML += `
-        <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
-            <span>👤 ${user.name} (${user.role})</span>
-            <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
-        </div>
-    `;
-    document.getElementById('btnLogout').addEventListener('click', logout);
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長'];
 
-    // --- B. 根據角色隱藏管理按鈕 (唯讀模式防護) ---
-    if (user.role === '駕駛長') {
-        // 隱藏新增車輛按鈕 (加入 if 判斷避免找不到元素時報錯)
-        const addBtn = document.getElementById('addVehicleBtn');
-        if (addBtn) addBtn.style.display = 'none';
-        
-        // 隱藏表格「表頭」的操作欄位
-        document.querySelectorAll('.admin-action-col').forEach(el => el.style.display = 'none');
-    }
+    checkAuthAndGetRole(allowedRoles).then((user) => {
+        // --- A. 顯示畫面與設定導覽列 ---
+        document.body.style.display = 'block'; 
+        const nav = document.querySelector('.navbar');
+        nav.innerHTML += `
+            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
+                <span>👤 ${escapeHTML(user.name)} (${escapeHTML(user.role)})</span>
+                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
+            </div>
+        `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
+        // --- B. 根據角色隱藏管理按鈕 (唯讀模式防護) ---
+        if (user.role === '駕駛長') {
+            // 直接隱藏整個輸入與按鈕面板，避免駕駛看到無用資訊
+            const adminPanel = document.getElementById('adminControlPanel');
+            if (adminPanel) adminPanel.style.display = 'none';
+            
+            // 隱藏表格「表頭」的操作欄位
+            document.querySelectorAll('.admin-action-col').forEach(el => el.style.display = 'none');
+        }
+
+        // --- C. 初始化 Firebase ---
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
           authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -169,15 +172,22 @@ checkAuthAndGetRole(allowedRoles).then((user) => {
             if (data.status === 'maintenance') statusHtml = '<span class="badge badge-maintenance">定保中</span>';
             if (data.status === 'breakdown') statusHtml = '<span class="badge badge-breakdown">故障維修</span>';
 
+            // 💡 動態判斷：如果是駕駛長，完全不生成這一個 <td>
+            let actionHtml = '';
+            if (user.role !== '駕駛長') {
+                actionHtml = `
+                <td class="admin-action-col" style="text-align: center;">
+                  <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${escapeHTML(data.id)}" data-plate="${escapeHTML(data.plate_number)}" data-model="${escapeHTML(data.model)}" data-status="${escapeHTML(data.status)}" data-notes="${escapeHTML(data.notes || '')}">編輯</button>
+                  <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${escapeHTML(data.id)}">報廢</button>
+                </td>`;
+            }
+
             tr.innerHTML = `
-              <td style="font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #334155;">${data.plate_number || data.id}</td>
-              <td style="font-weight: 600; color: #475569;">${data.model}</td>
+              <td style="font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #334155;">${escapeHTML(data.plate_number || data.id)}</td>
+              <td style="font-weight: 600; color: #475569;">${escapeHTML(data.model)}</td>
               <td>${statusHtml}</td>
-              <td style="color: #64748b;">${data.notes || '-'}</td>
-              <td style="text-align: center;">
-                <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${data.id}" data-plate="${data.plate_number}" data-model="${data.model}" data-status="${data.status}" data-notes="${data.notes || ''}">編輯</button>
-                <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${data.id}">報廢</button>
-              </td>
+              <td style="color: #64748b;">${escapeHTML(data.notes || '-')}</td>
+              ${actionHtml}
             `;
             tbody.appendChild(tr);
           });
@@ -185,6 +195,7 @@ checkAuthAndGetRole(allowedRoles).then((user) => {
           dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
           dbStatusEl.innerText = "資料庫已連線";
 
+          // 事件綁定 (只有渲染出來的按鈕才會被綁定)
           document.querySelectorAll('.btn-edit').forEach(btn => {
             btn.addEventListener('click', (e) => {
               document.getElementById('inputPlate').value = e.target.getAttribute('data-plate');
@@ -211,6 +222,7 @@ checkAuthAndGetRole(allowedRoles).then((user) => {
           });
         });
 
+        // 以下是儲存與重設的事件綁定，因為駕駛長看不到按鈕，這段代碼對他們沒有影響
         saveBtn.addEventListener('click', async () => {
           const plate = document.getElementById('inputPlate').value.trim();
           const model = document.getElementById('inputModel').value.trim();
@@ -244,7 +256,6 @@ checkAuthAndGetRole(allowedRoles).then((user) => {
           cancelBtn.style.display = "none";
         }
 
-    // 💡 關鍵修復點：完美閉合大括號
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
