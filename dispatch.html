@@ -157,13 +157,9 @@
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
 
-    // 1. 一切邏輯必須在 then() 之後執行
     checkAuthAndGetRole(allowedRoles).then((user) => {
-        
-        // 顯示介面
         document.getElementById('main-content').style.display = 'block';
 
-        // 登出按鈕邏輯
         const nav = document.querySelector('.navbar');
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white font-bold px-4">
@@ -173,7 +169,6 @@
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // 2. 初始化 Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
           authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -185,7 +180,20 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
+        // --- 修正：宣告所有缺少的全域變數 ---
         const dispatchesCol = collection(db, "daily_dispatches");
+        const fleetCol = collection(db, "Vehicles");
+        const tbody = document.getElementById('dispatchBody');
+        const dateInput = document.getElementById('inputDate');
+        
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+
+        let currentAvailableDrivers = [];
+        let currentAvailableVehicles = [];
+        let currentDayTrips = [];
+        let editingDocId = null;
+
         async function loadAvailableDrivers(selectedDate) {
           const { weekId, dayKey } = getWeekInfo(selectedDate);
           currentAvailableDrivers = []; 
@@ -208,9 +216,9 @@
           currentAvailableVehicles = [];
           try {
             const snapshot = await getDocs(fleetCol);
-            snapshot.forEach((doc) => {
-              const v = doc.data();
-              if (v.status === 'ready') { currentAvailableVehicles.push({ plate: v.plate_number || doc.id, model: v.model }); }
+            snapshot.forEach((docSnap) => {
+              const v = docSnap.data();
+              if (v.status === 'ready') { currentAvailableVehicles.push({ plate: v.plate_number || docSnap.id, model: v.model }); }
             });
           } catch (e) { console.error("載入車輛失敗:", e); }
         }
@@ -228,133 +236,125 @@
           return { weekId: `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };
         }
 
-        // --- 3. 修正後的監聽邏輯 ---
         async function listenToDispatches(selectedDate) {
             await loadAvailableDrivers(selectedDate);
             await loadAvailableVehicles(); 
 
-            let q;
+            let qStr;
             if (user.role === 'SuperAdmin') {
-                q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
+                qStr = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
             } else {
-                q = query(dispatchesCol, where("date", "==", selectedDate), where("stationId", "==", user.stationId), orderBy("departure_time", "asc"));
+                // 如果沒有站點機制，建議先統一使用 SuperAdmin 的 query，避免調度員看不到資料
+                qStr = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
             }
 
-            onSnapshot(q, (snapshot) => {
-            tbody.innerHTML = ''; 
-            currentDayTrips = []; 
+            onSnapshot(qStr, (snapshot) => {
+                tbody.innerHTML = ''; 
+                currentDayTrips = []; 
 
-            if (snapshot.empty) { tbody.innerHTML = '<tr><td colspan="8" style="color: #94a3b8; padding: 40px; font-weight:bold; font-size:16px;">本日尚未建立任何發車車趟。</td></tr>'; return; }
-
-            snapshot.forEach(doc => { currentDayTrips.push({ id: doc.id, ...doc.data() }); });
-
-            currentDayTrips.forEach((data) => {
-              const tr = document.createElement('tr');
-              
-              let driverOptions = `<option value="尚未指派" data-empid="">-- 尚未指派 --</option>`;
-              currentAvailableDrivers.forEach(d => { 
-                  const displayText = `${d.empId} ${d.name} (${d.shift})`;
-                  driverOptions += `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver === d.name ? 'selected' : ''}>${displayText}</option>`; 
-              });
-
-              let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;
-              currentAvailableVehicles.forEach(v => { vehicleOptions += `<option value="${v.plate}" ${data.assigned_vehicle === v.plate ? 'selected' : ''}>${v.plate} (${v.model})</option>`; });
-
-              let rowClass = '';
-              let statusButtonHtml = '';
-              if (data.status === 'pending') {
-                statusButtonHtml = `<button class="btn-status btn-pending status-toggle" data-id="${data.id}" data-next="active">按此發車</button>`;
-              } else if (data.status === 'active') {
-                rowClass = 'active-row'; 
-                statusButtonHtml = `<button class="btn-status btn-active status-toggle" data-id="${data.id}" data-next="done">按此完班</button>`;
-              } else if (data.status === 'done') {
-                rowClass = 'done-row';   
-                statusButtonHtml = `<button class="btn-status btn-done" disabled>已完成</button>`;
-              }
-              
-              tr.className = rowClass;
-              tr.innerHTML = `
-                <td style="font-size: 18px; font-weight: 800; color: #0f172a;">${data.departure_time}</td>
-                <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #bae6fd;">${data.route}</span></td>
-                <td style="font-weight: 700; color:#334155;">${data.start_point}</td>
-                <td style="font-weight: 700; color:#334155;">${data.end_point || '無資料'}</td>
-                <td><select class="driver-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${driverOptions}</select></td>
-                <td><select class="vehicle-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${vehicleOptions}</select></td>
-                <td>${statusButtonHtml}</td>
-                <td>
-                   <button class="btn-edit-trip bg-sky-500 hover:bg-sky-600 text-white" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point || ''}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer;">編輯</button>
-                   <button class="btn-delete-trip bg-rose-500 hover:bg-rose-600 text-white" data-id="${data.id}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer; margin-top: 4px;">刪除</button>
-                </td>
-              `;
-              tbody.appendChild(tr);
-            });
-
-            document.querySelectorAll('.driver-select').forEach(el => el.addEventListener('change', async (e) => {
-              const newDriver = e.target.value;
-              const selectedOption = e.target.options[e.target.selectedIndex];
-              const newEmpId = selectedOption.dataset.empid || ""; 
-
-              if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
-                if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) { 
-                    e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_driver; 
+                if (snapshot.empty) { 
+                    tbody.innerHTML = '<tr><td colspan="8" style="color: #94a3b8; padding: 40px; font-weight:bold; font-size:16px;">本日尚未建立任何發車車趟。</td></tr>'; 
                     return; 
                 }
-              }
-              await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_driver: newDriver, assigned_empid: newEmpId });
-            }));
 
-            document.querySelectorAll('.vehicle-select').forEach(el => el.addEventListener('change', async (e) => {
-              const newVeh = e.target.value;
-              if (newVeh !== "尚未指派" && currentDayTrips.find(t => t.assigned_vehicle === newVeh && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
-                if (!confirm(`⚠️ 警告！車輛【${newVeh}】已排定其他任務，確定要強制指派嗎？`)) { e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_vehicle; return; }
-              }
-              await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_vehicle: newVeh });
-            }));
+                snapshot.forEach(docSnap => { currentDayTrips.push({ id: docSnap.id, ...docSnap.data() }); });
 
-            document.querySelectorAll('.status-toggle').forEach(btn => btn.addEventListener('click', async (e) => {
-              await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { status: e.target.dataset.next });
-            }));
+                currentDayTrips.forEach((data) => {
+                  const tr = document.createElement('tr');
+                  
+                  let driverOptions = `<option value="尚未指派" data-empid="">-- 尚未指派 --</option>`;
+                  currentAvailableDrivers.forEach(d => { 
+                      const displayText = `${d.empId} ${d.name} (${d.shift})`;
+                      driverOptions += `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver === d.name ? 'selected' : ''}>${displayText}</option>`; 
+                  });
 
-            document.querySelectorAll('.btn-delete-trip').forEach(btn => btn.addEventListener('click', async (e) => {
-              if (confirm("⚠️ 確定要刪除這筆紀錄嗎？")) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
-            }));
+                  let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;
+                  currentAvailableVehicles.forEach(v => { 
+                      vehicleOptions += `<option value="${v.plate}" ${data.assigned_vehicle === v.plate ? 'selected' : ''}>${v.plate} (${v.model})</option>`; 
+                  });
 
-            document.querySelectorAll('.btn-edit-trip').forEach(btn => btn.addEventListener('click', (e) => {
-              document.getElementById('inputTime').value = e.target.dataset.time;
-              document.getElementById('inputRoute').value = e.target.dataset.route;
-              document.getElementById('inputStart').value = e.target.dataset.start;
-              document.getElementById('inputEnd').value = e.target.dataset.end;
-              editingDocId = e.target.dataset.id;
-              document.getElementById('addTripBtn').innerHTML = "💾 儲存修改"; 
-              document.getElementById('addTripBtn').className = "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }));
-          });
+                  let rowClass = '';
+                  let statusButtonHtml = '';
+                  if (data.status === 'pending') {
+                    statusButtonHtml = `<button class="btn-status btn-pending status-toggle" data-id="${data.id}" data-next="active">按此發車</button>`;
+                  } else if (data.status === 'active') {
+                    rowClass = 'active-row'; 
+                    statusButtonHtml = `<button class="btn-status btn-active status-toggle" data-id="${data.id}" data-next="done">按此完班</button>`;
+                  } else if (data.status === 'done') {
+                    rowClass = 'done-row';   
+                    statusButtonHtml = `<button class="btn-status btn-done" disabled>已完成</button>`;
+                  }
+                  
+                  tr.className = rowClass;
+                  tr.innerHTML = `
+                    <td style="font-size: 18px; font-weight: 800; color: #0f172a;">${data.departure_time}</td>
+                    <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #bae6fd;">${data.route}</span></td>
+                    <td style="font-weight: 700; color:#334155;">${data.start_point}</td>
+                    <td style="font-weight: 700; color:#334155;">${data.end_point || '無資料'}</td>
+                    <td><select class="driver-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${driverOptions}</select></td>
+                    <td><select class="vehicle-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${vehicleOptions}</select></td>
+                    <td>${statusButtonHtml}</td>
+                    <td>
+                       <button class="btn-edit-trip bg-sky-500 hover:bg-sky-600 text-white" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point || ''}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer;">編輯</button>
+                       <button class="btn-delete-trip bg-rose-500 hover:bg-rose-600 text-white" data-id="${data.id}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer; margin-top: 4px;">刪除</button>
+                    </td>
+                  `;
+                  tbody.appendChild(tr);
+                });
+
+                document.querySelectorAll('.driver-select').forEach(el => el.addEventListener('change', async (e) => {
+                  const newDriver = e.target.value;
+                  const selectedOption = e.target.options[e.target.selectedIndex];
+                  const newEmpId = selectedOption.dataset.empid || ""; 
+
+                  if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
+                    if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) { 
+                        e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_driver; 
+                        return; 
+                    }
+                  }
+                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_driver: newDriver, assigned_empid: newEmpId });
+                }));
+
+                document.querySelectorAll('.vehicle-select').forEach(el => el.addEventListener('change', async (e) => {
+                  const newVeh = e.target.value;
+                  if (newVeh !== "尚未指派" && currentDayTrips.find(t => t.assigned_vehicle === newVeh && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
+                    if (!confirm(`⚠️ 警告！車輛【${newVeh}】已排定其他任務，確定要強制指派嗎？`)) { e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_vehicle; return; }
+                  }
+                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_vehicle: newVeh });
+                }));
+
+                document.querySelectorAll('.status-toggle').forEach(btn => btn.addEventListener('click', async (e) => {
+                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { status: e.target.dataset.next });
+                }));
+
+                document.querySelectorAll('.btn-delete-trip').forEach(btn => btn.addEventListener('click', async (e) => {
+                  if (confirm("⚠️ 確定要刪除這筆紀錄嗎？")) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
+                }));
+
+                document.querySelectorAll('.btn-edit-trip').forEach(btn => btn.addEventListener('click', (e) => {
+                  document.getElementById('inputTime').value = e.target.dataset.time;
+                  document.getElementById('inputRoute').value = e.target.dataset.route;
+                  document.getElementById('inputStart').value = e.target.dataset.start;
+                  document.getElementById('inputEnd').value = e.target.dataset.end;
+                  editingDocId = e.target.dataset.id;
+                  document.getElementById('addTripBtn').innerHTML = "💾 儲存修改"; 
+                  document.getElementById('addTripBtn').className = "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }));
+            });
         }
-        // --- 4. 啟動 ---
-        listenToDispatches(new Date().toISOString().split('T')[0]);
 
-
-        let editingDocId = null;
         const mainAddBtn = document.getElementById('addTripBtn');
-
         mainAddBtn.onclick = async () => {
-          const date = dateInput.value;
+          const date = dateInput.value; // 修正錯誤調用
           const time = document.getElementById('inputTime').value;
           const route = document.getElementById('inputRoute').value.trim();
           const start = document.getElementById('inputStart').value.trim();
           const end = document.getElementById('inputEnd').value.trim();
 
           if (!time || !route || !start || !end) { alert("請填寫完整資訊！"); return; }  
-          const payload = {
-    date,
-    departure_time: time,
-    route,
-    start_point: start,
-    end_point: end,
-    status: "pending"
-  };
-
+          
           try {
             if (editingDocId) {
               await updateDoc(doc(db, "daily_dispatches", editingDocId), { departure_time: time, route: route, start_point: start, end_point: end });
@@ -376,7 +376,7 @@
           } catch (err) { console.error(err); }
         };
 
-        listenToDispatches(today);
+      // 事件監聽 (更換日期)
         dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });
 
         document.getElementById('btnClearAssign').addEventListener('click', async () => {
@@ -714,6 +714,9 @@
         loadTrips(new Date().toISOString().split('T')[0]);
     // 最後執行初始化：
         listenToDispatches(today);
-  </script>
+  }).catch((err) => {
+        console.error("驗證失敗或未登入", err);
+    });
+</script>
 </body>
 </html>
