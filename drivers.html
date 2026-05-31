@@ -6,7 +6,8 @@
   <title>車輛調度系統 - 人事管理系統 (權限防護版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
+    /* 💡 優化 1: 加上 display: none 避免權限驗證前畫面閃爍 */
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
     h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
     
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
@@ -42,7 +43,7 @@
 <body>
 
   <nav class="navbar" id="main-nav">
-    <a href="#" class="navbar-brand">🚌 智慧車輛調度系統</a>
+    <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
     <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
     <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
     <a href="drivers.html" class="nav-link active">👨‍✈️ 人事管理系統</a>
@@ -114,14 +115,11 @@
     import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    // --- 根據不同頁面設定權限 ---
-    // 例如：dispatch.html 用 ['SuperAdmin', 'StationManager', '調度員']
-    // 例如：vehicles.html 用 ['SuperAdmin', 'StationManager', '調度員', 'Employee']
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
         // A. 顯示網頁內容
-        document.body.style.display = 'block'; // 確保 CSS 控制 body 預設隱藏
+        document.body.style.display = 'block'; 
 
         // B. 動態加入登出導覽列
         const nav = document.querySelector('.navbar');
@@ -210,9 +208,15 @@
                 document.getElementById('btnSaveDriver').className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }));
 
+            // 💡 優化 3: 刪除防呆與錯誤捕捉
             document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', async (e) => {
                 if(confirm(`⚠️ 警告！刪除駕駛員將無法復原，確定要刪除編號 ${e.target.dataset.id} 嗎？`)) {
-                    await deleteDoc(doc(db, "Drivers", e.target.dataset.id));
+                    try {
+                        await deleteDoc(doc(db, "Drivers", e.target.dataset.id));
+                    } catch (err) {
+                        console.error("刪除失敗:", err);
+                        alert("刪除失敗，請檢查網路！");
+                    }
                 }
             }));
         }
@@ -226,7 +230,13 @@
 
             if(!empId || !name) { alert("請填寫員工編號與姓名！"); return; }
 
+            const btn = document.getElementById('btnSaveDriver');
+            
             try {
+                // 💡 優化 2: 點擊後鎖定按鈕，防止連點重複寫入
+                btn.innerHTML = "⏳ 儲存中...";
+                btn.disabled = true;
+
                 const driverData = {
                     name: name,
                     status: status,
@@ -236,26 +246,29 @@
 
                 const docSnap = await getDoc(doc(db, "Drivers", empId));
                 if (!docSnap.exists() || !docSnap.data().password) {
-                    // 自動配發預設密碼
                     driverData.password = "123";
                 }
 
                 await setDoc(doc(db, "Drivers", empId), driverData, { merge: true });
 
+                // 清空並復原表單狀態
                 document.getElementById('inpEmpId').value = '';
                 document.getElementById('inpEmpId').disabled = false;
                 document.getElementById('inpEmpId').style.backgroundColor = '#f8fafc';
                 document.getElementById('inpName').value = '';
+                document.getElementById('inpStatus').value = 'active';
                 
-                document.getElementById('btnSaveDriver').innerHTML = "💾 儲存駕駛資料";
-                document.getElementById('btnSaveDriver').className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
-
                 if (!docSnap.exists()) {
                     alert(`✅ 帳號建立成功！\n員工編號: ${empId}\n預設密碼: 123\n系統權限: ${role}`);
                 }
             } catch (err) {
                 console.error("寫入失敗:", err);
                 alert("儲存失敗，請檢查網路狀態。");
+            } finally {
+                // 不論成功或失敗，都把按鈕還原
+                btn.innerHTML = "💾 儲存駕駛資料";
+                btn.disabled = false;
+                btn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }
         });
 
