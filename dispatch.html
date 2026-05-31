@@ -752,7 +752,10 @@
                     tripsRowsHtml += `
                         <tr>
                             <td class="font-bold" style="color:#000 !important;">${idx + 1}</td>
-                            <td class="font-bold text-left" style="color:#000 !important;">${t.route} <br><span style="font-size:10px; color:#64748b !important;">[LED: ${ledCode}]</span></td>
+                            // ✨ 修改後：加入 ${t.startStation}
+                            <td class="font-bold text-left" style="color:#000 !important;">
+                            <span style="color:#0369a1;">${t.route}</span> ${t.startStation} <br>
+                            <span style="font-size:10px; color:#64748b !important;">[LED: ${ledCode}]</span></td>
                             <td style="font-family: monospace; color:#000 !important; font-weight:bold;">${t.depTime} <span style="font-size:10px; font-weight:normal;">${arrStr}</span></td>
                             <td></td><td></td>
                             <td class="font-bold text-left" style="color:#000 !important;">${t.arrStation}</td>
@@ -762,7 +765,9 @@
                     `;
                 });
 
-                for(let i = assign.trips.length; i < 12; i++) {
+                // ✨ 修改後：不管有幾趟，固定往下補 3 行空白供手寫，並且設定最少顯示 6 行維持版面好看
+                let emptyRowsLimit = Math.max(assign.trips.length + 3, 6); 
+                for(let i = assign.trips.length; i < emptyRowsLimit; i++) {
                     tripsRowsHtml += `<tr><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
                 }
 
