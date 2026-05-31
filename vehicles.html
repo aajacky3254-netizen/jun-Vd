@@ -97,20 +97,34 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js'; 
+import { getFirestore, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
+// 1. 放寬進入頁面的權限，加入 '駕駛長' 
+const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長'];
 
-    checkAuthAndGetRole(allowedRoles).then((user) => {
-        document.body.style.display = 'block'; 
-        const nav = document.querySelector('.navbar');
-        nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
-                <span>👤 ${user.name} (${user.role})</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
-            </div>
-        `;
+// 2. 合併為單一的權限驗證區塊
+checkAuthAndGetRole(allowedRoles).then((user) => {
+    // --- A. 顯示畫面與設定導覽列 ---
+    document.body.style.display = 'block'; 
+    const nav = document.querySelector('.navbar');
+    nav.innerHTML += `
+        <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
+            <span>👤 ${user.name} (${user.role})</span>
+            <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
+        </div>
+    `;
+    document.getElementById('btnLogout').addEventListener('click', logout);
+
+    // --- B. 根據角色隱藏管理按鈕 (唯讀模式防護) ---
+    if (user.role === '駕駛長') {
+        // 隱藏新增車輛按鈕 (加入 if 判斷避免找不到元素時報錯)
+        const addBtn = document.getElementById('addVehicleBtn');
+        if (addBtn) addBtn.style.display = 'none';
+        
+        // 隱藏表格「表頭」的操作欄位
+        document.querySelectorAll('.admin-action-col').forEach(el => el.style.display = 'none');
+    }
         document.getElementById('btnLogout').addEventListener('click', logout);
 
         const firebaseConfig = {
