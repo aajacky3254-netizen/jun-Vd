@@ -78,7 +78,7 @@
 <body>
 
   <nav class="navbar" id="main-nav">
-    <a href="#" class="navbar-brand">🚌 智慧車輛調度系統</a>
+    <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
     <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
     <a href="dispatch.html" class="nav-link active">🚦 每日發車控制台</a>
     <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
@@ -407,41 +407,89 @@
         });
 
         document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
-            if (!confirm("確定執行「智慧自動調度」嗎？\n系統將嚴格把關：早班(05-14)、晚班(16-24)、兩頭班(中退休息)！")) return;
+            if (!confirm("確定執行「智慧自動調度」嗎？\n系統將考慮「休息時間」、「早晚兩頭班防呆」與「路線起訖站連貫性」進行最佳化配置！")) return;
 
             const btn = document.getElementById('btnAutoDispatch');
-            btn.innerHTML = "🤖 運算中..."; btn.disabled = true;
+            btn.innerHTML = "🤖 運算中...";
+            btn.disabled = true;
 
             try {
                 await loadAvailableDrivers(dateInput.value);
                 await loadAvailableVehicles();
 
-                let fleet = currentAvailableDrivers.map(d => ({
-                    ...d, vehicle: currentAvailableVehicles.length > 0 ? currentAvailableVehicles.shift().plate : "無車可用",
-                    availableTime: "00:00", tripsCount: 0
-                })).filter(f => f.vehicle !== "無車可用");
+                if (currentAvailableDrivers.length === 0 || currentAvailableVehicles.length === 0) {
+                    alert("⚠️ 錯誤：目前沒有可用且非休假的駕駛員或車輛！");
+                    btn.innerHTML = "✨ 智慧自動調度";
+                    btn.disabled = false;
+                    return;
+                }
 
-                let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派");
+                let singleShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("單"));
+                let splitShifts = currentAvailableDrivers.filter(d => d.shift && (d.shift.includes("頭")));
+                let morningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("早"));
+                let eveningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("晚"));
+                let standbys = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("待命"));
+                
+                let others = currentAvailableDrivers.filter(d => !d.shift || (!d.shift.includes("單") && !d.shift.includes("早") && !d.shift.includes("晚") && !d.shift.includes("頭") && !d.shift.includes("待命")));
+                singleShifts.push(...others);
+
+                let fleet = [];
+                let availableVehs = [...currentAvailableVehicles];
+
+                function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
+
+                [...singleShifts, ...splitShifts].forEach(d => {
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                });
+
+                let maxPairs = Math.max(morningShifts.length, eveningShifts.length);
+                for (let i = 0; i < maxPairs; i++) {
+                    let sharedCar = assignVehicle();
+                    if (morningShifts[i]) fleet.push({ ...morningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                    if (eveningShifts[i]) fleet.push({ ...eveningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                }
+
+                standbys.forEach(d => {
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 2, tripsCount: 0 });
+                });
+
+                fleet = fleet.filter(f => f.vehicle !== "無車可用");
+
+                let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
                 pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
 
-                const batch = writeBatch(db); 
                 let successCount = 0;
                 let failCount = 0;
+                const batch = writeBatch(db); 
 
                 for (let trip of pendingTrips) {
-                    let hour = parseInt(trip.departure_time.split(':')[0]);
+                    let depTime = trip.departure_time;
+                    let hour = parseInt(depTime.split(':')[0]);
 
                     let candidates = fleet.filter(unit => {
-                        if (unit.availableTime > trip.departure_time) return false; 
+                        if (unit.availableTime > depTime) return false; 
+                        
                         let s = unit.shift || "";
-                        if (s.includes("早") && (hour < 5 || hour >= 14)) return false; 
-                        if (s.includes("晚") && hour < 16) return false;  
-                        if (s.includes("頭") && (hour >= 10 && hour < 16)) return false; 
+                        if (s.includes("早") && hour >= 14) return false; 
+                        if (s.includes("晚") && hour < 14) return false;  
+                        if (s.includes("頭") && (hour >= 10 && hour <= 14)) return false; 
+                        
                         return true; 
                     });
 
                     if (candidates.length > 0) {
-                        candidates.sort((a, b) => a.tripsCount - b.tripsCount);
+                        candidates.forEach(c => {
+                            c.score = 0;
+                            if (c.priority === 1) c.score += 100; 
+                            if (c.lastStation === trip.start_point) c.score += 50; 
+                            if (c.lastRoute === trip.route) c.score += 30; 
+                        });
+
+                        candidates.sort((a, b) => {
+                            if (b.score !== a.score) return b.score - a.score;
+                            return a.tripsCount - b.tripsCount;
+                        });
+
                         let assignedUnit = candidates[0];
 
                         batch.update(doc(db, "daily_dispatches", trip.id), { 
@@ -450,35 +498,41 @@
                             assigned_vehicle: assignedUnit.vehicle
                         });
                         successCount++;
+
                         assignedUnit.tripsCount++;
-                        
-                        let [h, m] = trip.departure_time.split(':').map(Number);
-                        m += 90; h += Math.floor(m / 60); m = m % 60;
+                        assignedUnit.lastStation = trip.end_point; 
+                        assignedUnit.lastRoute = trip.route;
+
+                        let breakTime = 90; 
+                        if (assignedUnit.shift.includes("單") && assignedUnit.tripsCount >= 1 && hour >= 11 && hour <= 13) {
+                            breakTime = 150; 
+                        }
+
+                        let [h, m] = depTime.split(':').map(Number);
+                        m += breakTime;
+                        h += Math.floor(m / 60);
+                        m = m % 60;
                         if (h >= 24) h -= 24;
                         assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
                     } else {
                         failCount++;
                     }
                 }
-                
+
                 if (successCount > 0) await batch.commit();
 
-                setTimeout(() => {
-                    if (failCount > 0) {
-                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)`);
-                    } else {
-                        alert(`✅ 智慧調度完成！成功綁定 ${successCount} 趟。`);
-                    }
-                    btn.innerHTML = "✨ 智慧自動調度";
-                    btn.disabled = false;
-                }, 500);
-
+                if (failCount > 0) {
+                    alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)\n※ 系統已嚴格遵守連貫性與休息法規，略過車趟請手動微調。`);
+                } else {
+                    alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「彈性大中退」排班！`);
+                }
             } catch (e) {
                 console.error(e);
                 alert("執行自動調度時發生錯誤！請檢查網路。");
-                btn.innerHTML = "✨ 智慧自動調度";
-                btn.disabled = false;
             }
+
+            btn.innerHTML = "✨ 智慧自動調度";
+            btn.disabled = false;
         });
 
         document.getElementById('btnPrintAll').addEventListener('click', async () => {
@@ -497,66 +551,76 @@
                 }
             } catch (e) { console.error("無法抓取週班表：", e); }
 
-            const getLEDCode = (route) => {
-                const num = route.replace(/\D/g, ''); 
-                if(!num) return "N/A";
-                return `Hanover: *${num}# | Mobitec: ${num.padEnd(4, '0')}`;
-            };
-
             const scheduleByDriver = {};
             currentDayTrips.forEach(trip => {
-                if (trip.assigned_driver === "尚未指派") return;
+                if (!trip.assigned_driver || trip.assigned_driver === "尚未指派") return;
+
                 if (!scheduleByDriver[trip.assigned_driver]) {
                     let shiftName = dailyShifts[trip.assigned_empid] || "";
                     if (!shiftName) {
                         let dInfo = currentAvailableDrivers.find(d => d.empId === trip.assigned_empid || d.name === trip.assigned_driver);
                         if (dInfo && dInfo.shift) shiftName = dInfo.shift;
                     }
-                    scheduleByDriver[trip.assigned_driver] = { 
-                        driver: trip.assigned_driver, empId: trip.assigned_empid || "", shiftType: shiftName, 
-                        vehicle: trip.assigned_vehicle, trips: [] 
+
+                    scheduleByDriver[trip.assigned_driver] = {
+                        driver: trip.assigned_driver,
+                        empId: trip.assigned_empid || "", 
+                        shiftType: shiftName, 
+                        vehicle: (trip.assigned_vehicle === "尚未指派") ? "" : trip.assigned_vehicle,
+                        trips: []
                     };
                 }
-                scheduleByDriver[trip.assigned_driver].trips.push(trip);
+                scheduleByDriver[trip.assigned_driver].trips.push({
+                    route: trip.route || '',
+                    startStation: trip.start_point || '',
+                    arrStation: trip.end_point || '',
+                    depTime: trip.departure_time || ''
+                });
             });
+
+            const driverKeys = Object.keys(scheduleByDriver);
+            if (driverKeys.length === 0) {
+                alert("目前沒有任何「已指派駕駛」的車趟，無法列印憑單！");
+                return;
+            }
 
             const printDate = document.getElementById('inputDate').value.replace(/-/g, '/');
             const blankCheckbox = `<span style="font-size:16px; color:#000 !important; font-weight:bold;">□</span>`;
 
-            Object.values(scheduleByDriver).forEach(assign => {
-                assign.trips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+            driverKeys.forEach(name => {
+                const assign = scheduleByDriver[name];
+                assign.trips.sort((a, b) => a.depTime.localeCompare(b.depTime));
 
                 let tripsRowsHtml = '';
                 let lastHour = -1;
 
                 assign.trips.forEach((t, idx) => {
-                    let currentHour = parseInt(t.departure_time.split(':')[0]);
+                    let currentHour = parseInt(t.depTime.split(':')[0]);
                     
                     if (lastHour !== -1 && (currentHour - lastHour >= 4)) {
                         tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:8px; color:#475569 !important; font-size:16px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;
                     }
                     lastHour = currentHour;
 
-                    const ledCode = getLEDCode(t.route);
-
                     tripsRowsHtml += `
                         <tr>
-                            <td class="font-bold text-black">${idx + 1}</td>
-                            <td class="font-bold text-left text-black">${t.route} <br><span style="font-size:10px; color:#64748b !important;">[LED: ${ledCode}]</span></td>
-                            <td class="font-bold text-black" style="font-family: monospace;">${t.departure_time}</td>
+                            <td class="font-bold" style="color:#000 !important;">${idx + 1}</td>
+                            <td class="font-bold text-left" style="color:#000 !important;">${t.route} ${t.startStation}</td>
+                            <td style="font-family: monospace; color:#000 !important; font-weight:bold;">${t.depTime}</td>
                             <td></td><td></td>
-                            <td class="font-bold text-left text-black">${t.end_point}</td>
-                            <td></td><td></td><td></td>
+                            <td class="font-bold text-left" style="color:#000 !important;">${t.arrStation}</td>
+                            <td></td><td></td>
+                            <td></td>
                         </tr>
                     `;
                 });
 
                 for(let i = assign.trips.length; i < 12; i++) {
-                    tripsRowsHtml += `<tr><td class="font-bold text-black">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                    tripsRowsHtml += `<tr><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
                 }
 
                 const voucherHtml = `
-                <div class="voucher-page text-black">
+                <div class="voucher-page" style="color:#000 !important;">
                     <div>
                         <div style="text-align: center; margin-bottom: 6px;">
                             <h1 style="font-size: 24px; font-weight: bold; display: inline-block; padding: 0 16px; letter-spacing: 2px; margin: 0; color:#000 !important;">愛巴士交通客運 駛車憑單(行車日報表)</h1>
@@ -575,6 +639,20 @@
                                 <td style="font-family:monospace; font-size:14px; color:#000 !important; font-weight:bold;">${printDate}</td>
                             </tr>
                         </table>
+                        <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
+                                    <tr><th style="width:20%; color:#000 !important;">駕照檢驗</th><td style="width:30%; color:#000 !important;" class="text-left">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="width:20%; color:#000 !important;">體溫檢測</th><td style="width:30%; color:#000 !important;" class="text-left">${blankCheckbox} 合格 ( ＿＿ 度 )</td></tr>
+                                    <tr><th style="color:#000 !important;">行照檢驗</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important;">酒精檢測</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格 ( 值：＿＿ )</td></tr>
+                                    <tr><th style="color:#000 !important;">教育訓練證明</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important;">血壓檢測</th><td class="text-left" style="color:#000 !important;">高 ＿＿ / 低 ＿＿</td></tr>
+                                </table>
+                                <div style="border: 2px solid #000; border-top: none; text-align: center; padding: 2px; font-weight: bold; font-size: 13px;" class="red-text">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</div>
+                            </div>
+                            <div style="width: 140px; border: 2px solid #000; padding: 4px; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; justify-content: space-around; color:#000 !important;">
+                                <div style="color:#000 !important;">出車前里程數：<br><div style="text-align:right; color:#000 !important; margin-top:10px;">公里</div></div>
+                                <div style="color:#000 !important;">返場接續里程數：<br><div style="text-align:right; color:#000 !important; margin-top:10px;">公里</div></div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="trips-section">
@@ -592,11 +670,52 @@
                             </table>
                         </div>
                     </div>
+
+                    <div style="margin-top: 4px;">
+                        <table class="voucher-table" style="margin-bottom: 4px; color:#000 !important;">
+                            <tr style="height: 25px;"><th style="width: 33.33%; color:#000 !important;">補票紀錄</th><th style="width: 33.33%; color:#000 !important;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%; color:#000 !important;">趟次中拋錨、肇事情形</th></tr>
+                            <tr style="height: 45px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 2px; left: 8px; font-size: 11px; text-align: left; color:#000 !important;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
+                        </table>
+
+                        <div style="border: 2px solid #000; padding: 4px 12px; margin-bottom: 4px; color:#000 !important;">
+                            <h3 style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 4px; letter-spacing: 2px; margin-top:0; color:#000 !important;">路口轉彎停看行、禮讓行人優先行</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; font-size: 11px; font-weight: bold; color:#000 !important;">
+                                <p style="margin:0; color:#000 !important;">1. 慢慢開、不急、不趕、路口減速。</p><p style="margin:0; color:#000 !important;">2. 遠離機車，遠離危險。</p>
+                                <p style="margin:0; color:#000 !important;">3. 開關車門時務必廣播提醒乘客才可起步。</p><p style="margin:0; color:#000 !important;">4. 行車中嚴禁使用手機及平板。</p>
+                                <p style="margin:0; color:#000 !important;">5. 「離開駕駛座拉好手剎車」。</p><p style="margin:0; color:#000 !important;">6. 候車亭服務燈亮起一定暫停確認。</p>
+                            </div>
+                            <div style="margin-top: 4px; display: flex; justify-content: flex-end; align-items: center; font-size: 12px; font-weight: bold; color:#000 !important;">
+                                <span style="margin-right: 8px; color:#000 !important;">駕駛員確認簽名：</span><span style="display: inline-block; width: 150px; border-bottom: 1px solid #000; height: 16px;"></span>
+                            </div>
+                        </div>
+
+                        <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
+                            <tr><th style="width:16%; color:#000 !important;">組別/班次</th><th style="width:16%; color:#000 !important;">鍵入人員簽章</th><th style="width:16%; color:#000 !important;">調度員簽章</th><th style="width:20%; color:#000 !important;">站主管審核章</th><th style="width:16%; color:#000 !important;">收回張數</th><th style="width:16%; color:#000 !important;">票值合計</th></tr>
+                            <tr style="height: 35px;">
+                                <td class="font-bold text-lg" style="color:#000 !important;"></td><td></td>
+                                <td style="position: relative;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+        調度員 邱政明
+    </div></td><td style="position: relative;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+        站長 辛資貴
+    </div>
+</td>
+                                <td></td><td></td>
+                            </tr>
+                        </table>
+                        <div style="font-size: 9px; line-height: 1.2; margin-top: 2px; color:#000 !important;">
+                            <p style="margin:0; color:#000 !important;">註1: 偏線督導執行 SOP 標準作業程序相關規定。</p>
+                            <p style="margin:0; color:#000 !important;">註2: 行車中不得撥打或持握式行動電話及無線電，如因接聽電話須使用免持聽筒。另過趟次中，探聽電信以三通為限，每通電話不得超過一分鐘。</p>
+                        </div>
+                    </div>
                 </div>`;
                 printZone.innerHTML += voucherHtml;
             });
+
             setTimeout(() => { window.print(); }, 300);
         });
+
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
