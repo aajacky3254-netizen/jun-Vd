@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>車輛調度系統 - 車輛報修系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: "微軟正黑體", sans-serif; background-color: #f4f6f9; display: none;}
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; line-height: 64px;}
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+    table { width: 100%; border-collapse: collapse; background: #fff; text-align: left; }
+    th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; }
+    th { background-color: #1e293b; color: white; }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="main-nav">
+    <a href="index.html" class="text-yellow-400 font-bold text-xl mr-8">🚌 智慧車輛調度系統</a>
+    <a href="repairs.html" class="nav-link active">🛠️ 車輛報修系統</a>
+    <a href="vehicles.html" class="nav-link">🚍 車輛資訊系統</a>
+  </nav>
+
+  <div class="max-w-5xl mx-auto mt-8 px-4">
+    <div class="bg-white p-6 rounded-lg shadow-md mb-8 border border-gray-200">
+        <h3 class="text-lg font-bold mb-4">＋ 填寫車輛報修單</h3>
+        <div class="flex gap-4 items-end">
+            <div class="flex flex-col gap-1 w-1/4">
+                <label class="text-sm font-bold text-gray-600">異常車號</label>
+                <input type="text" id="inpPlate" placeholder="如 KKA-1234" class="border p-2 rounded outline-none focus:border-blue-500">
+            </div>
+            <div class="flex flex-col gap-1 w-1/2">
+                <label class="text-sm font-bold text-gray-600">異常狀況描述</label>
+                <input type="text" id="inpIssue" placeholder="如: 冷氣不冷、引擎異音" class="border p-2 rounded outline-none focus:border-blue-500">
+            </div>
+            <button id="btnSubmit" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-6 rounded h-[42px]">送出報修</button>
+        </div>
+    </div>
+
+    <table class="shadow-md rounded-lg overflow-hidden">
+        <thead>
+            <tr><th>報修日期</th><th>車牌號碼</th><th>問題描述</th><th>提報人</th><th>處理狀態</th><th>維修操作</th></tr>
+        </thead>
+        <tbody id="repairBody"><tr><td colspan="6" class="text-center py-4">載入中...</td></tr></tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js'; 
+
+    checkAuthAndGetRole([]).then((user) => {
+        document.body.style.display = 'block';
+        const nav = document.getElementById('main-nav');
+        nav.innerHTML += `<div class="ml-auto text-white font-bold"><span class="mr-4">👤 ${user.name} (${user.role})</span><button id="btnLogout" class="bg-red-500 px-3 py-1 rounded">登出</button></div>`;
+        document.getElementById('btnLogout').addEventListener('click', logout);
+
+        const db = getFirestore(initializeApp({
+          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI", authDomain: "jun-bus-dispatch.firebaseapp.com", projectId: "jun-bus-dispatch"
+        }));
+        
+        const repairsCol = collection(db, "Repairs");
+
+        onSnapshot(query(repairsCol, orderBy("date", "desc")), (snap) => {
+            const tbody = document.getElementById('repairBody');
+            tbody.innerHTML = snap.empty ? '<tr><td colspan="6" class="text-center py-4">目前無報修紀錄</td></tr>' : '';
+            snap.forEach(d => {
+                const data = d.data();
+                const statusHtml = data.status === 'pending' ? '<span class="bg-red-100 text-red-700 px-2 py-1 rounded font-bold">待處理</span>' : '<span class="bg-green-100 text-green-700 px-2 py-1 rounded font-bold">已完修</span>';
+                
+                // 維修人員才能按「完修」
+                const btnHtml = (user.role === '維修人員' || user.role === 'StationManager') && data.status === 'pending' 
+                    ? `<button class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold" onclick="window.resolveRepair('${d.id}', '${data.plate}')">標記完修</button>` 
+                    : '-';
+
+                tbody.innerHTML += `<tr><td>${data.date}</td><td class="font-bold text-lg">${data.plate}</td><td>${data.issue}</td><td>${data.reporter}</td><td>${statusHtml}</td><td>${btnHtml}</td></tr>`;
+            });
+        });
+
+        document.getElementById('btnSubmit').onclick = async () => {
+            const plate = document.getElementById('inpPlate').value.trim();
+            const issue = document.getElementById('inpIssue').value.trim();
+            if(!plate || !issue) return alert('請填寫完整！');
+            await addDoc(repairsCol, { plate, issue, reporter: user.name, date: new Date().toISOString().split('T')[0], status: 'pending' });
+            // 同步將車輛設為故障
+            await updateDoc(doc(db, "Vehicles", plate), { status: 'breakdown' }).catch(()=>console.log('車庫無此車，略過連動'));
+            alert('報修成功！該車輛已自動從調度清單中鎖定。');
+            document.getElementById('inpPlate').value = ''; document.getElementById('inpIssue').value = '';
+        };
+
+        window.resolveRepair = async (repairId, plate) => {
+            await updateDoc(doc(db, "Repairs", repairId), { status: 'resolved' });
+            await updateDoc(doc(db, "Vehicles", plate), { status: 'ready' });
+            alert('已標記完修！車輛恢復可調度狀態。');
+        };
+    });
+  </script>
+</body>
+</html>
