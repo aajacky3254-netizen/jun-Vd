@@ -447,24 +447,16 @@
         listenToDispatches(today);[span_172](start_span)[span_172](end_span)
         dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });[span_173](start_span)[span_173](end_span)
 
-        // 💡 根據指定日期載入歷史底稿
+        // 💡 強力修復版：加入防錯與嚴謹的資料讀取機制
         document.getElementById('btnCopyHistory').addEventListener('click', async () => {
             const currentDate = dateInput.value;
             const sourceDateStr = document.getElementById('copySourceDate').value;
 
-            if (!currentDate) return;
-            if (!sourceDateStr) {
-                alert("請先選擇要載入的歷史日期！");
-                return;
-            }
-            if (currentDate === sourceDateStr) {
-                alert("目標日期與歷史日期相同，請選擇其他日期！");
-                return;
-            }
+            if (!currentDate) return alert("請先設定今日日期！");
+            if (!sourceDateStr) return alert("請先選擇要載入的歷史日期！");
+            if (currentDate === sourceDateStr) return alert("目標日期與歷史日期相同，請選擇其他日期！");
 
-            if (!confirm(`確定要將【${sourceDateStr}】的所有車趟複製到今日 (${currentDate}) 嗎？\n\n(注意：這將會批次新增車趟，為避免衝突，司機與車輛預設會清空為「尚未指派」)`)) {
-                return;
-            }
+            if (!confirm(`確定要將【${sourceDateStr}】的所有車趟複製到今日 (${currentDate}) 嗎？`)) return;
 
             const btn = document.getElementById('btnCopyHistory');
             const originalText = btn.innerHTML;
@@ -472,6 +464,7 @@
             btn.disabled = true;
 
             try {
+                // 使用 where 查詢該日期的所有車趟
                 const q = query(dispatchesCol, where("date", "==", sourceDateStr));
                 const snap = await getDocs(q);
 
@@ -480,9 +473,12 @@
                 } else {
                     const batch = writeBatch(db);
                     let count = 0;
+                    
                     snap.forEach(docSnap => {
                         const data = docSnap.data();
-                        const newDocRef = doc(dispatchesCol); // 自動產生新的 ID
+                        const newDocRef = doc(dispatchesCol); 
+                        
+                        // 確保所有必要欄位存在，避免 undefined 錯誤
                         batch.set(newDocRef, {
                             date: currentDate,
                             departure_time: data.departure_time || "",
@@ -497,12 +493,13 @@
                         });
                         count++;
                     });
+                    
                     await batch.commit();
-                    alert(`✅ 成功從 ${sourceDateStr} 複製了 ${count} 筆車趟！\n現在您可以點擊「✨ 智慧自動調度」來分配今日的人車了。`);
+                    alert(`✅ 成功從 ${sourceDateStr} 複製了 ${count} 筆車趟！`);
                 }
             } catch (err) {
-                console.error("複製車趟失敗:", err);
-                alert("載入失敗，請檢查網路連線。");
+                console.error("複製車趟失敗詳細錯誤:", err);
+                alert("載入失敗，詳細錯誤請見 Console。");
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
