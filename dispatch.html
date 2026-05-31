@@ -153,32 +153,39 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, addDoc, setDoc, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    
-    // 【權限模組引入】
-    import { checkAuthAndGetRole, logout } from './auth.js';
+    import { checkAuthAndGetRole, logout } from './auth.js'; // 【權限模組引入】
 
     // 只有這些職稱可以進入發車控制台
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
     // 初始化時載入
     checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then((user) => {
-        // 總公司人員(SuperAdmin)看全部，各站人員只看自己站的
-        let q;
-        if (user.role === 'SuperAdmin') {
-            q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
-        } else {
-            q = query(dispatchesCol, where("date", "==", selectedDate), where("stationId", "==", user.stationId), orderBy("departure_time", "asc"));
-        }
-        // 顯示登入者名稱與登出按鈕
+        // 顯示內容並加入登出按鈕
+        document.getElementById('main-content').style.display = 'block';
         const nav = document.getElementById('main-nav');
-        nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold">
-                <span class="bg-blue-800 px-3 py-1 rounded-full shadow-inner">👤 ${user.name} (${user.role})</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded transition shadow">登出系統</button>
-            </div>
-        `;
+        nav.innerHTML += `<button id="btnLogout" class="bg-red-500 text-white px-3 py-1 rounded ml-auto">登出</button>`;
         document.getElementById('btnLogout').addEventListener('click', logout);
-    });
 
+        // 2. 初始化 Firebase
+        const firebaseConfig = { /* 填入你的設定 */ };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        // 3. 實作多站點查詢邏輯
+        const dispatchesCol = collection(db, "daily_dispatches");
+        
+        async function loadTrips(date) {
+            let q;
+            // 如果是總公司管理員，拉取全部；否則只拉取該站點的
+            if (user.role === 'SuperAdmin') {
+                q = query(dispatchesCol, where("date", "==", date), orderBy("departure_time", "asc"));
+            } else {
+                q = query(dispatchesCol, where("date", "==", date), where("stationId", "==", user.stationId), orderBy("departure_time", "asc"));
+            }
+            
+            onSnapshot(q, (snapshot) => {
+                // ...執行原本的渲染表格邏輯...
+            });
+        }
         // ==========================================
         // 以下是你原本所有的 Firebase 與系統邏輯
         // ==========================================
@@ -727,6 +734,10 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
+    // 初始化載入
+        loadTrips(new Date().toISOString().split('T')[0]);
+        
+    }).catch(err => console.error(err));
   </script>
 </body>
 </html>
