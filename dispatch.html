@@ -1,591 +1,693 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>專業版 - 視覺化車場總調度台 (全動態建檔版)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>車輛調度系統 - 每日發車時刻表 (權限防護版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
+    h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
+    
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar-brand { color: #facc15; font-size: 22px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
+    .navbar a.nav-link:hover { background-color: #374151; color: white; }
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
 
-    <style>
-        /* === 網頁版：深色專業調度台樣式 === */
-        body { font-family: "Noto Sans TC", sans-serif; background-color: #1e222d; color: #d1d5db; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        .timeline-container { position: relative; width: 100%; height: 100%; overflow-x: auto; overflow-y: auto; background-color: #161a22; }
-        .timeline-header { display: flex; position: sticky; top: 0; background-color: #2a2f3e; z-index: 10; border-bottom: 1px solid #374151; }
-        .timeline-header-cell { flex: 1; min-width: 60px; text-align: center; padding: 8px 0; font-size: 12px; font-weight: bold; border-right: 1px solid #374151; color: #9ca3af; }
-        .dispatch-row { display: flex; position: relative; border-bottom: 1px solid #2a2f3e; height: 60px; background-color: #1e222d; transition: background-color 0.2s; }
-        .dispatch-row:hover { background-color: #252a38; }
-        .row-info { position: sticky; left: 0; width: 220px; background-color: #2a2f3e; z-index: 5; border-right: 2px solid #4b5563; padding: 8px; display: flex; flex-direction: column; justify-content: center; flex-shrink: 0; box-shadow: 2px 0 5px rgba(0,0,0,0.3); }
-        .row-timeline { flex: 1; position: relative; min-width: 1440px; background-image: linear-gradient(to right, #2a2f3e 1px, transparent 1px); background-size: 60px 100%; }
+    .content-area { padding: 0 20px; }
+    
+    .control-panel {
+      background: #fff; padding: 20px; border-radius: 12px; 
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;
+      display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0;
+    }
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
+    .input-group input, .input-group select {
+      padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none;
+    }
+    .input-group input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+
+    table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
+    th, td { border: 1px solid #e2e8f0; padding: 14px; transition: background-color 0.2s; }
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
+    tr:hover { background-color: #f8fafc; }
+
+    tr.active-row { background-color: #ecfdf5; } 
+    tr.done-row { background-color: #f1f5f9; color: #94a3b8; } 
+    tr.done-row select { opacity: 0.5; pointer-events: none; } 
+
+    .btn-status { padding: 6px 14px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; width: 100%; color: white; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+    .btn-pending { background-color: #f59e0b; color: #fff; } 
+    .btn-active { background-color: #10b981; animation: pulse 2s infinite; } 
+    .btn-done { background-color: #64748b; cursor: default; box-shadow: none;} 
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+      70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    
+    @media screen { #print-zone { display: none; } }
+
+    @media print {
+        @page { margin: 5mm; size: A4 portrait; }
+        body * { visibility: hidden; }
+        #print-zone, #print-zone * { visibility: visible; }
+        #print-zone { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
         
-        .trip-bar { position: absolute; top: 8px; height: 44px; background-color: #3b82f6; border-radius: 4px; border: 1px solid #60a5fa; display: flex; flex-direction: column; justify-content: center; padding: 0 6px; overflow: hidden; font-size: 11px; color: white; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.1s; }
-        .trip-bar:hover { transform: translateY(-2px); filter: brightness(1.1); z-index: 10; }
-        .trip-bar.route-59 { background-color: #f59e0b; border-color: #fbbf24; }
-        .trip-bar.route-27 { background-color: #10b981; border-color: #34d399; }
-        .trip-bar.default-route { background-color: #6366f1; border-color: #818cf8; } /* 新路線預設為靛藍色 */
-
-        /* === 批次列印專用樣式 === */
-        @media print {
-            @page { margin: 8mm; size: A4 portrait; }
-            .no-print, body { display: none !important; }
-            html, body { background-color: #fff !important; margin: 0; padding: 0; display: block !important; height: auto !important; overflow: visible !important; }
-            #print-zone { display: block !important; }
-            .voucher-page { display: flex; flex-direction: column; width: 100%; height: 100%; page-break-after: always; color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; }
-            .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 9pt; }
-            .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 5px 6px; text-align: center; } 
-            .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
-            .text-left { text-align: left !important; padding-left: 8px !important; }
-            .font-bold { font-weight: bold !important; }
-            .red-text { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; }
-            .trips-section { flex-grow: 1; display: flex; flex-direction: column; }
-            .trips-table-wrapper { flex-grow: 1; }
-            .trips-table { height: 100%; }
+        .voucher-page { 
+            display: flex; flex-direction: column; width: 100%; 
+            height: 285mm; max-height: 285mm; overflow: hidden; 
+            page-break-after: always; page-break-inside: avoid;
+            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px;
         }
-        #print-zone { display: none; }
-    </style>
+        .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; }
+        .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 4px 6px; text-align: center; } 
+        .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
+        .text-left { text-align: left !important; padding-left: 8px !important; }
+        .font-bold { font-weight: bold !important; }
+        .red-text { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; }
+        .trips-section { flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 2px;}
+        .trips-table-wrapper { flex-grow: 1; }
+        .trips-table { height: 100%; margin-bottom: 0;}
+    }
+  </style>
 </head>
-<body style="visibility: hidden;">
+<body>
 
-    <datalist id="station-list">
-    </datalist>
+  <nav class="navbar" id="main-nav">
+    <a href="#" class="navbar-brand">🚌 智慧車輛調度系統</a>
+    <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
+    <a href="dispatch.html" class="nav-link active">🚦 每日發車控制台</a>
+    <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
+    <a href="vehicles.html" class="nav-link">🚍 車輛資訊系統</a>
+  </nav>
 
-    <div class="no-print h-16 bg-[#161a22] border-b border-[#374151] flex items-center justify-between px-6 flex-shrink-0">
-        <div class="flex items-center space-x-4">
-            <h1 class="text-xl font-bold text-white tracking-widest">車場視覺化調度系統</h1>
-            <div id="db-status" class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-500 border border-yellow-500/50">資料庫連線中...</div>
-            <div class="h-6 w-px bg-gray-600"></div>
-            <input type="date" id="sys-date" class="bg-[#2a2f3e] border border-gray-600 text-white rounded px-3 py-1 text-sm outline-none focus:border-blue-500">
-        </div>
-        <div class="flex space-x-3">
-            <button onclick="openManageModal()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm font-bold flex items-center transition border border-gray-500">
-                ⚙️ 基礎資料建檔
-            </button>
-            <button onclick="openAssignModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-bold flex items-center transition">
-                + 新增駕駛排班
-            </button>
-            <button onclick="saveAndPrintAll()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded text-sm font-bold flex items-center transition">
-                儲存並列印全站憑單
-            </button>
-        </div>
+  <h2>🚦 每日發車時刻表控制台</h2>
+
+  <div class="content-area" style="display: none;">
+    <div class="control-panel">
+      <div class="input-group">
+        <label>日期</label>
+        <input type="date" id="inputDate">
+      </div>
+      <div class="input-group">
+        <label>發車時間</label>
+        <input type="time" id="inputTime" required>
+      </div>
+      <div class="input-group">
+        <label>路線</label>
+        <input type="text" id="inputRoute" placeholder="選擇路線" list="routesList" required style="width: 110px;">
+        <datalist id="routesList"></datalist>
+      </div>
+      <div class="input-group">
+        <label>起始點</label>
+        <input type="text" id="inputStart" placeholder="選擇起站" list="stationsList" required style="width: 140px;">
+      </div>
+      <div class="input-group">
+        <label>終點站</label>
+        <input type="text" id="inputEnd" placeholder="選擇終站" list="stationsList" required style="width: 140px;">
+        <datalist id="stationsList"></datalist>
+      </div>
+
+      <button id="addTripBtn" class="bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold" style="height: 42px;">
+        ＋ 新增車趟
+      </button>
+      
+      <div style="flex-grow: 1;"></div> 
+
+      <button id="btnClearAssign" class="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold" title="清除所有排定的駕駛與車輛" style="height: 42px;">
+        🧹 一鍵清除
+      </button>
+      
+      <button id="btnAutoDispatch" class="bg-gradient-to-b from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-6 py-2.5 rounded-lg shadow-lg transition-all transform hover:-translate-y-1 scale-105 font-bold" title="執行智慧人性化調度" style="height: 44px; margin: 0 5px;">
+        ✨ 智慧自動調度
+      </button>
+      
+      <button id="btnPrintAll" class="bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold" style="height: 42px;">
+        🖨️ 批次列印憑單
+      </button>
     </div>
 
-    <div class="no-print h-20 bg-[#2a2f3e] border-t border-[#374151] flex items-center px-4 space-x-3 flex-shrink-0 overflow-x-auto">
-        <div class="flex flex-col">
-            <span class="text-[10px] text-gray-400 mb-1">目前指派對象</span>
-            <div id="active-row-name" class="text-sm font-bold text-yellow-400 w-32 truncate">尚未選擇</div>
-        </div>
-        <div class="h-8 w-px bg-gray-600 mx-2"></div>
-        <div class="flex flex-col">
-            <span class="text-[10px] text-gray-400 mb-1">路線</span>
-            <select id="inp-route" class="bg-[#1e222d] border border-gray-600 text-white rounded px-2 py-1 text-sm outline-none w-24">
-                <option value="">選擇路線</option>
-            </select>
-        </div>
-        <div class="flex flex-col">
-            <span class="text-[10px] text-gray-400 mb-1">起始站</span>
-            <input type="text" id="inp-start" list="station-list" placeholder="請選擇或輸入" class="bg-[#1e222d] border border-gray-600 text-white rounded px-2 py-1 text-sm outline-none w-28">
-        </div>
-        <div class="flex flex-col">
-            <span class="text-[10px] text-gray-400 mb-1">發車時間</span>
-            <input type="time" id="inp-dep" class="bg-[#1e222d] border border-gray-600 text-white rounded px-2 py-1 text-sm outline-none">
-        </div>
-        <div class="flex flex-col">
-            <span class="text-[10px] text-gray-400 mb-1">到達站 (迄站)</span>
-            <input type="text" id="inp-arr-station" list="station-list" placeholder="請選擇或輸入" class="bg-[#1e222d] border border-gray-600 text-white rounded px-2 py-1 text-sm outline-none w-28">
-        </div>
-        <div class="flex flex-col">
-            <span class="text-[10px] text-gray-400 mb-1">預計到達</span>
-            <input type="time" id="inp-arr" class="bg-[#1e222d] border border-gray-600 text-white rounded px-2 py-1 text-sm outline-none">
-        </div>
-        <div class="flex flex-col">
-            <span class="text-[10px] text-gray-400 mb-1">備註</span>
-            <input type="text" id="inp-remark" placeholder="(選填)" class="bg-[#1e222d] border border-gray-600 text-white rounded px-2 py-1 text-sm outline-none w-20">
-        </div>
-        <div class="flex flex-col justify-end h-full pb-1 ml-auto">
-            <button onclick="addTripToActive()" class="bg-gray-600 hover:bg-gray-500 text-white px-6 py-1.5 rounded text-sm font-bold transition disabled:opacity-50" id="btn-add-trip" disabled>加入趟次</button>
-        </div>
-    </div>
+    <table id="dispatchTable">
+      <thead>
+        <tr>
+          <th>發車時間</th>
+          <th>路線</th>
+          <th>起始點</th>
+          <th>終點站</th> 
+          <th>指派駕駛</th>
+          <th>指派車輛</th>
+          <th>狀態控制</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="dispatchBody"></tbody>
+    </table>
+  </div>
+  
+  <div id="print-zone"></div>
 
-    <div class="no-print timeline-container flex-1">
-        <div class="timeline-header flex" id="time-headers"></div>
-        <div id="dispatch-board"></div>
-    </div>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, setDoc, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js'; // 【權限模組引入】
 
-    <div id="manage-modal" class="no-print hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-        <div class="bg-[#2a2f3e] p-6 rounded-lg shadow-xl border border-gray-500 w-[550px] max-h-[90vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-6 border-b border-gray-600 pb-3">
-                <h3 class="text-xl font-bold text-white flex items-center">
-                    <span class="mr-2">⚙️</span> 雲端基礎資料建檔
-                </h3>
-                <button onclick="closeManageModal()" class="text-gray-400 hover:text-white text-xl">✕</button>
+    // 1. 先宣告權限只有這些職稱可以進入發車控制台
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
+
+    // 2. 啟動驗證大門：所有程式邏輯必須寫在 .then() 裡面
+    checkAuthAndGetRole(allowedRoles).then((user) => {
+        // 顯示介面
+        document.querySelector('.content-area').style.display = 'block';
+
+        // 登出按鈕邏輯
+        const nav = document.querySelector('.navbar');
+        nav.innerHTML += `
+            <div class="ml-auto flex items-center gap-4 text-white font-bold">
+                <span class="text-sm bg-blue-800 px-3 py-1 rounded">👤 ${user.name}</span>
+                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm">登出</button>
             </div>
-            
-            <div class="space-y-4">
-                <div class="bg-[#1e222d] p-4 rounded-lg border border-gray-600 relative overflow-hidden">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
-                    <h4 class="text-sm font-bold text-blue-400 mb-3">新增駕駛員</h4>
-                    <div class="flex space-x-2">
-                        <input type="text" id="m-driver-name" placeholder="姓名 (如: 王大明)" class="w-2/5 bg-[#161a22] border border-gray-600 text-white rounded px-3 py-2 text-sm outline-none focus:border-blue-500">
-                        <input type="text" id="m-driver-empid" placeholder="員工編號 (如: 0686851)" class="w-2/5 bg-[#161a22] border border-gray-600 text-white rounded px-3 py-2 text-sm outline-none focus:border-blue-500">
-                        <button onclick="addNewDriver()" class="w-1/5 bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-2 text-sm font-bold transition">儲存</button>
-                    </div>
-                </div>
+        `;
+        document.getElementById('btnLogout').addEventListener('click', logout);
 
-                <div class="bg-[#1e222d] p-4 rounded-lg border border-gray-600 relative overflow-hidden">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
-                    <h4 class="text-sm font-bold text-emerald-400 mb-3">新增車輛</h4>
-                    <div class="flex space-x-2">
-                        <input type="text" id="m-vehicle-id" placeholder="車牌號碼 (如: KKA-9999)" class="w-4/5 bg-[#161a22] border border-gray-600 text-white rounded px-3 py-2 text-sm outline-none focus:border-emerald-500">
-                        <button onclick="addNewVehicle()" class="w-1/5 bg-emerald-600 hover:bg-emerald-500 text-white rounded px-3 py-2 text-sm font-bold transition">儲存</button>
-                    </div>
-                </div>
-
-                <div class="bg-[#1e222d] p-4 rounded-lg border border-gray-600 relative overflow-hidden">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500"></div>
-                    <h4 class="text-sm font-bold text-yellow-400 mb-3">新增營運路線</h4>
-                    <div class="flex space-x-2">
-                        <input type="text" id="m-route-id" placeholder="路線編號/名稱 (如: 1816)" class="w-4/5 bg-[#161a22] border border-gray-600 text-white rounded px-3 py-2 text-sm outline-none focus:border-yellow-500">
-                        <button onclick="addNewRoute()" class="w-1/5 bg-yellow-600 hover:bg-yellow-500 text-white rounded px-3 py-2 text-sm font-bold transition">儲存</button>
-                    </div>
-                </div>
-
-                <div class="bg-[#1e222d] p-4 rounded-lg border border-gray-600 relative overflow-hidden">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-purple-500"></div>
-                    <h4 class="text-sm font-bold text-purple-400 mb-3">新增公車站點</h4>
-                    <div class="flex space-x-2">
-                        <input type="text" id="m-station-name" placeholder="站點名稱 (如: 臺北車站)" class="w-4/5 bg-[#161a22] border border-gray-600 text-white rounded px-3 py-2 text-sm outline-none focus:border-purple-500">
-                        <button onclick="addNewStation()" class="w-1/5 bg-purple-600 hover:bg-purple-500 text-white rounded px-3 py-2 text-sm font-bold transition">儲存</button>
-                    </div>
-                </div>
-                
-                <p class="text-xs text-gray-500 text-center mt-2">新增完成後，資料將自動同步至 Firebase 雲端與排班操作面板</p>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal" class="no-print hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-        <div class="bg-[#2a2f3e] p-6 rounded-lg shadow-xl border border-gray-600 w-96">
-            <h3 class="text-lg font-bold text-white mb-4">新增駕駛排班</h3>
-            
-            <label class="block text-[10px] text-gray-400 mb-1">選擇駕駛員</label>
-            <select id="new-driver" class="w-full bg-[#1e222d] border border-gray-600 text-white rounded px-3 py-2 mb-3 outline-none">
-                <option value="">-- 載入中 --</option>
-            </select>
-            
-            <label class="block text-[10px] text-gray-400 mb-1">選擇指派車輛</label>
-            <select id="new-vehicle" class="w-full bg-[#1e222d] border border-gray-600 text-white rounded px-3 py-2 mb-3 outline-none">
-                <option value="">-- 載入中 --</option>
-            </select>
-            
-            <label class="block text-[10px] text-gray-400 mb-1">路線班別</label>
-            <input type="text" id="new-shift" placeholder="班別 (如: 27-6假)" class="w-full bg-[#1e222d] border border-gray-600 text-white rounded px-3 py-2 mb-4 outline-none">
-            
-            <div class="flex justify-end space-x-2">
-                <button onclick="closeAssignModal()" class="px-4 py-2 text-gray-400 hover:text-white">取消</button>
-                <button onclick="confirmAddAssign()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">確認建立</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="print-zone"></div>
-
-    <script>
-        // ==========================================
-        // 1. Firebase 資料庫連線設定
-        // ==========================================
+        // 3. 初始化 Firebase
         const firebaseConfig = {
-            apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-            authDomain: "jun-bus-dispatch.firebaseapp.com",
-            projectId: "jun-bus-dispatch",
-            storageBucket: "jun-bus-dispatch.firebasestorage.app",
-            messagingSenderId: "621725744717",
-            appId: "1:621725744717:web:64e663648d8c76b9bd6604",
-            measurementId: "G-10TKXKRPY9"
+          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
+          authDomain: "jun-bus-dispatch.firebaseapp.com",
+          projectId: "jun-bus-dispatch",
+          storageBucket: "jun-bus-dispatch.firebasestorage.app",
+          messagingSenderId: "621725744717",
+          appId: "1:621725744717:web:64e663648d8c76b9bd6604"
         };
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        const dbStatusEl = document.getElementById('db-status');
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const dispatchesCol = collection(db, "daily_dispatches");
+        const fleetCol = collection(db, "Vehicles"); 
+        const routesCol = collection(db, "Routes");
+        const stationsCol = collection(db, "Stations");
 
-        let masterSchedule = [];
-        let activeRowId = null; 
+        const dateInput = document.getElementById('inputDate');
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
 
-        // ==========================================
-        // 2. 基礎建檔管理面板邏輯 (新增四大操作)
-        // ==========================================
-        function openManageModal() { document.getElementById('manage-modal').classList.remove('hidden'); }
-        function closeManageModal() { document.getElementById('manage-modal').classList.add('hidden'); }
+        onSnapshot(query(routesCol, orderBy("name", "asc")), (snapshot) => {
+          const datalist = document.getElementById('routesList');
+          datalist.innerHTML = '';
+          snapshot.forEach(doc => { datalist.innerHTML += `<option value="${doc.data().name}"></option>`; });
+        });
 
-        async function addNewDriver() {
-            const name = document.getElementById('m-driver-name').value.trim();
-            const empId = document.getElementById('m-driver-empid').value.trim();
-            if(!name || !empId) return alert('請填寫完整姓名與員工編號！');
-            try {
-                await db.collection('Drivers').doc(empId).set({ name: name, status: 'active', licenseType: '大客車' });
-                alert(`✅ 駕駛員 [${name}] 建檔成功！`);
-                document.getElementById('m-driver-name').value = '';
-                document.getElementById('m-driver-empid').value = '';
-                fetchDropdownData(); 
-            } catch(e) { console.error(e); alert('寫入失敗'); }
+        onSnapshot(query(stationsCol, orderBy("name", "asc")), (snapshot) => {
+          const datalist = document.getElementById('stationsList');
+          datalist.innerHTML = '';
+          snapshot.forEach(doc => { datalist.innerHTML += `<option value="${doc.data().name}"></option>`; });
+        });
+
+        function getWeekInfo(dateStr) {
+          const d = new Date(dateStr);
+          const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+          const target = new Date(d.valueOf());
+          const dayNr = (d.getDay() + 6) % 7;
+          target.setDate(target.getDate() - dayNr + 3);
+          const firstThursday = target.valueOf();
+          target.setMonth(0, 1);
+          if (target.getDay() !== 4) { target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7); }
+          const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
+          return { weekId: `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };
         }
 
-        async function addNewVehicle() {
-            const vid = document.getElementById('m-vehicle-id').value.trim().toUpperCase();
-            if(!vid) return alert('請填寫車牌號碼！');
-            try {
-                await db.collection('Vehicles').doc(vid).set({ model: '客運大巴', status: 'available' });
-                alert(`✅ 車輛 [${vid}] 建檔成功！`);
-                document.getElementById('m-vehicle-id').value = '';
-                fetchDropdownData(); 
-            } catch(e) { console.error(e); alert('寫入失敗'); }
-        }
+        let currentAvailableDrivers = [];
+        let currentAvailableVehicles = []; 
+        let currentDayTrips = [];
 
-        async function addNewRoute() {
-            const routeId = document.getElementById('m-route-id').value.trim();
-            if(!routeId) return alert('請填寫路線名稱或編號！');
-            try {
-                await db.collection('Routes').doc(routeId).set({ name: routeId, status: 'active' });
-                alert(`✅ 路線 [${routeId}] 建檔成功！`);
-                document.getElementById('m-route-id').value = '';
-                fetchDropdownData(); 
-            } catch(e) { console.error(e); alert('寫入失敗'); }
-        }
-
-        async function addNewStation() {
-            const stationName = document.getElementById('m-station-name').value.trim();
-            if(!stationName) return alert('請填寫站點名稱！');
-            try {
-                await db.collection('Stations').doc(stationName).set({ name: stationName, status: 'active' });
-                alert(`✅ 站點 [${stationName}] 建檔成功！`);
-                document.getElementById('m-station-name').value = '';
-                fetchDropdownData(); 
-            } catch(e) { console.error(e); alert('寫入失敗'); }
-        }
-
-        // ==========================================
-        // 3. 初始化與動態撈取資料
-        // ==========================================
-        window.onload = () => {
-            const headerContainer = document.getElementById('time-headers');
-            headerContainer.innerHTML = '<div class="row-info !bg-[#161a22] !border-none !shadow-none text-gray-400 text-xs font-bold text-center flex-row items-center justify-center">人員與車輛編組</div><div class="row-timeline flex" id="time-cells"></div>';
-            const cellContainer = document.getElementById('time-cells');
-            for(let i = 5; i <= 28; i++) {
-                let displayHour = i >= 24 ? i - 24 : i;
-                displayHour = String(displayHour).padStart(2, '0');
-                cellContainer.innerHTML += `<div class="timeline-header-cell">${displayHour}:00</div>`;
-            }
-
-            const today = new Date().toISOString().split('T')[0];
-            const dateInput = document.getElementById('sys-date');
-            dateInput.value = today;
-
-            dateInput.addEventListener('change', (e) => loadDailyDispatch(e.target.value));
-
-            fetchDropdownData();
-            loadDailyDispatch(today);
-        };
-
-        // 從 Firebase 抓取四大清單
-        async function fetchDropdownData() {
-            try {
-                // 抓駕駛
-                const driversSnap = await db.collection("Drivers").where("status", "==", "active").get();
-                let driversHtml = '<option value="">-- 請選擇駕駛 --</option>';
-                driversSnap.forEach(doc => {
-                    const data = doc.data();
-                    driversHtml += `<option value="${data.name}" data-empid="${doc.id}">${data.name} (${data.licenseType || '大客車'})</option>`;
-                });
-                document.getElementById('new-driver').innerHTML = driversHtml;
-
-                // 抓車輛
-                const vehiclesSnap = await db.collection("Vehicles").where("status", "==", "available").get();
-                let vehiclesHtml = '<option value="">-- 請選擇車牌 --</option>';
-                vehiclesSnap.forEach(doc => {
-                    vehiclesHtml += `<option value="${doc.id}">${doc.id}</option>`;
-                });
-                document.getElementById('new-vehicle').innerHTML = vehiclesHtml;
-
-                // 抓路線
-                const routesSnap = await db.collection("Routes").where("status", "==", "active").get();
-                let routesHtml = '<option value="">選擇路線...</option>';
-                routesSnap.forEach(doc => {
-                    routesHtml += `<option value="${doc.id}">${doc.id}</option>`;
-                });
-                document.getElementById('inp-route').innerHTML = routesHtml;
-
-                // 抓站點
-                const stationsSnap = await db.collection("Stations").where("status", "==", "active").get();
-                let stationsHtml = '';
-                stationsSnap.forEach(doc => {
-                    stationsHtml += `<option value="${doc.id}"></option>`;
-                });
-                document.getElementById('station-list').innerHTML = stationsHtml;
-
-                dbStatusEl.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/50";
-                dbStatusEl.innerText = "資料庫已連線";
-            } catch (error) {
-                console.error("選單資料讀取失敗: ", error);
-                dbStatusEl.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/50";
-                dbStatusEl.innerText = "連線失敗";
-                loadMockData(); // 網路失敗時給予模擬資料
-            }
-        }
-
-        // 若無網路時的預設資料
-        function loadMockData() {
-            document.getElementById('new-driver').innerHTML = `<option value="劉政均" data-empid="0686849">劉政均</option><option value="邱ＯＯ" data-empid="0686850">邱ＯＯ</option>`;
-            document.getElementById('new-vehicle').innerHTML = `<option value="KKA-5850">KKA-5850</option><option value="467-FS">467-FS</option>`;
-            document.getElementById('inp-route').innerHTML = `<option value="">選擇路線...</option><option value="27">27</option><option value="59">59</option>`;
-            document.getElementById('station-list').innerHTML = `<option value="第一廣場"></option><option value="嶺東三站"></option><option value="軍英雄館"></option><option value="舊正社區"></option>`;
-        }
-
-        async function loadDailyDispatch(dateStr) {
-            const docId = dateStr.replace(/-/g, '');
-            try {
-                const doc = await db.collection("DailyDispatch").doc(docId).get();
-                if(doc.exists) {
-                    masterSchedule = doc.data().assignments || [];
-                } else {
-                    masterSchedule = []; 
+        async function loadAvailableDrivers(selectedDate) {
+          const { weekId, dayKey } = getWeekInfo(selectedDate);
+          currentAvailableDrivers = []; 
+          try {
+            const docRef = doc(db, "weekly_schedules", weekId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists() && (docSnap.data().roster || docSnap.data().roater)) {
+              const roster = docSnap.data().roster || docSnap.data().roater;
+              for (let driverId in roster) {
+                const shift = roster[driverId][dayKey];
+                if (shift && shift !== "OFF" && shift !== "OFF (休)") {
+                  currentAvailableDrivers.push({ empId: driverId, name: roster[driverId].name, shift: shift });
                 }
-                activeRowId = null;
-                document.getElementById('active-row-name').innerText = "尚未選擇";
-                document.getElementById('active-row-name').className = "text-sm font-bold text-gray-500 w-32 truncate";
-                const btn = document.getElementById('btn-add-trip');
-                btn.disabled = true;
-                btn.classList.add('bg-gray-600', 'hover:bg-gray-500');
-                btn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
-                renderBoard();
-            } catch(e) {
-                console.error("讀取班表失敗", e);
+              }
             }
+          } catch (e) { console.error(e); }
         }
 
-        // ==========================================
-        // 4. 大表渲染與排班操作
-        // ==========================================
-        function renderBoard() {
-            const board = document.getElementById('dispatch-board');
-            board.innerHTML = '';
-            
-            if(masterSchedule.length === 0) {
-                board.innerHTML = `<div class="p-8 text-center text-gray-500 font-bold tracking-widest border-2 border-dashed border-gray-700 m-8 rounded-xl bg-[#1e222d]/50">本日目前無任何調度紀錄<br><br><span class="text-xs text-gray-600">請點擊上方「+ 新增駕駛排班」開始作業</span></div>`;
-                return;
-            }
-
-            masterSchedule.forEach(assign => {
-                const isActive = activeRowId === assign.id ? 'border-l-4 border-blue-500 bg-[#252a38]' : '';
-                let rowHtml = `
-                    <div class="dispatch-row ${isActive}" onclick="setActiveRow(${assign.id})">
-                        <div class="row-info cursor-pointer">
-                            <div class="font-bold text-white text-sm">${assign.driver} <span class="text-xs text-gray-400 font-normal ml-1">${assign.shiftType}</span></div>
-                            <div class="text-xs text-blue-400 mt-1 font-mono">${assign.vehicle}</div>
-                        </div>
-                        <div class="row-timeline">
-                `;
-                
-                if(assign.trips) {
-                    assign.trips.forEach(trip => {
-                        const leftPercent = timeToPercent(trip.depTime);
-                        const widthPercent = calculateDurationPercent(trip.depTime, trip.arrTime);
-                        
-                        // 動態給予顏色：59與27為特定色，其餘預設為靛藍色
-                        let colorClass = 'default-route'; 
-                        if(trip.route === '59') colorClass = 'route-59';
-                        if(trip.route === '27') colorClass = 'route-27';
-
-                        rowHtml += `
-                            <div class="trip-bar ${colorClass}" style="left: ${leftPercent}%; width: ${widthPercent}%;" title="${trip.route} (${trip.startStation} -> ${trip.arrStation}) | ${trip.depTime} - ${trip.arrTime}" onclick="event.stopPropagation(); removeTrip(${assign.id}, ${trip.id})">
-                                <div class="font-bold truncate text-[10px] leading-tight">${trip.route} ${trip.startStation}</div>
-                                <div class="text-[9px] text-gray-200 truncate leading-tight">${trip.depTime} ➔ ${trip.arrStation}</div>
-                            </div>
-                        `;
-                    });
-                }
-                rowHtml += `</div></div>`;
-                board.innerHTML += rowHtml;
+        async function loadAvailableVehicles() {
+          currentAvailableVehicles = [];
+          try {
+            const snapshot = await getDocs(fleetCol);
+            snapshot.forEach((doc) => {
+              const v = doc.data();
+              if (v.status === 'ready') { currentAvailableVehicles.push({ plate: v.plate_number || doc.id, model: v.model }); }
             });
+          } catch (e) { console.error(e); }
         }
 
-        function setActiveRow(id) {
-            activeRowId = id;
-            const assign = masterSchedule.find(a => a.id === id);
-            const activeEl = document.getElementById('active-row-name');
-            activeEl.innerText = `${assign.driver} (${assign.vehicle})`;
-            activeEl.className = "text-sm font-bold text-yellow-400 w-32 truncate";
+        async function listenToDispatches(selectedDate) {
+          await loadAvailableDrivers(selectedDate);
+          await loadAvailableVehicles(); 
+
+          const tbody = document.getElementById('dispatchBody');
+          
+          // 關鍵修改：查詢時加入 stationId 過濾
+          let q;
+          if (user.role === 'SuperAdmin') {
+              q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
+          } else {
+              q = query(dispatchesCol, where("date", "==", selectedDate), where("stationId", "==", user.stationId), orderBy("departure_time", "asc"));
+          }
+
+          onSnapshot(q, (snapshot) => {
+            tbody.innerHTML = ''; 
+            currentDayTrips = []; 
+
+            if (snapshot.empty) { tbody.innerHTML = '<tr><td colspan="8" style="color: #94a3b8; padding: 40px; font-weight:bold; font-size:16px;">本日尚未建立任何發車車趟。</td></tr>'; return; }
+
+            snapshot.forEach(doc => { currentDayTrips.push({ id: doc.id, ...doc.data() }); });
+
+            currentDayTrips.forEach((data) => {
+              const tr = document.createElement('tr');
+              
+              let driverOptions = `<option value="尚未指派" data-empid="">-- 尚未指派 --</option>`;
+              currentAvailableDrivers.forEach(d => { 
+                  const displayText = `${d.empId} ${d.name} (${d.shift})`;
+                  driverOptions += `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver === d.name ? 'selected' : ''}>${displayText}</option>`; 
+              });
+
+              let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;
+              currentAvailableVehicles.forEach(v => { vehicleOptions += `<option value="${v.plate}" ${data.assigned_vehicle === v.plate ? 'selected' : ''}>${v.plate} (${v.model})</option>`; });
+
+              let rowClass = '';
+              let statusButtonHtml = '';
+              if (data.status === 'pending') {
+                statusButtonHtml = `<button class="btn-status btn-pending status-toggle" data-id="${data.id}" data-next="active">按此發車</button>`;
+              } else if (data.status === 'active') {
+                rowClass = 'active-row'; 
+                statusButtonHtml = `<button class="btn-status btn-active status-toggle" data-id="${data.id}" data-next="done">按此完班</button>`;
+              } else if (data.status === 'done') {
+                rowClass = 'done-row';   
+                statusButtonHtml = `<button class="btn-status btn-done" disabled>已完成</button>`;
+              }
+              
+              tr.className = rowClass;
+              tr.innerHTML = `
+                <td style="font-size: 18px; font-weight: 800; color: #0f172a;">${data.departure_time}</td>
+                <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #bae6fd;">${data.route}</span></td>
+                <td style="font-weight: 700; color:#334155;">${data.start_point}</td>
+                <td style="font-weight: 700; color:#334155;">${data.end_point || '無資料'}</td>
+                <td><select class="driver-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${driverOptions}</select></td>
+                <td><select class="vehicle-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${vehicleOptions}</select></td>
+                <td>${statusButtonHtml}</td>
+                <td>
+                   <button class="btn-edit-trip bg-sky-500 hover:bg-sky-600 text-white" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point || ''}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer;">編輯</button>
+                   <button class="btn-delete-trip bg-rose-500 hover:bg-rose-600 text-white" data-id="${data.id}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer; margin-top: 4px;">刪除</button>
+                </td>
+              `;
+              tbody.appendChild(tr);
+            });
+
+            document.querySelectorAll('.driver-select').forEach(el => el.addEventListener('change', async (e) => {
+              const newDriver = e.target.value;
+              const selectedOption = e.target.options[e.target.selectedIndex];
+              const newEmpId = selectedOption.dataset.empid || ""; 
+
+              if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
+                if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) { 
+                    e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_driver; 
+                    return; 
+                }
+              }
+              await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_driver: newDriver, assigned_empid: newEmpId });
+            }));
+
+            document.querySelectorAll('.vehicle-select').forEach(el => el.addEventListener('change', async (e) => {
+              const newVeh = e.target.value;
+              if (newVeh !== "尚未指派" && currentDayTrips.find(t => t.assigned_vehicle === newVeh && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
+                if (!confirm(`⚠️ 警告！車輛【${newVeh}】已排定其他任務，確定要強制指派嗎？`)) { e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_vehicle; return; }
+              }
+              await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_vehicle: newVeh });
+            }));
+
+            document.querySelectorAll('.status-toggle').forEach(btn => btn.addEventListener('click', async (e) => {
+              await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { status: e.target.dataset.next });
+            }));
+
+            document.querySelectorAll('.btn-delete-trip').forEach(btn => btn.addEventListener('click', async (e) => {
+              if (confirm("⚠️ 確定要刪除這筆紀錄嗎？")) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
+            }));
+
+            document.querySelectorAll('.btn-edit-trip').forEach(btn => btn.addEventListener('click', (e) => {
+              document.getElementById('inputTime').value = e.target.dataset.time;
+              document.getElementById('inputRoute').value = e.target.dataset.route;
+              document.getElementById('inputStart').value = e.target.dataset.start;
+              document.getElementById('inputEnd').value = e.target.dataset.end;
+              editingDocId = e.target.dataset.id;
+              document.getElementById('addTripBtn').innerHTML = "💾 儲存修改"; 
+              document.getElementById('addTripBtn').className = "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }));
+          });
+        }
+
+        let editingDocId = null;
+        const mainAddBtn = document.getElementById('addTripBtn');
+
+        mainAddBtn.onclick = async () => {
+          const date = dateInput.value;
+          const time = document.getElementById('inputTime').value;
+          const route = document.getElementById('inputRoute').value.trim();
+          const start = document.getElementById('inputStart').value.trim();
+          const end = document.getElementById('inputEnd').value.trim();
+
+          if (!time || !route || !start || !end) { alert("請填寫完整資訊！"); return; }
+
+          try {
+            if (editingDocId) {
+              await updateDoc(doc(db, "daily_dispatches", editingDocId), { departure_time: time, route: route, start_point: start, end_point: end });
+              editingDocId = null; 
+              mainAddBtn.innerHTML = "＋ 新增車趟"; 
+              mainAddBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
+            } else {
+              await addDoc(dispatchesCol, { date, departure_time: time, route, start_point: start, end_point: end, assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending", stationId: user.stationId || "" });
+            }
+
+            await setDoc(doc(db, "Routes", route), { name: route });
+            await setDoc(doc(db, "Stations", start), { name: start });
+            await setDoc(doc(db, "Stations", end), { name: end });
+
+            document.getElementById('inputTime').value = ''; 
+            document.getElementById('inputRoute').value = ''; 
+            document.getElementById('inputStart').value = '';
+            document.getElementById('inputEnd').value = '';
+          } catch (err) { console.error(err); }
+        };
+
+        listenToDispatches(today);
+        dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });
+
+        document.getElementById('btnClearAssign').addEventListener('click', async () => {
+            // 安全防護：僅針對當前使用者所屬站點的車趟進行清除 (SuperAdmin 則包含全部)
+            const tripsToClear = currentDayTrips.filter(t => user.role === 'SuperAdmin' || t.stationId === user.stationId);
             
-            const btn = document.getElementById('btn-add-trip');
+            if(tripsToClear.length === 0) return;
+            
+            let msg = "確定要將今日【所屬站點】的車趟還原為「尚未指派」嗎？\n(注意：這將會清除目前畫面上所有的駕駛與車輛配置！)";
+            if (user.role === 'SuperAdmin') {
+                msg = "⚠️ 警告：您具有系統管理員權限！\n執行此操作將會清除【所有站點】的車趟配置！確定要繼續嗎？";
+            }
+            if (!confirm(msg)) return;
+
+            const btn = document.getElementById('btnClearAssign');
+            btn.innerHTML = "🧹 清除中...";
+            btn.disabled = true;
+
+            try {
+                const batch = writeBatch(db);
+                let count = 0;
+                for (let trip of tripsToClear) {
+                    if(trip.assigned_driver !== "尚未指派" || trip.assigned_vehicle !== "尚未指派") {
+                        batch.update(doc(db, "daily_dispatches", trip.id), {
+                            assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派"
+                        });
+                        count++;
+                    }
+                }
+                if (count > 0) await batch.commit();
+            } catch(e) { console.error(e); alert("清除失敗！"); }
+
+            btn.innerHTML = "🧹 一鍵清除";
             btn.disabled = false;
-            btn.classList.remove('bg-gray-600', 'hover:bg-gray-500');
-            btn.classList.add('bg-blue-600', 'hover:bg-blue-500');
-            renderBoard(); 
-        }
+        });
 
-        function timeToPercent(timeStr) {
-            if(!timeStr) return 0;
-            const [h, m] = timeStr.split(':').map(Number);
-            let absoluteHours = h + (m / 60);
-            if(absoluteHours < 5) absoluteHours += 24; 
-            return ((absoluteHours - 5) / 24) * 100;
-        }
+        document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
+            let msg = "確定針對所屬站點執行「智慧自動調度」嗎？\n系統將考慮「休息時間」、「早晚兩頭班防呆」與「路線起訖站連貫性」進行最佳化配置！";
+            if (user.role === 'SuperAdmin') {
+                msg = "⚠️ 警告：您具有系統管理員權限！\n執行此操作將會混合調度【所有站點】的車趟與人員！確定要繼續嗎？";
+            }
+            if (!confirm(msg)) return;
 
-        function calculateDurationPercent(start, end) {
-            if(!start || !end) return 5; 
-            const p1 = timeToPercent(start);
-            let p2 = timeToPercent(end);
-            if(p2 < p1) p2 += 100; 
-            return Math.max(p2 - p1, 1); 
-        }
+            const btn = document.getElementById('btnAutoDispatch');
+            btn.innerHTML = "🤖 運算中...";
+            btn.disabled = true;
 
-        function addTripToActive() {
-            if(!activeRowId) return;
-            const route = document.getElementById('inp-route').value;
-            const startStation = document.getElementById('inp-start').value;
-            const depTime = document.getElementById('inp-dep').value;
-            const arrStation = document.getElementById('inp-arr-station').value;
-            const arrTime = document.getElementById('inp-arr').value;
-            const remark = document.getElementById('inp-remark').value;
-            
-            if(!route || !startStation || !arrStation || !depTime || !arrTime) { 
-                alert("請填寫完整資訊！"); return; 
+            try {
+                await loadAvailableDrivers(dateInput.value);
+                await loadAvailableVehicles();
+
+                if (currentAvailableDrivers.length === 0 || currentAvailableVehicles.length === 0) {
+                    alert("⚠️ 錯誤：目前沒有可用且非休假的駕駛員或車輛！");
+                    btn.innerHTML = "✨ 智慧自動調度";
+                    btn.disabled = false;
+                    return;
+                }
+
+                let singleShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("單"));
+                let splitShifts = currentAvailableDrivers.filter(d => d.shift && (d.shift.includes("頭")));
+                let morningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("早"));
+                let eveningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("晚"));
+                let standbys = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("待命"));
+                
+                let others = currentAvailableDrivers.filter(d => !d.shift || (!d.shift.includes("單") && !d.shift.includes("早") && !d.shift.includes("晚") && !d.shift.includes("頭") && !d.shift.includes("待命")));
+                singleShifts.push(...others);
+
+                let fleet = [];
+                let availableVehs = [...currentAvailableVehicles];
+
+                function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
+
+                [...singleShifts, ...splitShifts].forEach(d => {
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                });
+
+                let maxPairs = Math.max(morningShifts.length, eveningShifts.length);
+                for (let i = 0; i < maxPairs; i++) {
+                    let sharedCar = assignVehicle();
+                    if (morningShifts[i]) fleet.push({ ...morningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                    if (eveningShifts[i]) fleet.push({ ...eveningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                }
+
+                standbys.forEach(d => {
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 2, tripsCount: 0 });
+                });
+
+                fleet = fleet.filter(f => f.vehicle !== "無車可用");
+
+                // 安全防護：過濾出尚未指派且屬於當前站點的車趟
+                let pendingTrips = currentDayTrips.filter(t => 
+                    (t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派") && 
+                    (user.role === 'SuperAdmin' || t.stationId === user.stationId)
+                );
+                pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+
+                let successCount = 0;
+                let failCount = 0;
+                const batch = writeBatch(db); 
+
+                for (let trip of pendingTrips) {
+                    let depTime = trip.departure_time;
+                    let hour = parseInt(depTime.split(':')[0]);
+
+                    let candidates = fleet.filter(unit => {
+                        if (unit.availableTime > depTime) return false; 
+                        
+                        let s = unit.shift || "";
+                        if (s.includes("早") && hour >= 14) return false; 
+                        if (s.includes("晚") && hour < 14) return false;  
+                        if (s.includes("頭") && (hour >= 10 && hour <= 14)) return false; 
+                        
+                        return true; 
+                    });
+
+                    if (candidates.length > 0) {
+                        candidates.forEach(c => {
+                            c.score = 0;
+                            if (c.priority === 1) c.score += 100; 
+                            if (c.lastStation === trip.start_point) c.score += 50; 
+                            if (c.lastRoute === trip.route) c.score += 30; 
+                        });
+
+                        candidates.sort((a, b) => {
+                            if (b.score !== a.score) return b.score - a.score;
+                            return a.tripsCount - b.tripsCount;
+                        });
+
+                        let assignedUnit = candidates[0];
+
+                        batch.update(doc(db, "daily_dispatches", trip.id), { 
+                            assigned_driver: assignedUnit.name,
+                            assigned_empid: assignedUnit.empId,
+                            assigned_vehicle: assignedUnit.vehicle
+                        });
+                        successCount++;
+
+                        assignedUnit.tripsCount++;
+                        assignedUnit.lastStation = trip.end_point; 
+                        assignedUnit.lastRoute = trip.route;
+
+                        let breakTime = 90; 
+                        if (assignedUnit.shift.includes("單") && assignedUnit.tripsCount >= 1 && hour >= 11 && hour <= 13) {
+                            breakTime = 150; 
+                        }
+
+                        let [h, m] = depTime.split(':').map(Number);
+                        m += breakTime;
+                        h += Math.floor(m / 60);
+                        m = m % 60;
+                        if (h >= 24) h -= 24;
+                        assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    } else {
+                        failCount++;
+                    }
+                }
+
+                if (successCount > 0) await batch.commit();
+
+                if (failCount > 0) {
+                    alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)\n※ 系統已嚴格遵守連貫性與休息法規，略過車趟請手動微調。`);
+                } else {
+                    alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「彈性大中退」排班！`);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("執行自動調度時發生錯誤！請檢查網路。");
             }
 
-            const assign = masterSchedule.find(a => a.id === activeRowId);
-            if(!assign.trips) assign.trips = [];
-            assign.trips.push({ id: Date.now(), route, startStation, depTime, arrStation, arrTime, remark });
-            
-            document.getElementById('inp-dep').value = arrTime; 
-            document.getElementById('inp-start').value = arrStation;
-            document.getElementById('inp-arr-station').value = startStation;
-            document.getElementById('inp-arr').value = '';
-            document.getElementById('inp-remark').value = '';
-            
-            saveToFirebaseSilently();
-            renderBoard();
-        }
+            btn.innerHTML = "✨ 智慧自動調度";
+            btn.disabled = false;
+        });
 
-        function removeTrip(assignId, tripId) {
-            if(confirm("刪除此趟次？")) {
-                const assign = masterSchedule.find(a => a.id === assignId);
-                assign.trips = assign.trips.filter(t => t.id !== tripId);
-                saveToFirebaseSilently();
-                renderBoard();
-            }
-        }
-
-        function openAssignModal() { document.getElementById('modal').classList.remove('hidden'); }
-        function closeAssignModal() { document.getElementById('modal').classList.add('hidden'); }
-        
-        function confirmAddAssign() {
-            const driverSelect = document.getElementById('new-driver');
-            const driver = driverSelect.value;
-            const empId = driverSelect.options[driverSelect.selectedIndex]?.dataset?.empid || '0000000';
-            const vehicle = document.getElementById('new-vehicle').value;
-            const shiftType = document.getElementById('new-shift').value;
-            
-            if(!driver || !vehicle) { alert("請選擇駕駛與車輛 (若無選項請先至「基礎資料建檔」新增)"); return; }
-
-            masterSchedule.push({ id: Date.now(), driver, empId, vehicle, shiftType, trips: [] });
-            closeAssignModal();
-            saveToFirebaseSilently();
-            renderBoard();
-        }
-
-        // ==========================================
-        // 5. 存檔與列印引擎
-        // ==========================================
-        function saveToFirebaseSilently() {
-            const dateStr = document.getElementById('sys-date').value;
-            const docId = dateStr.replace(/-/g, '');
-            db.collection("DailyDispatch").doc(docId).set({
-                date: dateStr.replace(/-/g, '/'),
-                assignments: masterSchedule
-            }).catch(err => console.error("背景存檔失敗", err));
-        }
-
-        function saveAndPrintAll() {
-            if(masterSchedule.length === 0) {
-                alert("目前沒有排班資料可供列印！");
-                return;
-            }
-
-            const printDate = document.getElementById('sys-date').value.replace(/-/g, '/');
+        document.getElementById('btnPrintAll').addEventListener('click', async () => {
             const printZone = document.getElementById('print-zone');
             printZone.innerHTML = ''; 
-            saveToFirebaseSilently();
+            
+            // 安全防護：僅針對當前使用者所屬站點的車趟進行列印 (SuperAdmin 則包含全部)
+            const tripsToPrint = currentDayTrips.filter(t => user.role === 'SuperAdmin' || t.stationId === user.stationId);
 
-            masterSchedule.forEach(assign => {
-                if(!assign.trips) assign.trips = [];
+            let dailyShifts = {};
+            const { weekId, dayKey } = getWeekInfo(document.getElementById('inputDate').value);
+            try {
+                const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+                if (docSnap.exists() && docSnap.data().roster) {
+                    const roster = docSnap.data().roster;
+                    for (let driverId in roster) {
+                        dailyShifts[driverId] = roster[driverId][dayKey] || "";
+                    }
+                }
+            } catch (e) { console.error("無法抓取週班表：", e); }
+
+            const scheduleByDriver = {};
+            tripsToPrint.forEach(trip => {
+                if (!trip.assigned_driver || trip.assigned_driver === "尚未指派") return;
+
+                if (!scheduleByDriver[trip.assigned_driver]) {
+                    let shiftName = dailyShifts[trip.assigned_empid] || "";
+                    if (!shiftName) {
+                        let dInfo = currentAvailableDrivers.find(d => d.empId === trip.assigned_empid || d.name === trip.assigned_driver);
+                        if (dInfo && dInfo.shift) shiftName = dInfo.shift;
+                    }
+
+                    scheduleByDriver[trip.assigned_driver] = {
+                        driver: trip.assigned_driver,
+                        empId: trip.assigned_empid || "", 
+                        shiftType: shiftName, 
+                        vehicle: (trip.assigned_vehicle === "尚未指派") ? "" : trip.assigned_vehicle,
+                        trips: []
+                    };
+                }
+                scheduleByDriver[trip.assigned_driver].trips.push({
+                    route: trip.route || '',
+                    startStation: trip.start_point || '',
+                    arrStation: trip.end_point || '',
+                    depTime: trip.departure_time || ''
+                });
+            });
+
+            const driverKeys = Object.keys(scheduleByDriver);
+            if (driverKeys.length === 0) {
+                alert("目前沒有符合權限或「已指派駕駛」的車趟，無法列印憑單！");
+                return;
+            }
+
+            const printDate = document.getElementById('inputDate').value.replace(/-/g, '/');
+            const blankCheckbox = `<span style="font-size:16px; color:#000 !important; font-weight:bold;">□</span>`;
+
+            driverKeys.forEach(name => {
+                const assign = scheduleByDriver[name];
                 assign.trips.sort((a, b) => a.depTime.localeCompare(b.depTime));
 
                 let tripsRowsHtml = '';
                 assign.trips.forEach((t, idx) => {
-                    let remarkHtml = t.remark.includes("中退") ? `<span class="red-text">${t.remark}</span>` : t.remark;
                     tripsRowsHtml += `
                         <tr>
-                            <td class="font-bold">${idx + 1}</td>
-                            <td class="font-bold text-left">${t.route} ${t.startStation}</td>
-                            <td style="font-family: monospace;">${t.depTime || ''}</td>
+                            <td class="font-bold" style="color:#000 !important;">${idx + 1}</td>
+                            <td class="font-bold text-left" style="color:#000 !important;">${t.route} ${t.startStation}</td>
+                            <td style="font-family: monospace; color:#000 !important; font-weight:bold;">${t.depTime}</td>
                             <td></td><td></td>
-                            <td class="font-bold text-left">${t.arrStation || ''}</td>
+                            <td class="font-bold text-left" style="color:#000 !important;">${t.arrStation}</td>
                             <td></td><td></td>
-                            <td>${remarkHtml}</td>
+                            <td></td>
                         </tr>
                     `;
                 });
 
-                const minRows = 12;
-                for (let i = assign.trips.length; i < minRows; i++) {
-                    tripsRowsHtml += `<tr><td class="font-bold" style="color:#6b7280;">${i + 1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                for(let i = assign.trips.length; i < 12; i++) {
+                    tripsRowsHtml += `<tr><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
                 }
 
-                const blankCheckbox = `<span style="font-size:16px;">□</span>`;
-
                 const voucherHtml = `
-                <div class="voucher-page">
+                <div class="voucher-page" style="color:#000 !important;">
                     <div>
-                        <div style="text-align: center; margin-bottom: 8px;">
-                            <h1 style="font-size: 24px; font-weight: bold; display: inline-block; padding: 0 16px; letter-spacing: 2px;">愛巴士交通客運 駛車憑單(行車日報表)</h1>
+                        <div style="text-align: center; margin-bottom: 6px;">
+                            <h1 style="font-size: 24px; font-weight: bold; display: inline-block; padding: 0 16px; letter-spacing: 2px; margin: 0; color:#000 !important;">愛巴士交通客運 駛車憑單(行車日報表)</h1>
                         </div>
-                        <table class="voucher-table">
+                        <table class="voucher-table" style="color:#000 !important;">
                             <tr>
-                                <th style="width:12%">駕駛姓名</th><td style="width:18%;" class="font-bold">${assign.driver}</td>
-                                <th style="width:12%">員工編號</th><td style="width:14%; font-family:monospace;">${assign.empId}</td>
-                                <th style="width:12%">車　　號</th><td style="width:18%;" class="font-bold">${assign.vehicle}</td>
-                                <th style="width:14%">日　　期</th>
+                                <th style="width:12%; color:#000 !important;">駕駛姓名</th><td style="width:18%; color:#000 !important;" class="font-bold">${assign.driver}</td>
+                                <th style="width:12%; color:#000 !important;">員工編號</th><td style="width:14%; color:#000 !important; font-family:monospace; font-weight:bold; font-size:14px;">${assign.empId}</td>
+                                <th style="width:12%; color:#000 !important;">車　　號</th><td style="width:18%; color:#000 !important;" class="font-bold">${assign.vehicle}</td>
+                                <th style="width:14%; color:#000 !important;">日　　期</th>
                             </tr>
                             <tr>
-                                <th>路線班別</th><td class="font-bold">${assign.shiftType}</td>
-                                <td colspan="4" class="text-left" style="font-size:12px;">行車系統時間： □ 正確　□ 不正確</td>
-                                <td style="font-family:monospace; font-size:12px;">${printDate}</td>
+                                <th style="color:#000 !important;">路線班別</th>
+                                <td class="font-bold" style="color:#000 !important; font-size:16px;">${assign.shiftType}</td>
+                                <td colspan="4" class="text-left" style="font-size:12px; color:#000 !important;">行車系統時間： □ 正確　□ 不正確</td>
+                                <td style="font-family:monospace; font-size:14px; color:#000 !important; font-weight:bold;">${printDate}</td>
                             </tr>
                         </table>
-                        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                        <div style="display: flex; gap: 4px; margin-bottom: 4px;">
                             <div style="flex: 1;">
-                                <table class="voucher-table" style="margin-bottom: 0;">
-                                    <tr><th style="width:20%">駕照檢驗</th><td style="width:30%" class="text-left">${blankCheckbox} 合格　　${blankCheckbox} 不合格</td><th style="width:20%">體溫檢測</th><td style="width:30%" class="text-left">${blankCheckbox} 合格 ( ＿＿ 度 )</td></tr>
-                                    <tr><th>行照檢驗</th><td class="text-left">${blankCheckbox} 合格　　${blankCheckbox} 不合格</td><th>酒精檢測</th><td class="text-left">${blankCheckbox} 合格 ( 值：＿＿ )</td></tr>
-                                    <tr><th>教育訓練證明</th><td class="text-left">${blankCheckbox} 合格　　${blankCheckbox} 不合格</td><th>血壓檢測</th><td class="text-left">高 ＿＿ / 低 ＿＿</td></tr>
+                                <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
+                                    <tr><th style="width:20%; color:#000 !important;">駕照檢驗</th><td style="width:30%; color:#000 !important;" class="text-left">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="width:20%; color:#000 !important;">體溫檢測</th><td style="width:30%; color:#000 !important;" class="text-left">${blankCheckbox} 合格 ( ＿＿ 度 )</td></tr>
+                                    <tr><th style="color:#000 !important;">行照檢驗</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important;">酒精檢測</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格 ( 值：＿＿ )</td></tr>
+                                    <tr><th style="color:#000 !important;">教育訓練證明</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important;">血壓檢測</th><td class="text-left" style="color:#000 !important;">高 ＿＿ / 低 ＿＿</td></tr>
                                 </table>
-                                <div style="border: 2px solid #000; border-top: none; text-align: center; padding: 4px; font-weight: bold; font-size: 14px;" class="red-text">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</div>
+                                <div style="border: 2px solid #000; border-top: none; text-align: center; padding: 2px; font-weight: bold; font-size: 13px;" class="red-text">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</div>
                             </div>
-                            <div style="width: 140px; border: 2px solid #000; padding: 6px; font-weight: bold; font-size: 14px; display: flex; flex-direction: column; justify-content: space-around;">
-                                <div>出車前里程數：<br><div style="text-align:right; color:#4b5563;">公里</div></div>
-                                <div>返場接續里程數：<br><div style="text-align:right; color:#4b5563;">公里</div></div>
+                            <div style="width: 140px; border: 2px solid #000; padding: 4px; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; justify-content: space-around; color:#000 !important;">
+                                <div style="color:#000 !important;">出車前里程數：<br><div style="text-align:right; color:#000 !important; margin-top:10px;">公里</div></div>
+                                <div style="color:#000 !important;">返場接續里程數：<br><div style="text-align:right; color:#000 !important; margin-top:10px;">公里</div></div>
                             </div>
                         </div>
                     </div>
 
                     <div class="trips-section">
                         <div class="trips-table-wrapper">
-                            <table class="voucher-table trips-table" style="margin-bottom:0;">
+                            <table class="voucher-table trips-table" style="margin-bottom:0; color:#000 !important;">
                                 <thead>
                                     <tr>
-                                        <th style="width:6%;">班次</th><th style="width:18%">出發站/端點</th><th style="width:10%">排定時間</th>
-                                        <th style="width:10%; font-size:10px;">出發/管制時間<br>(實際發車)</th><th style="width:8%">站務簽章</th>
-                                        <th style="width:18%">到達站</th><th style="width:10%; font-size:10px;">到達時間<br>(實際到站)</th>
-                                        <th style="width:8%">站務簽章</th><th style="width:12%">備註</th>
+                                        <th style="width:6%; color:#000 !important;">班次</th><th style="width:18%; color:#000 !important;">出發站/端點</th><th style="width:10%; color:#000 !important;">排定時間</th>
+                                        <th style="width:10%; font-size:10px; color:#000 !important;">出發/管制時間<br>(實際發車)</th><th style="width:8%; color:#000 !important;">站務簽章</th>
+                                        <th style="width:18%; color:#000 !important;">到達站</th><th style="width:10%; font-size:10px; color:#000 !important;">到達時間<br>(實際到站)</th>
+                                        <th style="width:8%; color:#000 !important;">站務簽章</th><th style="width:12%; color:#000 !important;">備註</th>
                                     </tr>
                                 </thead>
                                 <tbody>${tripsRowsHtml}</tbody>
@@ -593,64 +695,57 @@
                         </div>
                     </div>
 
-                    <div style="margin-top: 6px;">
-                        <table class="voucher-table" style="margin-bottom: 6px;">
-                            <tr style="height: 30px;"><th style="width: 33.33%;">補票紀錄</th><th style="width: 33.33%;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%;">趟次中拋錨、肇事情形</th></tr>
-                            <tr style="height: 50px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 4px; left: 8px; color: #6b7280; font-size: 11px; text-align: left;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
+                    <div style="margin-top: 4px;">
+                        <table class="voucher-table" style="margin-bottom: 4px; color:#000 !important;">
+                            <tr style="height: 25px;"><th style="width: 33.33%; color:#000 !important;">補票紀錄</th><th style="width: 33.33%; color:#000 !important;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%; color:#000 !important;">趟次中拋錨、肇事情形</th></tr>
+                            <tr style="height: 45px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 2px; left: 8px; font-size: 11px; text-align: left; color:#000 !important;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
                         </table>
 
-                        <div style="border: 2px solid #000; padding: 6px 12px; margin-bottom: 6px;">
-                            <h3 style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 6px; letter-spacing: 2px;">路口轉彎停看行、禮讓行人優先行</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; font-weight: bold;">
-                                <p>1. 慢慢開、不急、不趕、路口減速。</p><p>2. 遠離機車，遠離危險。</p><p>3. 開關車門時務必廣播提醒乘客才可起步。</p><p>4. 行車中嚴禁使用手機及平板。</p><p>5. 「離開駕駛座拉好手剎車」。</p><p>6. 候車亭服務燈亮起一定暫停確認。</p>
+                        <div style="border: 2px solid #000; padding: 4px 12px; margin-bottom: 4px; color:#000 !important;">
+                            <h3 style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 4px; letter-spacing: 2px; margin-top:0; color:#000 !important;">路口轉彎停看行、禮讓行人優先行</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; font-size: 11px; font-weight: bold; color:#000 !important;">
+                                <p style="margin:0; color:#000 !important;">1. 慢慢開、不急、不趕、路口減速。</p><p style="margin:0; color:#000 !important;">2. 遠離機車，遠離危險。</p>
+                                <p style="margin:0; color:#000 !important;">3. 開關車門時務必廣播提醒乘客才可起步。</p><p style="margin:0; color:#000 !important;">4. 行車中嚴禁使用手機及平板。</p>
+                                <p style="margin:0; color:#000 !important;">5. 「離開駕駛座拉好手剎車」。</p><p style="margin:0; color:#000 !important;">6. 候車亭服務燈亮起一定暫停確認。</p>
                             </div>
-                            <div style="margin-top: 8px; display: flex; justify-content: flex-end; align-items: center; font-size: 12px; font-weight: bold;">
-                                <span style="margin-right: 8px;">駕駛員確認簽名：</span><span style="display: inline-block; width: 150px; border-bottom: 1px solid #000; height: 16px;"></span>
+                            <div style="margin-top: 4px; display: flex; justify-content: flex-end; align-items: center; font-size: 12px; font-weight: bold; color:#000 !important;">
+                                <span style="margin-right: 8px; color:#000 !important;">駕駛員確認簽名：</span><span style="display: inline-block; width: 150px; border-bottom: 1px solid #000; height: 16px;"></span>
                             </div>
                         </div>
 
-                        <table class="voucher-table" style="margin-bottom: 0;">
-                            <tr><th style="width:16%">組別/班次</th><th style="width:16%">鍵入人員簽章</th><th style="width:16%">調度員簽章</th><th style="width:20%">站主管審核章</th><th style="width:16%">收回張數</th><th style="width:16%">票值合計</th></tr>
-                            <tr style="height: 40px;">
-                                <td class="font-bold text-lg">5/52</td><td></td><td></td>
-                                <td style="position: relative;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">站長處兆偉(一)</div></td>
+                        <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
+                            <tr><th style="width:16%; color:#000 !important;">組別/班次</th><th style="width:16%; color:#000 !important;">鍵入人員簽章</th><th style="width:16%; color:#000 !important;">調度員簽章</th><th style="width:20%; color:#000 !important;">站主管審核章</th><th style="width:16%; color:#000 !important;">收回張數</th><th style="width:16%; color:#000 !important;">票值合計</th></tr>
+                            <tr style="height: 35px;">
+                                <td class="font-bold text-lg" style="color:#000 !important;"></td><td></td><td></td>
+                                <td style="position: relative;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+        調度員 邱政明
+    </div></td><td style="position: relative;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+        站長 辛資貴
+    </div>
+</td>
                                 <td></td><td></td>
                             </tr>
                         </table>
-                        <div style="font-size: 10px; color: #4b5563; line-height: 1.4; margin-top: 4px;">
-                            <p>註1: 偏線督導執行 SOP 標準作業程序相關規定。</p><p>註2: 行車中不得撥打或持握式行動電話及無線電，如因接聽電話須使用免持聽筒。另過趟次中，探聽電信以三通為限，每通電話不得超過一分鐘。</p>
+                        <div style="font-size: 9px; line-height: 1.2; margin-top: 2px; color:#000 !important;">
+                            <p style="margin:0; color:#000 !important;">註1: 偏線督導執行 SOP 標準作業程序相關規定。</p>
+                            <p style="margin:0; color:#000 !important;">註2: 行車中不得撥打或持握式行動電話及無線電，如因接聽電話須使用免持聽筒。另過趟次中，探聽電信以三通為限，每通電話不得超過一分鐘。</p>
                         </div>
                     </div>
                 </div>`;
                 printZone.innerHTML += voucherHtml;
             });
 
-            window.print();
-        }
-    </script>
-
-    <!-- 權限防護模組引入 -->
-    <script type="module">
-        import { checkAuthAndGetRole, logout } from './auth.js';
-        
-        // 定義允許進入車場調度台的角色
-        const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
-        checkAuthAndGetRole(allowedRoles).then(user => {
-            document.body.style.visibility = 'visible'; // 驗證通過，顯示畫面
-            
-            // 於右上方加入登出按鈕與使用者識別
-            const topActions = document.querySelector('.flex.space-x-3');
-            topActions.insertAdjacentHTML('beforeend', `
-                <div class="flex items-center gap-3 ml-2 border-l border-gray-600 pl-4">
-                    <span class="text-sm bg-blue-800 text-white px-3 py-1 rounded">👤 ${user.name}</span>
-                    <button id="btnLogout" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm font-bold transition">登出</button>
-                </div>
-            `);
-            
-            document.getElementById('btnLogout').addEventListener('click', logout);
-        }).catch(err => {
-            console.error("權限驗證失敗，停止載入", err);
+            setTimeout(() => { window.print(); }, 300);
         });
-    </script>
+
+        // 最後執行初始化
+        listenToDispatches(today);
+        
+    }).catch(err => {
+        console.error("權限未通過，停止執行", err);
+    });
+  </script>
 </body>
 </html>
