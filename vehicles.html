@@ -97,15 +97,13 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    // 💡 修正：補齊缺少的 Firestore 函式
     import { getFirestore, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長']; 
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
         document.body.style.display = 'block'; 
-
         const nav = document.querySelector('.navbar');
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
@@ -125,15 +123,14 @@
         };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        
         const vehiclesCol = collection(db, "Vehicles");
         const dbStatusEl = document.getElementById('db-status');
+
         let editingDocId = null; 
         const saveBtn = document.getElementById('saveVehicleBtn');
         const cancelBtn = document.getElementById('cancelEditBtn');
 
-        const q = query(vehiclesCol);
-        onSnapshot(q, (snapshot) => {
+        onSnapshot(query(vehiclesCol), (snapshot) => {
           const tbody = document.getElementById('vehiclesBody');
           tbody.innerHTML = '';
 
@@ -145,12 +142,11 @@
           }
 
           let vehiclesData = [];
-          snapshot.forEach(docSnap => { vehiclesData.push({ id: docSnap.id, ...docSnap.data() }); });
+          snapshot.forEach(doc => { vehiclesData.push({ id: doc.id, ...doc.data() }); });
           vehiclesData.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
 
           vehiclesData.forEach((data) => {
             const tr = document.createElement('tr');
-            
             if (data.status === 'maintenance') tr.className = 'status-maintenance';
             if (data.status === 'breakdown') tr.className = 'status-breakdown';
 
@@ -233,8 +229,11 @@
           saveBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
           cancelBtn.style.display = "none";
         }
-    // 💡 修正：閉合括號
-    }).catch(err => console.error(err));
+
+    // 💡 關鍵修復點：完美閉合大括號
+    }).catch((err) => {
+        console.error("驗證失敗或未登入", err);
+    });
   </script>
 </body>
 </html>
