@@ -169,21 +169,21 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, addDoc, setDoc, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js';[span_0](start_span)[span_0](end_span)
+    import { checkAuthAndGetRole, logout } from './auth.js';
 
-    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];[span_1](start_span)[span_1](end_span)
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
-        document.getElementById('main-content').style.display = 'block';[span_2](start_span)[span_2](end_span)
+        document.getElementById('main-content').style.display = 'block';
 
-        const nav = document.querySelector('.navbar');[span_3](start_span)[span_3](end_span)
+        const nav = document.querySelector('.navbar');
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white font-bold px-4">
                 <span class="text-sm bg-blue-800 px-3 py-1 rounded">👤 ${user.name}</span>
                 <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">登出</button>
             </div>
-        `;[span_4](start_span)[span_4](end_span)
-        document.getElementById('btnLogout').addEventListener('click', logout);[span_5](start_span)[span_5](end_span)
+        `;
+        document.getElementById('btnLogout').addEventListener('click', logout);
 
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
@@ -192,133 +192,133 @@
           storageBucket: "jun-bus-dispatch.firebasestorage.app",
           messagingSenderId: "621725744717",
           appId: "1:621725744717:web:64e663648d8c76b9bd6604"
-        };[span_6](start_span)[span_6](end_span)
-        const app = initializeApp(firebaseConfig);[span_7](start_span)[span_7](end_span)
-        const db = getFirestore(app);[span_8](start_span)[span_8](end_span)
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
         
-        const dispatchesCol = collection(db, "daily_dispatches");[span_9](start_span)[span_9](end_span)
-        const fleetCol = collection(db, "Vehicles");[span_10](start_span)[span_10](end_span)
-        const tbody = document.getElementById('dispatchBody');[span_11](start_span)[span_11](end_span)
-        const dateInput = document.getElementById('inputDate');[span_12](start_span)[span_12](end_span)
+        const dispatchesCol = collection(db, "daily_dispatches");
+        const fleetCol = collection(db, "Vehicles");
+        const tbody = document.getElementById('dispatchBody');
+        const dateInput = document.getElementById('inputDate');
         
-        const today = new Date().toISOString().split('T')[0];[span_13](start_span)[span_13](end_span)
-        dateInput.value = today;[span_14](start_span)[span_14](end_span)
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
 
-        let currentAvailableDrivers = [];[span_15](start_span)[span_15](end_span)
-        let currentAvailableVehicles = [];[span_16](start_span)[span_16](end_span)
-        let currentDayTrips = [];[span_17](start_span)[span_17](end_span)
-        let editingDocId = null;[span_18](start_span)[span_18](end_span)
-        let unsubscribeDispatch = null;[span_19](start_span)[span_19](end_span)
+        let currentAvailableDrivers = [];
+        let currentAvailableVehicles = [];
+        let currentDayTrips = [];
+        let editingDocId = null;
+        let unsubscribeDispatch = null;
 
         // 連動資料庫建立下拉選單 (Autocomplete)
-        const routesListEl = document.getElementById('routesList');[span_20](start_span)[span_20](end_span)
+        const routesListEl = document.getElementById('routesList');
         onSnapshot(collection(db, "Routes"), (snap) => {
-            routesListEl.innerHTML = '';[span_21](start_span)[span_21](end_span)
-            snap.forEach(docSnap => { routesListEl.innerHTML += `<option value="${docSnap.data().name}"></option>`; });[span_22](start_span)[span_22](end_span)
-        });[span_23](start_span)[span_23](end_span)
+            routesListEl.innerHTML = '';
+            snap.forEach(docSnap => { routesListEl.innerHTML += `<option value="${docSnap.data().name}"></option>`; });
+        });
 
-        const stationsListEl = document.getElementById('stationsList');[span_24](start_span)[span_24](end_span)
+        const stationsListEl = document.getElementById('stationsList');
         onSnapshot(collection(db, "Stations"), (snap) => {
-            stationsListEl.innerHTML = '';[span_25](start_span)[span_25](end_span)
-            snap.forEach(docSnap => { stationsListEl.innerHTML += `<option value="${docSnap.data().name}"></option>`; });[span_26](start_span)[span_26](end_span)
-        });[span_27](start_span)[span_27](end_span)
+            stationsListEl.innerHTML = '';
+            snap.forEach(docSnap => { stationsListEl.innerHTML += `<option value="${docSnap.data().name}"></option>`; });
+        });
 
         async function loadAvailableDrivers(selectedDate) {
-          const { weekId, dayKey } = getWeekInfo(selectedDate);[span_28](start_span)[span_28](end_span)
-          currentAvailableDrivers = [];[span_29](start_span)[span_29](end_span)
+          const { weekId, dayKey } = getWeekInfo(selectedDate);
+          currentAvailableDrivers = [];
           try {
-            const docRef = doc(db, "weekly_schedules", weekId);[span_30](start_span)[span_30](end_span)
-            const docSnap = await getDoc(docRef);[span_31](start_span)[span_31](end_span)
-            if (docSnap.exists() && (docSnap.data().roster || docSnap.data().roater)) {[span_32](start_span)[span_32](end_span)
-              const roster = docSnap.data().roster || docSnap.data().roater;[span_33](start_span)[span_33](end_span)
-              for (let driverId in roster) {[span_34](start_span)[span_34](end_span)
-                const shift = roster[driverId][dayKey];[span_35](start_span)[span_35](end_span)
-                if (shift && shift !== "OFF" && shift !== "OFF (休)") {[span_36](start_span)[span_36](end_span)
-                  currentAvailableDrivers.push({ empId: driverId, name: roster[driverId].name, shift: shift });[span_37](start_span)[span_37](end_span)
-                }[span_38](start_span)[span_38](end_span)
-              }[span_39](start_span)[span_39](end_span)
-            }[span_40](start_span)[span_40](end_span)
-          } catch (e) { console.error("載入駕駛失敗:", e); }[span_41](start_span)[span_41](end_span)
-        }[span_42](start_span)[span_42](end_span)
+            const docRef = doc(db, "weekly_schedules", weekId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists() && (docSnap.data().roster || docSnap.data().roater)) {
+              const roster = docSnap.data().roster || docSnap.data().roater;
+              for (let driverId in roster) {
+                const shift = roster[driverId][dayKey];
+                if (shift && shift !== "OFF" && shift !== "OFF (休)") {
+                  currentAvailableDrivers.push({ empId: driverId, name: roster[driverId].name, shift: shift });
+                }
+              }
+            }
+          } catch (e) { console.error("載入駕駛失敗:", e); }
+        }
 
         async function loadAvailableVehicles() {
-          currentAvailableVehicles = [];[span_43](start_span)[span_43](end_span)
+          currentAvailableVehicles = [];
           try {
-            const snapshot = await getDocs(fleetCol);[span_44](start_span)[span_44](end_span)
+            const snapshot = await getDocs(fleetCol);
             snapshot.forEach((docSnap) => {
-              const v = docSnap.data();[span_45](start_span)[span_45](end_span)
-              if (v.status === 'ready') { currentAvailableVehicles.push({ plate: v.plate_number || docSnap.id, model: v.model }); }[span_46](start_span)[span_46](end_span)
-            });[span_47](start_span)[span_47](end_span)
-          } catch (e) { console.error("載入車輛失敗:", e); }[span_48](start_span)[span_48](end_span)
-        }[span_49](start_span)[span_49](end_span)
+              const v = docSnap.data();
+              if (v.status === 'ready') { currentAvailableVehicles.push({ plate: v.plate_number || docSnap.id, model: v.model }); }
+            });
+          } catch (e) { console.error("載入車輛失敗:", e); }
+        }
 
         function getWeekInfo(dateStr) {
-          const d = new Date(dateStr);[span_50](start_span)[span_50](end_span)
-          const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];[span_51](start_span)[span_51](end_span)
-          const target = new Date(d.valueOf());[span_52](start_span)[span_52](end_span)
-          const dayNr = (d.getDay() + 6) % 7;[span_53](start_span)[span_53](end_span)
-          target.setDate(target.getDate() - dayNr + 3);[span_54](start_span)[span_54](end_span)
-          const firstThursday = target.valueOf();[span_55](start_span)[span_55](end_span)
-          target.setMonth(0, 1);[span_56](start_span)[span_56](end_span)
-          if (target.getDay() !== 4) { target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7); }[span_57](start_span)[span_57](end_span)
-          const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);[span_58](start_span)[span_58](end_span)
-          return { weekId: `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };[span_59](start_span)[span_59](end_span)
-        }[span_60](start_span)[span_60](end_span)
+          const d = new Date(dateStr);
+          const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+          const target = new Date(d.valueOf());
+          const dayNr = (d.getDay() + 6) % 7;
+          target.setDate(target.getDate() - dayNr + 3);
+          const firstThursday = target.valueOf();
+          target.setMonth(0, 1);
+          if (target.getDay() !== 4) { target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7); }
+          const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
+          return { weekId: `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };
+        }
 
         async function listenToDispatches(selectedDate) {
-            await loadAvailableDrivers(selectedDate);[span_61](start_span)[span_61](end_span)
-            await loadAvailableVehicles();[span_62](start_span)[span_62](end_span)
+            await loadAvailableDrivers(selectedDate);
+            await loadAvailableVehicles();
 
             if (unsubscribeDispatch) {
-                unsubscribeDispatch();[span_63](start_span)[span_63](end_span)
-            }[span_64](start_span)[span_64](end_span)
+                unsubscribeDispatch();
+            }
 
-            let q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));[span_65](start_span)[span_65](end_span)
+            let q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
 
             unsubscribeDispatch = onSnapshot(q, (snapshot) => {
-                tbody.innerHTML = '';[span_66](start_span)[span_66](end_span)
-                currentDayTrips = [];[span_67](start_span)[span_67](end_span)
+                tbody.innerHTML = '';
+                currentDayTrips = [];
 
                 if (snapshot.empty) { 
-                    tbody.innerHTML = '<tr><td colspan="8" style="color: #94a3b8; padding: 40px; font-weight:bold; font-size:16px;">本日尚未建立任何發車車趟。</td></tr>';[span_68](start_span)[span_68](end_span)
-                    return;[span_69](start_span)[span_69](end_span)
-                }[span_70](start_span)[span_70](end_span)
+                    tbody.innerHTML = '<tr><td colspan="8" style="color: #94a3b8; padding: 40px; font-weight:bold; font-size:16px;">本日尚未建立任何發車車趟。</td></tr>';
+                    return;
+                }
 
-                snapshot.forEach(docSnap => { currentDayTrips.push({ id: docSnap.id, ...docSnap.data() }); });[span_71](start_span)[span_71](end_span)
+                snapshot.forEach(docSnap => { currentDayTrips.push({ id: docSnap.id, ...docSnap.data() }); });
 
                 currentDayTrips.forEach((data) => {
-                  const tr = document.createElement('tr');[span_72](start_span)[span_72](end_span)
+                  const tr = document.createElement('tr');
                   
-                  let driverOptions = `<option value="尚未指派" data-empid="">-- 尚未指派 --</option>`;[span_73](start_span)[span_73](end_span)
+                  let driverOptions = `<option value="尚未指派" data-empid="">-- 尚未指派 --</option>`;
                   currentAvailableDrivers.forEach(d => { 
-                      const displayText = `${d.empId} ${d.name} (${d.shift})`;[span_74](start_span)[span_74](end_span)
-                      const isSelectedD = String(data.assigned_driver).trim() === String(d.name).trim() ? 'selected' : '';[span_75](start_span)[span_75](end_span)
-                      driverOptions += `<option value="${d.name}" data-empid="${d.empId}" ${isSelectedD}>${displayText}</option>`;[span_76](start_span)[span_76](end_span)
-                  });[span_77](start_span)[span_77](end_span)
+                      const displayText = `${d.empId} ${d.name} (${d.shift})`;
+                      const isSelectedD = String(data.assigned_driver).trim() === String(d.name).trim() ? 'selected' : '';
+                      driverOptions += `<option value="${d.name}" data-empid="${d.empId}" ${isSelectedD}>${displayText}</option>`;
+                  });
 
-                  let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;[span_78](start_span)[span_78](end_span)
+                  let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;
                   currentAvailableVehicles.forEach(v => { 
-                      const isSelectedV = String(data.assigned_vehicle).trim() === String(v.plate).trim() ? 'selected' : '';[span_79](start_span)[span_79](end_span)
-                      vehicleOptions += `<option value="${v.plate}" ${isSelectedV}>${v.plate} (${v.model})</option>`;[span_80](start_span)[span_80](end_span)
-                  });[span_81](start_span)[span_81](end_span)
+                      const isSelectedV = String(data.assigned_vehicle).trim() === String(v.plate).trim() ? 'selected' : '';
+                      vehicleOptions += `<option value="${v.plate}" ${isSelectedV}>${v.plate} (${v.model})</option>`;
+                  });
 
-                  let rowClass = '';[span_82](start_span)[span_82](end_span)
-                  let statusButtonHtml = '';[span_83](start_span)[span_83](end_span)
-                  if (data.status === 'pending') {[span_84](start_span)[span_84](end_span)
-                    statusButtonHtml = `<button class="btn-status btn-pending status-toggle" data-id="${data.id}" data-next="active">按此發車</button>`;[span_85](start_span)[span_85](end_span)
-                  } else if (data.status === 'active') {[span_86](start_span)[span_86](end_span)
-                    rowClass = 'active-row';[span_87](start_span)[span_87](end_span)
-                    statusButtonHtml = `<button class="btn-status btn-active status-toggle" data-id="${data.id}" data-next="done">按此完班</button>`;[span_88](start_span)[span_88](end_span)
-                  } else if (data.status === 'done') {[span_89](start_span)[span_89](end_span)
-                    rowClass = 'done-row';[span_90](start_span)[span_90](end_span)
-                    statusButtonHtml = `<button class="btn-status btn-done" disabled>已完成</button>`;[span_91](start_span)[span_91](end_span)
-                  }[span_92](start_span)[span_92](end_span)
+                  let rowClass = '';
+                  let statusButtonHtml = '';
+                  if (data.status === 'pending') {
+                    statusButtonHtml = `<button class="btn-status btn-pending status-toggle" data-id="${data.id}" data-next="active">按此發車</button>`;
+                  } else if (data.status === 'active') {
+                    rowClass = 'active-row';
+                    statusButtonHtml = `<button class="btn-status btn-active status-toggle" data-id="${data.id}" data-next="done">按此完班</button>`;
+                  } else if (data.status === 'done') {
+                    rowClass = 'done-row';
+                    statusButtonHtml = `<button class="btn-status btn-done" disabled>已完成</button>`;
+                  }
                   
                   let timeDisplay = data.arrival_time 
                                     ? `${data.departure_time} <br><span style="font-size:12px; color:#64748b;">~ ${data.arrival_time}</span>` 
-                                    : data.departure_time;[span_93](start_span)[span_93](end_span)
+                                    : data.departure_time;
 
-                  tr.className = rowClass;[span_94](start_span)[span_94](end_span)
+                  tr.className = rowClass;
                   tr.innerHTML = `
                     <td style="font-size: 17px; font-weight: 800; color: #0f172a; line-height: 1.2;">${timeDisplay}</td>
                     <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #bae6fd;">${data.route}</span></td>
@@ -331,67 +331,67 @@
                        <button class="btn-edit-trip bg-sky-500 hover:bg-sky-600 text-white" data-id="${data.id}" data-time="${data.departure_time}" data-endtime="${data.arrival_time || ''}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point || ''}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer;">編輯</button>
                        <button class="btn-delete-trip bg-rose-500 hover:bg-rose-600 text-white" data-id="${data.id}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer; margin-top: 4px;">刪除</button>
                     </td>
-                  `;[span_95](start_span)[span_95](end_span)
-                  tbody.appendChild(tr);[span_96](start_span)[span_96](end_span)
-                });[span_97](start_span)[span_97](end_span)
+                  `;
+                  tbody.appendChild(tr);
+                });
 
                 document.querySelectorAll('.driver-select').forEach(el => el.addEventListener('change', async (e) => {
-                  const newDriver = e.target.value;[span_98](start_span)[span_98](end_span)
-                  const selectedOption = e.target.options[e.target.selectedIndex];[span_99](start_span)[span_99](end_span)
-                  const newEmpId = selectedOption.dataset.empid || "";[span_100](start_span)[span_100](end_span)
+                  const newDriver = e.target.value;
+                  const selectedOption = e.target.options[e.target.selectedIndex];
+                  const newEmpId = selectedOption.dataset.empid || "";
 
-                  if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {[span_101](start_span)[span_101](end_span)
-                    if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) {[span_102](start_span)[span_102](end_span)
-                        e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_driver;[span_103](start_span)[span_103](end_span)
-                        return;[span_104](start_span)[span_104](end_span)
-                    }[span_105](start_span)[span_105](end_span)
-                  }[span_106](start_span)[span_106](end_span)
-                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_driver: newDriver, assigned_empid: newEmpId });[span_107](start_span)[span_107](end_span)
-                }));[span_108](start_span)[span_108](end_span)
+                  if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
+                    if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) {
+                        e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_driver;
+                        return;
+                    }
+                  }
+                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_driver: newDriver, assigned_empid: newEmpId });
+                }));
 
                 document.querySelectorAll('.vehicle-select').forEach(el => el.addEventListener('change', async (e) => {
-                  const newVeh = e.target.value;[span_109](start_span)[span_109](end_span)
-                  if (newVeh !== "尚未指派" && currentDayTrips.find(t => t.assigned_vehicle === newVeh && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {[span_110](start_span)[span_110](end_span)
-                    if (!confirm(`⚠️ 警告！車輛【${newVeh}】已排定其他任務，確定要強制指派嗎？`)) { e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_vehicle; return; }[span_111](start_span)[span_111](end_span)
-                  }[span_112](start_span)[span_112](end_span)
-                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_vehicle: newVeh });[span_113](start_span)[span_113](end_span)
-                }));[span_114](start_span)[span_114](end_span)
+                  const newVeh = e.target.value;
+                  if (newVeh !== "尚未指派" && currentDayTrips.find(t => t.assigned_vehicle === newVeh && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
+                    if (!confirm(`⚠️ 警告！車輛【${newVeh}】已排定其他任務，確定要強制指派嗎？`)) { e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_vehicle; return; }
+                  }
+                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_vehicle: newVeh });
+                }));
 
                 document.querySelectorAll('.status-toggle').forEach(btn => btn.addEventListener('click', async (e) => {
-                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { status: e.target.dataset.next });[span_115](start_span)[span_115](end_span)
-                }));[span_116](start_span)[span_116](end_span)
+                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { status: e.target.dataset.next });
+                }));
 
                 document.querySelectorAll('.btn-delete-trip').forEach(btn => btn.addEventListener('click', async (e) => {
-                  if (confirm("⚠️ 確定要刪除這筆紀錄嗎？")) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));[span_117](start_span)[span_117](end_span)
-                }));[span_118](start_span)[span_118](end_span)
+                  if (confirm("⚠️ 確定要刪除這筆紀錄嗎？")) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
+                }));
 
                 document.querySelectorAll('.btn-edit-trip').forEach(btn => btn.addEventListener('click', (e) => {
-                  document.getElementById('inputTime').value = e.target.dataset.time;[span_119](start_span)[span_119](end_span)
-                  document.getElementById('inputEndTime').value = e.target.dataset.endtime;[span_120](start_span)[span_120](end_span)
-                  document.getElementById('inputRoute').value = e.target.dataset.route;[span_121](start_span)[span_121](end_span)
-                  document.getElementById('inputStart').value = e.target.dataset.start;[span_122](start_span)[span_122](end_span)
-                  document.getElementById('inputEnd').value = e.target.dataset.end;[span_123](start_span)[span_123](end_span)
+                  document.getElementById('inputTime').value = e.target.dataset.time;
+                  document.getElementById('inputEndTime').value = e.target.dataset.endtime;
+                  document.getElementById('inputRoute').value = e.target.dataset.route;
+                  document.getElementById('inputStart').value = e.target.dataset.start;
+                  document.getElementById('inputEnd').value = e.target.dataset.end;
                   
-                  editingDocId = e.target.dataset.id;[span_124](start_span)[span_124](end_span)
-                  document.getElementById('addTripBtn').innerHTML = "💾 儲存修改";[span_125](start_span)[span_125](end_span)
-                  document.getElementById('addTripBtn').className = "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";[span_126](start_span)[span_126](end_span)
-                  document.getElementById('cancelEditBtn').classList.remove('hidden');[span_127](start_span)[span_127](end_span)
+                  editingDocId = e.target.dataset.id;
+                  document.getElementById('addTripBtn').innerHTML = "💾 儲存修改";
+                  document.getElementById('addTripBtn').className = "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
+                  document.getElementById('cancelEditBtn').classList.remove('hidden');
                   
-                  window.scrollTo({ top: 0, behavior: 'smooth' });[span_128](start_span)[span_128](end_span)
-                }));[span_129](start_span)[span_129](end_span)
-            });[span_130](start_span)[span_130](end_span)
-        }[span_131](start_span)[span_131](end_span)
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }));
+            });
+        }
 
-        const mainAddBtn = document.getElementById('addTripBtn');[span_132](start_span)[span_132](end_span)
-        const cancelBtn = document.getElementById('cancelEditBtn');[span_133](start_span)[span_133](end_span)
+        const mainAddBtn = document.getElementById('addTripBtn');
+        const cancelBtn = document.getElementById('cancelEditBtn');
 
         mainAddBtn.onclick = async () => {
-          const date = dateInput.value;[span_134](start_span)[span_134](end_span)
-          const time = document.getElementById('inputTime').value;[span_135](start_span)[span_135](end_span)
-          const endTime = document.getElementById('inputEndTime').value;[span_136](start_span)[span_136](end_span)
-          const route = document.getElementById('inputRoute').value.trim();[span_137](start_span)[span_137](end_span)
-          const start = document.getElementById('inputStart').value.trim();[span_138](start_span)[span_138](end_span)
-          const end = document.getElementById('inputEnd').value.trim();[span_139](start_span)[span_139](end_span)
+          const date = dateInput.value;
+          const time = document.getElementById('inputTime').value;
+          const endTime = document.getElementById('inputEndTime').value;
+          const route = document.getElementById('inputRoute').value.trim();
+          const start = document.getElementById('inputStart').value.trim();
+          const end = document.getElementById('inputEnd').value.trim();
 
           if (!time || !route || !start || !end) { alert("請填寫完整資訊！"); return; }  
 
@@ -402,50 +402,50 @@
               route: route,
               start_point: start,
               end_point: end
-          };[span_140](start_span)[span_140](end_span)
+          };
 
           try {
-            if (editingDocId) {[span_141](start_span)[span_141](end_span)
-              await updateDoc(doc(db, "daily_dispatches", editingDocId), payload);[span_142](start_span)[span_142](end_span)
-            } else {[span_143](start_span)[span_143](end_span)
-              payload.assigned_driver = "尚未指派";[span_144](start_span)[span_144](end_span)
-              payload.assigned_empid = "";[span_145](start_span)[span_145](end_span)
-              payload.assigned_vehicle = "尚未指派";[span_146](start_span)[span_146](end_span)
-              payload.status = "pending";[span_147](start_span)[span_147](end_span)
-              await addDoc(dispatchesCol, payload);[span_148](start_span)[span_148](end_span)
-            }[span_149](start_span)[span_149](end_span)
+            if (editingDocId) {
+              await updateDoc(doc(db, "daily_dispatches", editingDocId), payload);
+            } else {
+              payload.assigned_driver = "尚未指派";
+              payload.assigned_empid = "";
+              payload.assigned_vehicle = "尚未指派";
+              payload.status = "pending";
+              await addDoc(dispatchesCol, payload);
+            }
 
-            const safeRouteId = route.replace(/\//g, '_');[span_150](start_span)[span_150](end_span)
-            const safeStartId = start.replace(/\//g, '_');[span_151](start_span)[span_151](end_span)
-            const safeEndId = end.replace(/\//g, '_');[span_152](start_span)[span_152](end_span)
+            const safeRouteId = route.replace(/\//g, '_');
+            const safeStartId = start.replace(/\//g, '_');
+            const safeEndId = end.replace(/\//g, '_');
 
-            await setDoc(doc(db, "Routes", safeRouteId), { name: route, status: 'active' }, { merge: true });[span_153](start_span)[span_153](end_span)
-            await setDoc(doc(db, "Stations", safeStartId), { name: start, status: 'active' }, { merge: true });[span_154](start_span)[span_154](end_span)
-            if(end) {[span_155](start_span)[span_155](end_span)
-                await setDoc(doc(db, "Stations", safeEndId), { name: end, status: 'active' }, { merge: true });[span_156](start_span)[span_156](end_span)
-            }[span_157](start_span)[span_157](end_span)
+            await setDoc(doc(db, "Routes", safeRouteId), { name: route, status: 'active' }, { merge: true });
+            await setDoc(doc(db, "Stations", safeStartId), { name: start, status: 'active' }, { merge: true });
+            if(end) {
+                await setDoc(doc(db, "Stations", safeEndId), { name: end, status: 'active' }, { merge: true });
+            }
 
-            resetForm();[span_158](start_span)[span_158](end_span)
-          } catch (err) { console.error(err); alert("儲存失敗！"); }[span_159](start_span)[span_159](end_span)
-        };[span_160](start_span)[span_160](end_span)
+            resetForm();
+          } catch (err) { console.error(err); alert("儲存失敗！"); }
+        };
 
-        cancelBtn.addEventListener('click', resetForm);[span_161](start_span)[span_161](end_span)
+        cancelBtn.addEventListener('click', resetForm);
 
         function resetForm() {
-            editingDocId = null;[span_162](start_span)[span_162](end_span)
-            document.getElementById('inputTime').value = '';[span_163](start_span)[span_163](end_span)
-            document.getElementById('inputEndTime').value = '';[span_164](start_span)[span_164](end_span)
-            document.getElementById('inputRoute').value = '';[span_165](start_span)[span_165](end_span)
-            document.getElementById('inputStart').value = '';[span_166](start_span)[span_166](end_span)
-            document.getElementById('inputEnd').value = '';[span_167](start_span)[span_167](end_span)
+            editingDocId = null;
+            document.getElementById('inputTime').value = '';
+            document.getElementById('inputEndTime').value = '';
+            document.getElementById('inputRoute').value = '';
+            document.getElementById('inputStart').value = '';
+            document.getElementById('inputEnd').value = '';
             
-            mainAddBtn.innerHTML = "＋ 新增車趟";[span_168](start_span)[span_168](end_span)
-            mainAddBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";[span_169](start_span)[span_169](end_span)
-            cancelBtn.classList.add('hidden');[span_170](start_span)[span_170](end_span)
-        }[span_171](start_span)[span_171](end_span)
+            mainAddBtn.innerHTML = "＋ 新增車趟";
+            mainAddBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
+            cancelBtn.classList.add('hidden');
+        }
 
-        listenToDispatches(today);[span_172](start_span)[span_172](end_span)
-        dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });[span_173](start_span)[span_173](end_span)
+        listenToDispatches(today);
+        dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });
 
         // 💡 強力修復版：加入防錯與嚴謹的資料讀取機制
         document.getElementById('btnCopyHistory').addEventListener('click', async () => {
@@ -507,247 +507,247 @@
         });
 
         document.getElementById('btnClearAssign').addEventListener('click', async () => {
-            if(currentDayTrips.length === 0) return;[span_174](start_span)[span_174](end_span)
-            if (!confirm("確定要將今日所有的車趟還原為「尚未指派」嗎？\n(注意：這將會清除目前畫面上所有的駕駛與車輛配置！)")) return;[span_175](start_span)[span_175](end_span)
+            if(currentDayTrips.length === 0) return;
+            if (!confirm("確定要將今日所有的車趟還原為「尚未指派」嗎？\n(注意：這將會清除目前畫面上所有的駕駛與車輛配置！)")) return;
 
-            const btn = document.getElementById('btnClearAssign');[span_176](start_span)[span_176](end_span)
-            btn.innerHTML = "🧹 清除中...";[span_177](start_span)[span_177](end_span)
-            btn.disabled = true;[span_178](start_span)[span_178](end_span)
+            const btn = document.getElementById('btnClearAssign');
+            btn.innerHTML = "🧹 清除中...";
+            btn.disabled = true;
 
             try {
-                const batch = writeBatch(db);[span_179](start_span)[span_179](end_span)
-                let count = 0;[span_180](start_span)[span_180](end_span)
-                for (let trip of currentDayTrips) {[span_181](start_span)[span_181](end_span)
-                    if(trip.assigned_driver !== "尚未指派" || trip.assigned_vehicle !== "尚未指派") {[span_182](start_span)[span_182](end_span)
-                        batch.update(doc(db, "daily_dispatches", trip.id), {[span_183](start_span)[span_183](end_span)
-                            assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派[span_184](start_span)"[span_184](end_span)
-                        });[span_185](start_span)[span_185](end_span)
-                        count++;[span_186](start_span)[span_186](end_span)
-                    }[span_187](start_span)[span_187](end_span)
-                }[span_188](start_span)[span_188](end_span)
-                if (count > 0) await batch.commit();[span_189](start_span)[span_189](end_span)
-            } catch(e) { console.error(e); alert("清除失敗！"); }[span_190](start_span)[span_190](end_span)
+                const batch = writeBatch(db);
+                let count = 0;
+                for (let trip of currentDayTrips) {
+                    if(trip.assigned_driver !== "尚未指派" || trip.assigned_vehicle !== "尚未指派") {
+                        batch.update(doc(db, "daily_dispatches", trip.id), {
+                            assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派"
+                        });
+                        count++;
+                    }
+                }
+                if (count > 0) await batch.commit();
+            } catch(e) { console.error(e); alert("清除失敗！"); }
 
-            btn.innerHTML = "🧹 一鍵清除";[span_191](start_span)[span_191](end_span)
-            btn.disabled = false;[span_192](start_span)[span_192](end_span)
-        });[span_193](start_span)[span_193](end_span)
+            btn.innerHTML = "🧹 一鍵清除";
+            btn.disabled = false;
+        });
 
         document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
-            if (!confirm("確定執行「智慧自動調度」嗎？\n系統將考慮「休息時間」、「早晚兩頭班防呆」與「路線起訖站連貫性」進行最佳化配置！")) return;[span_194](start_span)[span_194](end_span)
+            if (!confirm("確定執行「智慧自動調度」嗎？\n系統將考慮「休息時間」、「早晚兩頭班防呆」與「路線起訖站連貫性」進行最佳化配置！")) return;
 
-            const btn = document.getElementById('btnAutoDispatch');[span_195](start_span)[span_195](end_span)
-            btn.innerHTML = "🤖 運算中...";[span_196](start_span)[span_196](end_span)
-            btn.disabled = true;[span_197](start_span)[span_197](end_span)
+            const btn = document.getElementById('btnAutoDispatch');
+            btn.innerHTML = "🤖 運算中...";
+            btn.disabled = true;
 
             try {
-                await loadAvailableDrivers(dateInput.value);[span_198](start_span)[span_198](end_span)
-                await loadAvailableVehicles();[span_199](start_span)[span_199](end_span)
+                await loadAvailableDrivers(dateInput.value);
+                await loadAvailableVehicles();
 
-                if (currentAvailableDrivers.length === 0 || currentAvailableVehicles.length === 0) {[span_200](start_span)[span_200](end_span)
-                    alert("⚠️ 錯誤：目前沒有可用且非休假的駕駛員或車輛！");[span_201](start_span)[span_201](end_span)
-                    btn.innerHTML = "✨ 智慧自動調度";[span_202](start_span)[span_202](end_span)
-                    btn.disabled = false;[span_203](start_span)[span_203](end_span)
-                    return;[span_204](start_span)[span_204](end_span)
-                }[span_205](start_span)[span_205](end_span)
+                if (currentAvailableDrivers.length === 0 || currentAvailableVehicles.length === 0) {
+                    alert("⚠️ 錯誤：目前沒有可用且非休假的駕駛員或車輛！");
+                    btn.innerHTML = "✨ 智慧自動調度";
+                    btn.disabled = false;
+                    return;
+                }
 
-                let singleShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("單"));[span_206](start_span)[span_206](end_span)
-                let splitShifts = currentAvailableDrivers.filter(d => d.shift && (d.shift.includes("頭")));[span_207](start_span)[span_207](end_span)
-                let morningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("早"));[span_208](start_span)[span_208](end_span)
-                let eveningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("晚"));[span_209](start_span)[span_209](end_span)
-                let standbys = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("待命"));[span_210](start_span)[span_210](end_span)
+                let singleShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("單"));
+                let splitShifts = currentAvailableDrivers.filter(d => d.shift && (d.shift.includes("頭")));
+                let morningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("早"));
+                let eveningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("晚"));
+                let standbys = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("待命"));
                 
-                let others = currentAvailableDrivers.filter(d => !d.shift || (!d.shift.includes("單") && !d.shift.includes("早") && !d.shift.includes("晚") && !d.shift.includes("頭") && !d.shift.includes("待命")));[span_211](start_span)[span_211](end_span)
-                singleShifts.push(...others);[span_212](start_span)[span_212](end_span)
+                let others = currentAvailableDrivers.filter(d => !d.shift || (!d.shift.includes("單") && !d.shift.includes("早") && !d.shift.includes("晚") && !d.shift.includes("頭") && !d.shift.includes("待命")));
+                singleShifts.push(...others);
 
-                let fleet = [];[span_213](start_span)[span_213](end_span)
-                let availableVehs = [...currentAvailableVehicles];[span_214](start_span)[span_214](end_span)
+                let fleet = [];
+                let availableVehs = [...currentAvailableVehicles];
 
-                function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }[span_215](start_span)[span_215](end_span)
+                function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
 
-                [...singleShifts, ...splitShifts].forEach(d => {[span_216](start_span)[span_216](end_span)
-                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });[span_217](start_span)[span_217](end_span)
-                });[span_218](start_span)[span_218](end_span)
+                [...singleShifts, ...splitShifts].forEach(d => {
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                });
 
-                let maxPairs = Math.max(morningShifts.length, eveningShifts.length);[span_219](start_span)[span_219](end_span)
-                for (let i = 0; i < maxPairs; i++) {[span_220](start_span)[span_220](end_span)
-                    let sharedCar = assignVehicle();[span_221](start_span)[span_221](end_span)
-                    if (morningShifts[i]) fleet.push({ ...morningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });[span_222](start_span)[span_222](end_span)
-                    if (eveningShifts[i]) fleet.push({ ...eveningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });[span_223](start_span)[span_223](end_span)
-                }[span_224](start_span)[span_224](end_span)
+                let maxPairs = Math.max(morningShifts.length, eveningShifts.length);
+                for (let i = 0; i < maxPairs; i++) {
+                    let sharedCar = assignVehicle();
+                    if (morningShifts[i]) fleet.push({ ...morningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                    if (eveningShifts[i]) fleet.push({ ...eveningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                }
 
-                standbys.forEach(d => {[span_225](start_span)[span_225](end_span)
-                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 2, tripsCount: 0 });[span_226](start_span)[span_226](end_span)
-                });[span_227](start_span)[span_227](end_span)
+                standbys.forEach(d => {
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 2, tripsCount: 0 });
+                });
 
-                fleet = fleet.filter(f => f.vehicle !== "無車可用");[span_228](start_span)[span_228](end_span)
+                fleet = fleet.filter(f => f.vehicle !== "無車可用");
 
-                let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");[span_229](start_span)[span_229](end_span)
-                pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));[span_230](start_span)[span_230](end_span)
+                let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
+                pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
 
-                let successCount = 0;[span_231](start_span)[span_231](end_span)
-                let failCount = 0;[span_232](start_span)[span_232](end_span)
-                const batch = writeBatch(db);[span_233](start_span)[span_233](end_span)
+                let successCount = 0;
+                let failCount = 0;
+                const batch = writeBatch(db);
 
-                for (let trip of pendingTrips) {[span_234](start_span)[span_234](end_span)
-                    let depTime = trip.departure_time;[span_235](start_span)[span_235](end_span)
-                    let hour = parseInt(depTime.split(':')[0]);[span_236](start_span)[span_236](end_span)
+                for (let trip of pendingTrips) {
+                    let depTime = trip.departure_time;
+                    let hour = parseInt(depTime.split(':')[0]);
 
-                    let candidates = fleet.filter(unit => {[span_237](start_span)[span_237](end_span)
-                        if (unit.availableTime > depTime) return false;[span_238](start_span)[span_238](end_span)
+                    let candidates = fleet.filter(unit => {
+                        if (unit.availableTime > depTime) return false;
                         
-                        let s = unit.shift || "";[span_239](start_span)[span_239](end_span)
-                        if (s.includes("早") && hour >= 14) return false;[span_240](start_span)[span_240](end_span)
-                        if (s.includes("晚") && hour < 14) return false;[span_241](start_span)[span_241](end_span)
-                        if (s.includes("頭") && (hour >= 10 && hour <= 14)) return false;[span_242](start_span)[span_242](end_span)
+                        let s = unit.shift || "";
+                        if (s.includes("早") && hour >= 14) return false;
+                        if (s.includes("晚") && hour < 14) return false;
+                        if (s.includes("頭") && (hour >= 10 && hour <= 14)) return false;
                         
-                        return true;[span_243](start_span)[span_243](end_span)
-                    });[span_244](start_span)[span_244](end_span)
+                        return true;
+                    });
 
-                    if (candidates.length > 0) {[span_245](start_span)[span_245](end_span)
-                        candidates.forEach(c => {[span_246](start_span)[span_246](end_span)
-                            c.score = 0;[span_247](start_span)[span_247](end_span)
-                            if (c.priority === 1) c.score += 100;[span_248](start_span)[span_248](end_span)
-                            if (c.lastStation === trip.start_point) c.score += 50;[span_249](start_span)[span_249](end_span)
-                            if (c.lastRoute === trip.route) c.score += 30;[span_250](start_span)[span_250](end_span)
-                        });[span_251](start_span)[span_251](end_span)
+                    if (candidates.length > 0) {
+                        candidates.forEach(c => {
+                            c.score = 0;
+                            if (c.priority === 1) c.score += 100;
+                            if (c.lastStation === trip.start_point) c.score += 50;
+                            if (c.lastRoute === trip.route) c.score += 30;
+                        });
 
-                        candidates.sort((a, b) => {[span_252](start_span)[span_252](end_span)
-                            if (b.score !== a.score) return b.score - a.score;[span_253](start_span)[span_253](end_span)
-                            return a.tripsCount - b.tripsCount;[span_254](start_span)[span_254](end_span)
-                        });[span_255](start_span)[span_255](end_span)
+                        candidates.sort((a, b) => {
+                            if (b.score !== a.score) return b.score - a.score;
+                            return a.tripsCount - b.tripsCount;
+                        });
 
-                        let assignedUnit = candidates[0];[span_256](start_span)[span_256](end_span)
+                        let assignedUnit = candidates[0];
 
-                        batch.update(doc(db, "daily_dispatches", trip.id), {[span_257](start_span)[span_257](end_span)
-                            assigned_driver: assignedUnit.name,[span_258](start_span)[span_258](end_span)
-                            assigned_empid: assignedUnit.empId,[span_259](start_span)[span_259](end_span)
-                            assigned_vehicle: assignedUnit.vehicle[span_260](start_span)[span_260](end_span)
-                        });[span_261](start_span)[span_261](end_span)
-                        successCount++;[span_262](start_span)[span_262](end_span)
+                        batch.update(doc(db, "daily_dispatches", trip.id), {
+                            assigned_driver: assignedUnit.name,
+                            assigned_empid: assignedUnit.empId,
+                            assigned_vehicle: assignedUnit.vehicle
+                        });
+                        successCount++;
 
-                        assignedUnit.tripsCount++;[span_263](start_span)[span_263](end_span)
-                        assignedUnit.lastStation = trip.end_point;[span_264](start_span)[span_264](end_span)
-                        assignedUnit.lastRoute = trip.route;[span_265](start_span)[span_265](end_span)
+                        assignedUnit.tripsCount++;
+                        assignedUnit.lastStation = trip.end_point;
+                        assignedUnit.lastRoute = trip.route;
 
-                        let breakTime = 90;[span_266](start_span)[span_266](end_span)
-                        if (assignedUnit.shift.includes("單") && assignedUnit.tripsCount >= 1 && hour >= 11 && hour <= 13) {[span_267](start_span)[span_267](end_span)
-                            breakTime = 150;[span_268](start_span)[span_268](end_span)
-                        }[span_269](start_span)[span_269](end_span)
+                        let breakTime = 90;
+                        if (assignedUnit.shift.includes("單") && assignedUnit.tripsCount >= 1 && hour >= 11 && hour <= 13) {
+                            breakTime = 150;
+                        }
 
-                        if (trip.arrival_time) {[span_270](start_span)[span_270](end_span)
-                            let [eh, em] = trip.arrival_time.split(':').map(Number);[span_271](start_span)[span_271](end_span)
-                            em += 30; eh += Math.floor(em / 60); em = em % 60;[span_272](start_span)[span_272](end_span)
-                            if (eh >= 24) eh -= 24;[span_273](start_span)[span_273](end_span)
-                            assignedUnit.availableTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;[span_274](start_span)[span_274](end_span)
-                        } else {[span_275](start_span)[span_275](end_span)
-                            let [h, m] = depTime.split(':').map(Number);[span_276](start_span)[span_276](end_span)
-                            m += breakTime;[span_277](start_span)[span_277](end_span)
-                            h += Math.floor(m / 60);[span_278](start_span)[span_278](end_span)
-                            m = m % 60;[span_279](start_span)[span_279](end_span)
-                            if (h >= 24) h -= 24;[span_280](start_span)[span_280](end_span)
-                            assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;[span_281](start_span)[span_281](end_span)
-                        }[span_282](start_span)[span_282](end_span)
-                    } else {[span_283](start_span)[span_283](end_span)
-                        failCount++;[span_284](start_span)[span_284](end_span)
-                    }[span_285](start_span)[span_285](end_span)
-                }[span_286](start_span)[span_286](end_span)
+                        if (trip.arrival_time) {
+                            let [eh, em] = trip.arrival_time.split(':').map(Number);
+                            em += 30; eh += Math.floor(em / 60); em = em % 60;
+                            if (eh >= 24) eh -= 24;
+                            assignedUnit.availableTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+                        } else {
+                            let [h, m] = depTime.split(':').map(Number);
+                            m += breakTime;
+                            h += Math.floor(m / 60);
+                            m = m % 60;
+                            if (h >= 24) h -= 24;
+                            assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        }
+                    } else {
+                        failCount++;
+                    }
+                }
 
-                if (successCount > 0) await batch.commit();[span_287](start_span)[span_287](end_span)
+                if (successCount > 0) await batch.commit();
 
-                setTimeout(() => {[span_288](start_span)[span_288](end_span)
-                    if (failCount > 0) {[span_289](start_span)[span_289](end_span)
-                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)\n※ 系統已嚴格遵守連貫性與休息法規，略過車趟請手動微調。`);[span_290](start_span)[span_290](end_span)
-                    } else {[span_291](start_span)[span_291](end_span)
-                        alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「彈性大中退」排班！`);[span_292](start_span)[span_292](end_span)
-                    }[span_293](start_span)[span_293](end_span)
-                    btn.innerHTML = "✨ 智慧自動調度";[span_294](start_span)[span_294](end_span)
-                    btn.disabled = false;[span_295](start_span)[span_295](end_span)
-                }, 500);[span_296](start_span)[span_296](end_span)
+                setTimeout(() => {
+                    if (failCount > 0) {
+                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)\n※ 系統已嚴格遵守連貫性與休息法規，略過車趟請手動微調。`);
+                    } else {
+                        alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「彈性大中退」排班！`);
+                    }
+                    btn.innerHTML = "✨ 智慧自動調度";
+                    btn.disabled = false;
+                }, 500);
 
-            } catch (e) {[span_297](start_span)[span_297](end_span)
-                console.error(e);[span_298](start_span)[span_298](end_span)
-                alert("執行自動調度時發生錯誤！請檢查網路。");[span_299](start_span)[span_299](end_span)
-                btn.innerHTML = "✨ 智慧自動調度";[span_300](start_span)[span_300](end_span)
-                btn.disabled = false;[span_301](start_span)[span_301](end_span)
-            }[span_302](start_span)[span_302](end_span)
-        });[span_303](start_span)[span_303](end_span)
+            } catch (e) {
+                console.error(e);
+                alert("執行自動調度時發生錯誤！請檢查網路。");
+                btn.innerHTML = "✨ 智慧自動調度";
+                btn.disabled = false;
+            }
+        });
 
         document.getElementById('btnPrintAll').addEventListener('click', async () => {
-            const printZone = document.getElementById('print-zone');[span_304](start_span)[span_304](end_span)
-            printZone.innerHTML = '';[span_305](start_span)[span_305](end_span)
+            const printZone = document.getElementById('print-zone');
+            printZone.innerHTML = '';
             
-            let dailyShifts = {};[span_306](start_span)[span_306](end_span)
-            const { weekId, dayKey } = getWeekInfo(document.getElementById('inputDate').value);[span_307](start_span)[span_307](end_span)
+            let dailyShifts = {};
+            const { weekId, dayKey } = getWeekInfo(document.getElementById('inputDate').value);
             try {
-                const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));[span_308](start_span)[span_308](end_span)
-                if (docSnap.exists() && docSnap.data().roster) {[span_309](start_span)[span_309](end_span)
-                    const roster = docSnap.data().roster;[span_310](start_span)[span_310](end_span)
-                    for (let driverId in roster) {[span_311](start_span)[span_311](end_span)
-                        dailyShifts[driverId] = roster[driverId][dayKey] || "";[span_312](start_span)[span_312](end_span)
-                    }[span_313](start_span)[span_313](end_span)
-                }[span_314](start_span)[span_314](end_span)
-            } catch (e) { console.error("無法抓取週班表：", e); }[span_315](start_span)[span_315](end_span)
+                const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+                if (docSnap.exists() && docSnap.data().roster) {
+                    const roster = docSnap.data().roster;
+                    for (let driverId in roster) {
+                        dailyShifts[driverId] = roster[driverId][dayKey] || "";
+                    }
+                }
+            } catch (e) { console.error("無法抓取週班表：", e); }
 
             const getLEDCode = (route) => {
-                const num = route.replace(/\D/g, '');[span_316](start_span)[span_316](end_span)
-                if(!num) return "N/A";[span_317](start_span)[span_317](end_span)
-                return `Hanover: *${num}# | Mobitec: ${num.padEnd(4, '0')}`;[span_318](start_span)[span_318](end_span)
-            };[span_319](start_span)[span_319](end_span)
+                const num = route.replace(/\D/g, '');
+                if(!num) return "N/A";
+                return `Hanover: *${num}# | Mobitec: ${num.padEnd(4, '0')}`;
+            };
 
-            const scheduleByDriver = {};[span_320](start_span)[span_320](end_span)
+            const scheduleByDriver = {};
             currentDayTrips.forEach(trip => {
-                if (!trip.assigned_driver || trip.assigned_driver === "尚未指派") return;[span_321](start_span)[span_321](end_span)
+                if (!trip.assigned_driver || trip.assigned_driver === "尚未指派") return;
 
-                if (!scheduleByDriver[trip.assigned_driver]) {[span_322](start_span)[span_322](end_span)
-                    let shiftName = dailyShifts[trip.assigned_empid] || "";[span_323](start_span)[span_323](end_span)
-                    if (!shiftName) {[span_324](start_span)[span_324](end_span)
-                        let dInfo = currentAvailableDrivers.find(d => d.empId === trip.assigned_empid || d.name === trip.assigned_driver);[span_325](start_span)[span_325](end_span)
-                        if (dInfo && dInfo.shift) shiftName = dInfo.shift;[span_326](start_span)[span_326](end_span)
-                    }[span_327](start_span)[span_327](end_span)
+                if (!scheduleByDriver[trip.assigned_driver]) {
+                    let shiftName = dailyShifts[trip.assigned_empid] || "";
+                    if (!shiftName) {
+                        let dInfo = currentAvailableDrivers.find(d => d.empId === trip.assigned_empid || d.name === trip.assigned_driver);
+                        if (dInfo && dInfo.shift) shiftName = dInfo.shift;
+                    }
 
-                    scheduleByDriver[trip.assigned_driver] = {[span_328](start_span)[span_328](end_span)
-                        driver: trip.assigned_driver,[span_329](start_span)[span_329](end_span)
-                        empId: trip.assigned_empid || "",[span_330](start_span)[span_330](end_span)
-                        shiftType: shiftName,[span_331](start_span)[span_331](end_span)
-                        vehicle: (trip.assigned_vehicle === "尚未指派") ? "" : trip.assigned_vehicle,[span_332](start_span)[span_332](end_span)
-                        trips: [][span_333](start_span)[span_333](end_span)
-                    };[span_334](start_span)[span_334](end_span)
-                }[span_335](start_span)[span_335](end_span)
+                    scheduleByDriver[trip.assigned_driver] = {
+                        driver: trip.assigned_driver,
+                        empId: trip.assigned_empid || "",
+                        shiftType: shiftName,
+                        vehicle: (trip.assigned_vehicle === "尚未指派") ? "" : trip.assigned_vehicle,
+                        trips: []
+                    };
+                }
                 scheduleByDriver[trip.assigned_driver].trips.push({
-                    route: trip.route || '',[span_336](start_span)[span_336](end_span)
-                    startStation: trip.start_point || '',[span_337](start_span)[span_337](end_span)
-                    arrStation: trip.end_point || '',[span_338](start_span)[span_338](end_span)
-                    depTime: trip.departure_time || '',[span_339](start_span)[span_339](end_span)
-                    arrTime: trip.arrival_time || '[span_340](start_span)'[span_340](end_span)
-                });[span_341](start_span)[span_341](end_span)
-            });[span_342](start_span)[span_342](end_span)
+                    route: trip.route || '',
+                    startStation: trip.start_point || '',
+                    arrStation: trip.end_point || '',
+                    depTime: trip.departure_time || '',
+                    arrTime: trip.arrival_time || ''
+                });
+            });
 
-            const driverKeys = Object.keys(scheduleByDriver);[span_343](start_span)[span_343](end_span)
-            if (driverKeys.length === 0) {[span_344](start_span)[span_344](end_span)
-                alert("目前沒有任何「已指派駕駛」的車趟，無法列印憑單！");[span_345](start_span)[span_345](end_span)
-                return;[span_346](start_span)[span_346](end_span)
-            }[span_347](start_span)[span_347](end_span)
+            const driverKeys = Object.keys(scheduleByDriver);
+            if (driverKeys.length === 0) {
+                alert("目前沒有任何「已指派駕駛」的車趟，無法列印憑單！");
+                return;
+            }
 
-            const printDate = document.getElementById('inputDate').value.replace(/-/g, '/');[span_348](start_span)[span_348](end_span)
-            const blankCheckbox = `<span style="font-size:16px; color:#000 !important; font-weight:bold;">□</span>`;[span_349](start_span)[span_349](end_span)
+            const printDate = document.getElementById('inputDate').value.replace(/-/g, '/');
+            const blankCheckbox = `<span style="font-size:16px; color:#000 !important; font-weight:bold;">□</span>`;
 
             driverKeys.forEach(name => {
-                const assign = scheduleByDriver[name];[span_350](start_span)[span_350](end_span)
-                assign.trips.sort((a, b) => a.depTime.localeCompare(b.depTime));[span_351](start_span)[span_351](end_span)
+                const assign = scheduleByDriver[name];
+                assign.trips.sort((a, b) => a.depTime.localeCompare(b.depTime));
 
-                let tripsRowsHtml = '';[span_352](start_span)[span_352](end_span)
-                let lastHour = -1;[span_353](start_span)[span_353](end_span)
+                let tripsRowsHtml = '';
+                let lastHour = -1;
 
                 assign.trips.forEach((t, idx) => {
-                    let currentHour = parseInt(t.depTime.split(':')[0]);[span_354](start_span)[span_354](end_span)
+                    let currentHour = parseInt(t.depTime.split(':')[0]);
                     
-                    if (lastHour !== -1 && (currentHour - lastHour >= 4)) {[span_355](start_span)[span_355](end_span)
-                        tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:8px; color:#475569 !important; font-size:16px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;[span_356](start_span)[span_356](end_span)
-                    }[span_357](start_span)[span_357](end_span)
-                    lastHour = currentHour;[span_358](start_span)[span_358](end_span)
+                    if (lastHour !== -1 && (currentHour - lastHour >= 4)) {
+                        tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:8px; color:#475569 !important; font-size:16px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;
+                    }
+                    lastHour = currentHour;
                     
-                    const ledCode = getLEDCode(t.route);[span_359](start_span)[span_359](end_span)
-                    const arrStr = t.arrTime ? `~ ${t.arrTime}` : '';[span_360](start_span)[span_360](end_span)
+                    const ledCode = getLEDCode(t.route);
+                    const arrStr = t.arrTime ? `~ ${t.arrTime}` : '';
 
                     tripsRowsHtml += `
                         <tr>
@@ -759,12 +759,12 @@
                             <td></td><td></td>
                             <td></td>
                         </tr>
-                    `;[span_361](start_span)[span_361](end_span)
-                });[span_362](start_span)[span_362](end_span)
+                    `;
+                });
 
-                for(let i = assign.trips.length; i < 12; i++) {[span_363](start_span)[span_363](end_span)
-                    tripsRowsHtml += `<tr><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;[span_364](start_span)[span_364](end_span)
-                }[span_365](start_span)[span_365](end_span)
+                for(let i = assign.trips.length; i < 12; i++) {
+                    tripsRowsHtml += `<tr><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                }
 
                 const voucherHtml = `
                 <div class="voucher-page" style="color:#000 !important;">
@@ -856,16 +856,16 @@
                             <p style="margin:0; color:#000 !important;">註2: 行車中不得撥打或持握式行動電話及無線電，如因接聽電話須使用免持聽筒。另過趟次中，探聽電信以三通為限，每通電話不得超過一分鐘。</p>
                         </div>
                     </div>
-                </div>`;[span_366](start_span)[span_366](end_span)
-                printZone.innerHTML += voucherHtml;[span_367](start_span)[span_367](end_span)
-            });[span_368](start_span)[span_368](end_span)
+                </div>`;
+                printZone.innerHTML += voucherHtml;
+            });
 
-            setTimeout(() => { window.print(); }, 300);[span_369](start_span)[span_369](end_span)
-        });[span_370](start_span)[span_370](end_span)
+            setTimeout(() => { window.print(); }, 300);
+        });
 
     }).catch((err) => {
-        console.error("驗證失敗或未登入", err);[span_371](start_span)[span_371](end_span)
-    });[span_372](start_span)[span_372](end_span)
+        console.error("驗證失敗或未登入", err);
+    });
 </script>
 </body>
 </html>
