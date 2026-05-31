@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>智慧公車資訊查詢網</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #121212; color: #e5e7eb; font-family: "微軟正黑體", sans-serif; -webkit-tap-highlight-color: transparent; }
+    /* 隱藏捲軸但保持可捲動 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* 底部彈出選單動畫 */
+    .bottom-sheet { transform: translateY(100%); transition: transform 0.3s ease-in-out; }
+    .bottom-sheet.open { transform: translateY(0); }
+    .overlay { opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out; }
+    .overlay.open { opacity: 1; pointer-events: auto; }
+  </style>
+</head>
+<body class="h-screen flex flex-col">
+
+  <header class="flex items-center justify-between px-4 py-3 bg-[#1e1e24] shadow-md z-10 sticky top-0">
+    <div class="flex items-center gap-3">
+      <button id="btnBack" class="hidden text-gray-400 hover:text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+      </button>
+      <h1 id="pageTitle" class="text-lg font-bold">路線</h1>
+    </div>
+    <div class="text-sm font-medium">100 ⚡</div>
+  </header>
+
+  <main id="viewRoutes" class="flex-1 overflow-y-auto no-scrollbar p-4 pb-20">
+    
+    <div class="relative mb-4">
+      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+      </div>
+      <input type="text" class="block w-full pl-10 pr-3 py-2.5 border border-transparent rounded-full leading-5 bg-[#2a2a35] text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 sm:text-sm" placeholder="搜尋路線、描述或編號 (支援 Regex)">
+    </div>
+
+    <div class="bg-[#1e1e24] rounded-xl p-4 mb-4 shadow-lg">
+      <div class="flex items-start justify-between mb-2">
+        <h2 class="text-3xl font-bold text-purple-200">3</h2>
+      </div>
+      <div class="flex items-center text-sm font-bold text-gray-200 mb-1">
+        <span>東山高中</span>
+        <svg class="w-4 h-4 mx-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+        <span>新烏日車站</span>
+      </div>
+      <div class="text-xs text-gray-400 mb-4">東山高中 - 新烏日車站<br>編號 : 3</div>
+      
+      <div class="flex gap-2 justify-end">
+        <button class="px-4 py-1.5 rounded-full border border-gray-500 text-sm hover:bg-gray-700">地圖動態</button>
+        <button class="btn-timetable px-4 py-1.5 rounded-full border border-gray-500 text-sm hover:bg-gray-700" data-route="3" data-start="東山高中" data-end="新烏日車站">時刻表</button>
+        <button class="px-4 py-1.5 rounded-full bg-[#c4b5fd] text-gray-900 font-bold text-sm hover:bg-purple-300">查詢車輛</button>
+      </div>
+    </div>
+    
+    <div class="bg-[#1e1e24] rounded-xl p-4 mb-4 shadow-lg">
+      <div class="flex items-start justify-between mb-2">
+        <h2 class="text-3xl font-bold text-purple-200">5</h2>
+      </div>
+      <div class="flex items-center text-sm font-bold text-gray-200 mb-1">
+        <span>臺中車站</span>
+        <svg class="w-4 h-4 mx-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+        <span>僑光科技大學</span>
+      </div>
+      <div class="text-xs text-gray-400 mb-4">臺中車站 - 僑光科技大學<br>編號 : 5</div>
+      
+      <div class="flex gap-2 justify-end">
+        <button class="px-4 py-1.5 rounded-full border border-gray-500 text-sm hover:bg-gray-700">地圖動態</button>
+        <button class="btn-timetable px-4 py-1.5 rounded-full border border-gray-500 text-sm hover:bg-gray-700" data-route="5" data-start="臺中車站" data-end="僑光科技大學">時刻表</button>
+        <button class="px-4 py-1.5 rounded-full bg-[#c4b5fd] text-gray-900 font-bold text-sm hover:bg-purple-300">查詢車輛</button>
+      </div>
+    </div>
+  </main>
+
+  <main id="viewTimetable" class="hidden flex-1 overflow-y-auto no-scrollbar p-4 pb-20">
+    <div class="bg-[#1e1e24] rounded-lg p-3 mb-4 flex justify-between items-center border border-gray-700">
+      <div class="flex flex-col">
+        <span class="text-xs text-gray-400">查詢日期</span>
+        <input type="date" id="queryDate" class="bg-transparent text-white font-bold outline-none text-lg mt-1" value="2026-05-31">
+      </div>
+      <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+    </div>
+
+    <div class="flex items-center mb-3">
+      <div class="w-1 h-4 bg-[#c4b5fd] rounded-full mr-2"></div>
+      <h3 id="timetableDirectionTitle" class="text-base font-bold text-gray-200">往 新烏日車站</h3>
+    </div>
+
+    <div class="space-y-2">
+      <div class="flex items-center justify-between bg-[#1e1e24] p-3 rounded-lg border border-gray-800">
+        <div class="flex items-center gap-4">
+          <div class="bg-[#2a2a35] text-purple-200 font-bold px-3 py-1.5 rounded-md text-sm">06:00</div>
+          <div class="text-gray-300 font-medium text-sm">882-U5</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="text-gray-400 hover:text-yellow-400"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+          <button class="btn-action bg-[#c4b5fd] text-gray-900 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1" data-vehicle="882-U5">
+            <span>•••</span> 操作
+          </button>
+        </div>
+      </div>
+      
+      <div class="flex items-center justify-between bg-[#1e1e24] p-3 rounded-lg border border-gray-800">
+        <div class="flex items-center gap-4">
+          <div class="bg-[#2a2a35] text-purple-200 font-bold px-3 py-1.5 rounded-md text-sm">07:45</div>
+          <div class="text-gray-300 font-medium text-sm">725-U5</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="text-gray-400"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+          <button class="btn-action bg-[#c4b5fd] text-gray-900 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1" data-vehicle="725-U5">
+            <span>•••</span> 操作
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <nav class="bg-[#1e1e24] border-t border-gray-800 flex justify-around py-3 pb-safe fixed bottom-0 w-full z-10">
+    <button class="flex flex-col items-center text-gray-400 hover:text-white">
+      <span class="text-xl mb-1">ℹ️</span><span class="text-[10px]">資訊</span>
+    </button>
+    <button class="flex flex-col items-center text-purple-400">
+      <span class="text-xl mb-1">☈</span><span class="text-[10px]">路線</span>
+    </button>
+    <button class="flex flex-col items-center text-gray-400 hover:text-white">
+      <span class="text-xl mb-1">🚍</span><span class="text-[10px]">車輛</span>
+    </button>
+    <button class="flex flex-col items-center text-gray-400 hover:text-white">
+      <span class="text-xl mb-1">👨‍✈️</span><span class="text-[10px]">駕駛長</span>
+    </button>
+    <button class="flex flex-col items-center text-gray-400 hover:text-white">
+      <span class="text-xl mb-1">⚙️</span><span class="text-[10px]">設定</span>
+    </button>
+  </nav>
+
+  <div id="overlay" class="overlay fixed inset-0 bg-black bg-opacity-60 z-40"></div>
+  <div id="actionSheet" class="bottom-sheet fixed bottom-0 left-0 w-full bg-[#2a2a35] rounded-t-2xl z-50 p-5 pb-8 shadow-2xl border-t border-gray-700">
+    <div class="flex justify-between items-center mb-6">
+      <h3 id="actionSheetTitle" class="text-lg font-bold text-gray-100 flex items-center gap-2">
+        🚍 車輛操作: <span></span>
+      </h3>
+    </div>
+    
+    <div class="space-y-4 text-sm font-medium text-gray-300">
+      <button class="w-full flex items-center gap-3 p-2 hover:bg-gray-700 rounded-lg transition"><span class="text-lg">🚌</span> 即時動態</button>
+      <button class="w-full flex items-center gap-3 p-2 hover:bg-gray-700 rounded-lg transition"><span class="text-lg">🕒</span> 歷史軌跡</button>
+      <button class="w-full flex items-center gap-3 p-2 hover:bg-gray-700 rounded-lg transition"><span class="text-lg">📈</span> 最後軌跡</button>
+      <hr class="border-gray-700">
+      <button class="w-full flex items-center gap-3 p-2 hover:bg-gray-700 rounded-lg transition"><span class="text-lg">📅</span> 查詢班表</button>
+      <button class="w-full flex items-center gap-3 p-2 hover:bg-gray-700 rounded-lg transition"><span class="text-lg">👨‍✈️</span> 查詢駕駛長</button>
+      <button class="w-full flex items-center gap-3 p-2 hover:bg-gray-700 rounded-lg transition"><span class="text-lg">☈</span> 查詢路線</button>
+    </div>
+    
+    <div class="mt-6 text-right">
+      <button id="btnCloseSheet" class="text-purple-400 font-bold hover:text-purple-300 px-4 py-2">關閉</button>
+    </div>
+  </div>
+
+  <script>
+    // 視圖切換邏輯
+    const viewRoutes = document.getElementById('viewRoutes');
+    const viewTimetable = document.getElementById('viewTimetable');
+    const btnBack = document.getElementById('btnBack');
+    const pageTitle = document.getElementById('pageTitle');
+    const timetableDirectionTitle = document.getElementById('timetableDirectionTitle');
+
+    // 點擊「時刻表」進入詳細頁面
+    document.querySelectorAll('.btn-timetable').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const route = e.target.dataset.route;
+        const endStation = e.target.dataset.end;
+        
+        pageTitle.innerText = `${route} 時刻表`;
+        timetableDirectionTitle.innerText = `往 ${endStation}`;
+        
+        viewRoutes.classList.add('hidden');
+        viewTimetable.classList.remove('hidden');
+        btnBack.classList.remove('hidden');
+      });
+    });
+
+    // 點擊返回
+    btnBack.addEventListener('click', () => {
+      viewRoutes.classList.remove('hidden');
+      viewTimetable.classList.add('hidden');
+      btnBack.classList.add('hidden');
+      pageTitle.innerText = '路線';
+    });
+
+    // Bottom Sheet 邏輯
+    const actionSheet = document.getElementById('actionSheet');
+    const overlay = document.getElementById('overlay');
+    const btnCloseSheet = document.getElementById('btnCloseSheet');
+    const actionSheetTitle = document.querySelector('#actionSheetTitle span');
+
+    const openSheet = (vehicle) => {
+      actionSheetTitle.innerText = vehicle;
+      actionSheet.classList.add('open');
+      overlay.classList.add('open');
+    }
+
+    const closeSheet = () => {
+      actionSheet.classList.remove('open');
+      overlay.classList.remove('open');
+    }
+
+    document.querySelectorAll('.btn-action').forEach(btn => {
+      btn.addEventListener('click', (e) => openSheet(e.currentTarget.dataset.vehicle));
+    });
+
+    btnCloseSheet.addEventListener('click', closeSheet);
+    overlay.addEventListener('click', closeSheet);
+  </script>
+</body>
+</html>
