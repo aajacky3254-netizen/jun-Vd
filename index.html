@@ -6,12 +6,11 @@
   <title>愛巴士交通客運 - 營運管理入口網</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; display: none; /* 預設隱藏，驗證後顯示 */ }
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; display: none; }
     .navbar { background-color: #1e293b; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 22px; font-weight: bold; margin-right: auto; text-decoration: none; letter-spacing: 1px; }
     .module-card { transition: all 0.3s ease; }
     .module-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
-    .disabled-card { opacity: 0.4; filter: grayscale(100%); cursor: not-allowed; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -21,6 +20,7 @@
   </nav>
 
   <div class="max-w-6xl mx-auto px-6 py-10">
+    
     <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-lg p-8 mb-10 text-white flex justify-between items-center">
         <div>
             <h1 class="text-3xl font-bold mb-2 tracking-wide" id="welcomeMsg">歡迎登入，系統載入中...</h1>
@@ -29,50 +29,57 @@
         <div class="hidden md:block text-6xl opacity-80">🏢</div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="moduleCards">
+        
         <a href="dispatch.html" id="card-dispatch" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-blue-600 transition-colors">🚦</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">每日發車控制台</h3>
             <p class="text-gray-500 text-sm">執行每日車次調度、司機派班與車輛安排，並可列印行車憑單。</p>
             <span class="mt-4 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">調度權限</span>
         </a>
+
         <a href="schedule.html" id="card-schedule" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-emerald-500 transition-colors">🗓️</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">週班表管理</h3>
             <p class="text-gray-500 text-sm">管理全站駕駛員之單班、雙頭班等每週輪班狀態，防呆避免違規。</p>
             <span class="mt-4 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">調度權限</span>
         </a>
+
         <a href="drivers.html" id="card-drivers" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-purple-600 transition-colors">👨‍✈️</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">駕駛長人事管理</h3>
             <p class="text-gray-500 text-sm">維護員工基本資料、駕照狀態、在職狀態與系統登入權限發放。</p>
             <span class="mt-4 text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">站長 / 總公司專用</span>
         </a>
+
         <a href="vehicles.html" id="card-vehicles" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-orange-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-orange-500 transition-colors">🚍</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">車輛資產管理</h3>
             <p class="text-gray-500 text-sm">追蹤全站車隊資產、回報故障車輛及維護定保保養紀錄。</p>
             <span class="mt-4 text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full">全體職員</span>
         </a>
+
         <a href="routes.html" id="card-routes" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-rose-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-rose-500 transition-colors">🗺️</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">路線與站點設定</h3>
             <p class="text-gray-500 text-sm">設定與清理營運路線代碼及各站點名稱，供調度系統連動使用。</p>
             <span class="mt-4 text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full">站長 / 總公司專用</span>
         </a>
+
         <a href="personal.html" id="card-personal" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-teal-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-teal-500 transition-colors">📱</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">個人班表檢視</h3>
             <p class="text-gray-500 text-sm">駕駛長專用通道：檢視您個人本週的排班狀況與明日發車時間。</p>
             <span class="mt-4 text-xs font-bold text-teal-600 bg-teal-50 px-3 py-1 rounded-full">駕駛長專用</span>
         </a>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="moduleCards">
+
         <a href="repairs.html" id="card-repairs" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-red-600 transition-colors">🛠️</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">車輛報修系統</h3>
             <p class="text-gray-500 text-sm">駕駛員線上回報車況，維修班即時接單檢修。</p>
             <span class="mt-4 text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full">全員開放</span>
         </a>
+
     </div>
 
     <div id="fairnessDashboard" class="mt-12 bg-white rounded-xl shadow-md border border-gray-200 p-8 hidden">
@@ -87,6 +94,7 @@
             <div class="text-center text-gray-400 py-4">數據運算中...</div>
         </div>
     </div>
+
   </div>
 
   <script type="module">
@@ -105,15 +113,15 @@
         
         document.getElementById('main-nav').innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold">
-                <span class="bg-slate-700 px-4 py-1.5 rounded-full shadow-inner">👤 ${user.name} (${user.role})</span>
+                <span class="bg-slate-700 px-4 py-1.5 rounded-full shadow-inner border border-slate-600">👤 ${user.name} (${user.role})</span>
                 <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-4 py-1.5 rounded-lg transition shadow-md">登出系統</button>
             </div>
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // 智慧 UI 分流
+        // 🌟 智慧 UI 分流：將不符合權限的卡片「直接隱藏」
         const r = user.role;
-        const hide = (id) => { const el = document.getElementById(id); if(el) el.classList.add('disabled-card'); };
+        const hide = (id) => { const el = document.getElementById(id); if(el) el.style.display = 'none'; };
 
         if (r === '駕駛長') {
             hide('card-dispatch'); hide('card-schedule'); hide('card-drivers'); hide('card-routes');
@@ -121,9 +129,10 @@
             hide('card-drivers'); hide('card-routes'); hide('card-personal');
         } else if (r === '維修人員') {
             hide('card-dispatch'); hide('card-schedule'); hide('card-drivers'); hide('card-routes'); hide('card-personal');
-        } else { // StationManager, SuperAdmin
+        } else { 
+            // StationManager, SuperAdmin
             hide('card-personal'); 
-            document.getElementById('fairnessDashboard').classList.remove('hidden'); // 管理員才看得到儀表板
+            document.getElementById('fairnessDashboard').classList.remove('hidden'); 
             generateFairnessDashboard();
         }
 
@@ -141,7 +150,6 @@
                 
                 for(let [driver, count] of Object.entries(driverCounts)) {
                     let percent = (count / maxTrips) * 100;
-                    // 勞度過高亮紅色警告
                     let barColor = count >= 10 ? 'bg-red-500' : 'bg-emerald-500';
                     let alertIcon = count >= 10 ? '⚠️ 勞務偏重' : '';
                     
@@ -154,9 +162,12 @@
                         <div class="w-24 font-bold text-gray-600">${count} 趟 <span class="text-red-500 text-xs">${alertIcon}</span></div>
                     </div>`;
                 }
-                document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center">尚無派車資料</div>';
+                document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center text-gray-500 font-bold py-4">目前尚無派車資料。</div>';
             } catch (e) { console.error(e); }
         }
+    }).catch((err) => {
+        console.error("未登入，已退回登入頁面", err);
     });
   </script>
-    
+</body>
+</html>
