@@ -6,35 +6,23 @@
   <title>車輛調度系統 - 車輛資產與保養管理</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
     h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
-    
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 22px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
     .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
-
     .content-area { padding: 0 20px; max-width: 1200px; margin: 0 auto;}
-    
-    .control-panel {
-      background: #fff; padding: 24px; border-radius: 12px; 
-      box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 24px;
-      display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0;
-    }
+    .control-panel { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 24px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0; }
     .input-group { display: flex; flex-direction: column; gap: 6px; }
     .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
-    .input-group input, .input-group select {
-      padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none; background-color: #f8fafc;
-    }
+    .input-group input, .input-group select { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none; background-color: #f8fafc; }
     .input-group input:focus, .input-group select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background-color: #fff;}
-
     table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
     th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; transition: background-color 0.2s; }
     th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
     tr:hover { background-color: #f8fafc; }
-    
-    /* 車輛狀態視覺標籤 */
     tr.status-maintenance { background-color: #fefce8; } 
     tr.status-breakdown { background-color: #fef2f2; }   
     .badge { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; display: inline-block;}
@@ -46,7 +34,7 @@
 <body>
 
   <nav class="navbar">
-    <a href="#" class="navbar-brand">🚌 智慧車輛調度系統</a>
+    <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
     <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
     <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
     <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
@@ -109,19 +97,15 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    // 💡 修正：補齊缺少的 Firestore 函式
+    import { getFirestore, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    // --- 根據不同頁面設定權限 ---
-    // 例如：dispatch.html 用 ['SuperAdmin', 'StationManager', '調度員']
-    // 例如：vehicles.html 用 ['SuperAdmin', 'StationManager', '調度員', 'Employee']
-    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
-        // A. 顯示網頁內容
-        document.body.style.display = 'block'; // 確保 CSS 控制 body 預設隱藏
+        document.body.style.display = 'block'; 
 
-        // B. 動態加入登出導覽列
         const nav = document.querySelector('.navbar');
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
@@ -131,7 +115,6 @@
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // C. 初始化 Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
           authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -142,118 +125,116 @@
         };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-    const vehiclesCol = collection(db, "Vehicles");
-    const dbStatusEl = document.getElementById('db-status');
-
-    let editingDocId = null; 
-    const saveBtn = document.getElementById('saveVehicleBtn');
-    const cancelBtn = document.getElementById('cancelEditBtn');
-
-    const q = query(vehiclesCol);
-    onSnapshot(q, (snapshot) => {
-      const tbody = document.getElementById('vehiclesBody');
-      tbody.innerHTML = '';
-
-      if (snapshot.empty) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500 font-bold">目前車隊中沒有任何車輛。</td></tr>';
-        dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
-        dbStatusEl.innerText = "資料庫已連線";
-        return;
-      }
-
-      let vehiclesData = [];
-      snapshot.forEach(doc => { vehiclesData.push({ id: doc.id, ...doc.data() }); });
-      vehiclesData.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
-
-      vehiclesData.forEach((data) => {
-        const tr = document.createElement('tr');
         
-        if (data.status === 'maintenance') tr.className = 'status-maintenance';
-        if (data.status === 'breakdown') tr.className = 'status-breakdown';
+        const vehiclesCol = collection(db, "Vehicles");
+        const dbStatusEl = document.getElementById('db-status');
+        let editingDocId = null; 
+        const saveBtn = document.getElementById('saveVehicleBtn');
+        const cancelBtn = document.getElementById('cancelEditBtn');
 
-        let statusHtml = '';
-        if (data.status === 'ready') statusHtml = '<span class="badge badge-ready">正常營運</span>';
-        if (data.status === 'maintenance') statusHtml = '<span class="badge badge-maintenance">定保中</span>';
-        if (data.status === 'breakdown') statusHtml = '<span class="badge badge-breakdown">故障維修</span>';
+        const q = query(vehiclesCol);
+        onSnapshot(q, (snapshot) => {
+          const tbody = document.getElementById('vehiclesBody');
+          tbody.innerHTML = '';
 
-        tr.innerHTML = `
-          <td style="font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #334155;">${data.plate_number || data.id}</td>
-          <td style="font-weight: 600; color: #475569;">${data.model}</td>
-          <td>${statusHtml}</td>
-          <td style="color: #64748b;">${data.notes || '-'}</td>
-          <td style="text-align: center;">
-            <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${data.id}" data-plate="${data.plate_number}" data-model="${data.model}" data-status="${data.status}" data-notes="${data.notes || ''}">編輯</button>
-            <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${data.id}">報廢</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
-      dbStatusEl.innerText = "資料庫已連線";
-
-      document.querySelectorAll('.btn-edit').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          document.getElementById('inputPlate').value = e.target.getAttribute('data-plate');
-          document.getElementById('inputModel').value = e.target.getAttribute('data-model');
-          document.getElementById('inputStatus').value = e.target.getAttribute('data-status');
-          document.getElementById('inputNotes').value = e.target.getAttribute('data-notes');
-          
-          editingDocId = e.target.getAttribute('data-id');
-          saveBtn.innerText = "💾 儲存修改";
-          saveBtn.className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
-          cancelBtn.style.display = "inline-block";
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-      });
-
-      document.querySelectorAll('.btn-delete').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const targetId = e.target.getAttribute('data-id');
-          if (confirm("⚠️ 警告：確定要將這台車輛從系統中報廢刪除嗎？")) {
-            try { await deleteDoc(doc(db, "Vehicles", targetId)); } 
-            catch (err) { console.error("刪除失敗:", err); }
+          if (snapshot.empty) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500 font-bold">目前車隊中沒有任何車輛。</td></tr>';
+            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+            dbStatusEl.innerText = "資料庫已連線";
+            return;
           }
+
+          let vehiclesData = [];
+          snapshot.forEach(docSnap => { vehiclesData.push({ id: docSnap.id, ...docSnap.data() }); });
+          vehiclesData.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
+
+          vehiclesData.forEach((data) => {
+            const tr = document.createElement('tr');
+            
+            if (data.status === 'maintenance') tr.className = 'status-maintenance';
+            if (data.status === 'breakdown') tr.className = 'status-breakdown';
+
+            let statusHtml = '';
+            if (data.status === 'ready') statusHtml = '<span class="badge badge-ready">正常營運</span>';
+            if (data.status === 'maintenance') statusHtml = '<span class="badge badge-maintenance">定保中</span>';
+            if (data.status === 'breakdown') statusHtml = '<span class="badge badge-breakdown">故障維修</span>';
+
+            tr.innerHTML = `
+              <td style="font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #334155;">${data.plate_number || data.id}</td>
+              <td style="font-weight: 600; color: #475569;">${data.model}</td>
+              <td>${statusHtml}</td>
+              <td style="color: #64748b;">${data.notes || '-'}</td>
+              <td style="text-align: center;">
+                <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${data.id}" data-plate="${data.plate_number}" data-model="${data.model}" data-status="${data.status}" data-notes="${data.notes || ''}">編輯</button>
+                <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${data.id}">報廢</button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+          dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+          dbStatusEl.innerText = "資料庫已連線";
+
+          document.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              document.getElementById('inputPlate').value = e.target.getAttribute('data-plate');
+              document.getElementById('inputModel').value = e.target.getAttribute('data-model');
+              document.getElementById('inputStatus').value = e.target.getAttribute('data-status');
+              document.getElementById('inputNotes').value = e.target.getAttribute('data-notes');
+              
+              editingDocId = e.target.getAttribute('data-id');
+              saveBtn.innerText = "💾 儲存修改";
+              saveBtn.className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
+              cancelBtn.style.display = "inline-block";
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+          });
+
+          document.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              const targetId = e.target.getAttribute('data-id');
+              if (confirm("⚠️ 警告：確定要將這台車輛從系統中報廢刪除嗎？")) {
+                try { await deleteDoc(doc(db, "Vehicles", targetId)); } 
+                catch (err) { console.error("刪除失敗:", err); }
+              }
+            });
+          });
         });
-      });
-    });
 
-    saveBtn.addEventListener('click', async () => {
-      const plate = document.getElementById('inputPlate').value.trim();
-      const model = document.getElementById('inputModel').value.trim();
-      const status = document.getElementById('inputStatus').value;
-      const notes = document.getElementById('inputNotes').value.trim();
+        saveBtn.addEventListener('click', async () => {
+          const plate = document.getElementById('inputPlate').value.trim();
+          const model = document.getElementById('inputModel').value.trim();
+          const status = document.getElementById('inputStatus').value;
+          const notes = document.getElementById('inputNotes').value.trim();
 
-      if (!plate || !model) { alert("請輸入完整車牌號碼與車輛型號！"); return; }
+          if (!plate || !model) { alert("請輸入完整車牌號碼與車輛型號！"); return; }
+          const vehicleData = { plate_number: plate, model: model, status: status, notes: notes };
 
-      const vehicleData = { plate_number: plate, model: model, status: status, notes: notes };
+          try {
+            if (editingDocId) {
+              await updateDoc(doc(db, "Vehicles", editingDocId), vehicleData);
+              resetForm();
+            } else {
+              await setDoc(doc(db, "Vehicles", plate), vehicleData);
+              resetForm();
+            }
+          } catch (error) { console.error("儲存失敗:", error); }
+        });
 
-      try {
-        if (editingDocId) {
-          await updateDoc(doc(db, "Vehicles", editingDocId), vehicleData);
-          resetForm();
-        } else {
-          // 強制將 Document ID 設為車牌號碼
-          await setDoc(doc(db, "Vehicles", plate), vehicleData);
-          resetForm();
+        cancelBtn.addEventListener('click', resetForm);
+
+        function resetForm() {
+          editingDocId = null;
+          document.getElementById('inputPlate').value = '';
+          document.getElementById('inputModel').value = '';
+          document.getElementById('inputStatus').value = 'ready';
+          document.getElementById('inputNotes').value = '';
+          saveBtn.innerText = "＋ 新增車輛";
+          saveBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
+          cancelBtn.style.display = "none";
         }
-      } catch (error) {
-        console.error("儲存失敗:", error);
-      }
-    });
-
-    cancelBtn.addEventListener('click', resetForm);
-
-    function resetForm() {
-      editingDocId = null;
-      document.getElementById('inputPlate').value = '';
-      document.getElementById('inputModel').value = '';
-      document.getElementById('inputStatus').value = 'ready';
-      document.getElementById('inputNotes').value = '';
-      saveBtn.innerText = "＋ 新增車輛";
-      saveBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
-      cancelBtn.style.display = "none";
-    }
+    // 💡 修正：閉合括號
+    }).catch(err => console.error(err));
   </script>
 </body>
 </html>
