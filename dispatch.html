@@ -25,14 +25,14 @@
     }
     
     /* 軌道與區塊 */
-    .trip-track { border-bottom: 1px solid #1e293b; height: 70px; display: flex; align-items: center; position: relative; }
+    .trip-track { border-bottom: 1px solid #1e293b; height: 75px; display: flex; align-items: center; position: relative; }
     .trip-track:hover { background-color: #1e293b; }
     
     .trip-block { 
-        position: absolute; height: 44px; top: 13px; border-radius: 6px;
+        position: absolute; height: 52px; top: 11px; border-radius: 6px;
         background-color: #14b8a6; /* The Bus 的青綠色 */
         display: flex; flex-direction: column; justify-content: center; padding: 0 10px; color: #042f2e;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); transition: all 0.2s; overflow: hidden; border: 1px solid #0d9488;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); transition: all 0.2s; overflow: hidden; border: 1px solid #0d9488;
     }
     .trip-block.assigned { background-color: #0d9488; color: #ccfbf1; } /* 已指派的顏色 */
     .trip-block.drag-over { border: 2px dashed #facc15; transform: scale(1.02); filter: brightness(1.2); }
@@ -48,6 +48,22 @@
         body * { visibility: hidden; }
         #print-zone, #print-zone * { visibility: visible; }
         #print-zone { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
+        
+        .voucher-page { 
+            display: flex; flex-direction: column; width: 100%; 
+            height: 285mm; max-height: 285mm; overflow: hidden; 
+            page-break-after: always; page-break-inside: avoid;
+            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px;
+        }
+        .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; }
+        .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 4px 6px; text-align: center; } 
+        .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
+        .text-left { text-align: left !important; padding-left: 8px !important; }
+        .font-bold { font-weight: bold !important; }
+        .red-text { color: #dc2626 !important; font-weight: bold; }
+        .trips-section { flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 2px;}
+        .trips-table-wrapper { flex-grow: 1; }
+        .trips-table { height: 100%; margin-bottom: 0;}
     }
   </style>
 </head>
@@ -61,16 +77,25 @@
     <a href="vehicles.html" class="nav-link">🚍 車輛資訊系統</a>
   </nav>
 
-  <!-- 頂部控制列 -->
-  <div class="bg-gray-900 p-3 flex gap-3 items-center border-b border-gray-700 text-sm">
-    <input type="date" id="inputDate" class="bg-gray-800 border border-gray-600 text-white rounded px-3 py-1.5 outline-none font-bold">
-    <div class="h-6 w-px bg-gray-700 mx-2"></div>
-    <input type="time" id="inputTime" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1 outline-none">
-    <input type="text" id="inputRoute" placeholder="路線" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1 w-20 outline-none">
-    <input type="text" id="inputStart" placeholder="起站" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1 w-28 outline-none">
+  <div class="bg-gray-900 p-3 flex gap-2 items-center border-b border-gray-700 text-sm">
+    <input type="date" id="inputDate" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 outline-none font-bold">
+    <div class="h-6 w-px bg-gray-700 mx-1"></div>
+    
+    <div class="flex items-center gap-1 bg-gray-800 rounded border border-gray-600 px-1">
+        <span class="text-gray-400 pl-1">發車</span>
+        <input type="time" id="inputTime" class="bg-transparent text-white py-1 outline-none">
+        <span class="text-gray-500">~</span>
+        <span class="text-gray-400 pl-1">到達</span>
+        <input type="time" id="inputEndTime" class="bg-transparent text-white py-1 outline-none" title="預計到達時間">
+    </div>
+
+    <input type="text" id="inputRoute" placeholder="路線" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-16 outline-none">
+    <input type="text" id="inputStart" placeholder="起站" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-24 outline-none">
     <span class="text-gray-500">➔</span>
-    <input type="text" id="inputEnd" placeholder="終站" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1 w-28 outline-none">
+    <input type="text" id="inputEnd" placeholder="終站" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-24 outline-none">
+    
     <button id="addTripBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded font-bold transition">＋ 新增</button>
+    <button id="cancelEditBtn" class="bg-gray-600 hover:bg-gray-500 text-white px-3 py-1.5 rounded font-bold transition hidden">取消</button>
     
     <div class="flex-grow"></div>
     
@@ -79,37 +104,26 @@
     <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded font-bold transition">🖨️ 列印</button>
   </div>
 
-  <!-- 主畫面：分割左右 -->
   <div class="flex flex-1 overflow-hidden relative">
       
-    <!-- === 左側：時間軸與車趟區 (75%) === -->
     <main class="w-3/4 flex flex-col bg-slate-900 relative">
-        <!-- 頂部時間刻度 -->
         <div class="flex text-[10px] text-gray-400 border-b border-gray-700 py-1 pl-48 bg-slate-800 font-mono">
             <div class="flex-1 flex justify-between px-1">
                 <span>00</span><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span><span>06</span><span>07</span><span>08</span><span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span>
             </div>
         </div>
 
-        <!-- 軌道區 -->
         <div class="flex-1 overflow-y-auto timeline-grid" id="timelineBody">
-            <!-- JavaScript 動態生成車趟軌道 -->
             <div class="flex items-center justify-center h-full text-gray-500 font-bold">載入中...</div>
         </div>
     </main>
 
-    <!-- === 右側：資源池 (25%) === -->
     <aside class="w-1/4 bg-slate-800 flex flex-col border-l border-gray-700 shadow-xl z-10">
-        <!-- 頁籤切換 -->
         <div class="flex text-sm font-bold">
             <button id="tabDrivers" class="flex-1 py-3 bg-slate-700 text-blue-400 border-b-2 border-blue-500">👨‍✈️ 待命駕駛</button>
             <button id="tabVehicles" class="flex-1 py-3 bg-slate-900 text-gray-400 hover:text-white border-b-2 border-transparent">🚍 可用車輛</button>
         </div>
-
-        <!-- 司機列表 -->
         <div id="poolDrivers" class="flex-1 overflow-y-auto p-3 space-y-2"></div>
-        
-        <!-- 車輛列表 -->
         <div id="poolVehicles" class="flex-1 overflow-y-auto p-3 space-y-2 hidden"></div>
     </aside>
 
@@ -143,6 +157,7 @@
         let currentAvailableVehicles = [];
         let currentDayTrips = [];
         let unsubscribeDispatch = null;
+        let editingDocId = null; // 儲存編輯狀態
 
         // 頁籤切換邏輯
         const tabD = document.getElementById('tabDrivers');
@@ -161,11 +176,14 @@
             poolV.classList.remove('hidden'); poolD.classList.add('hidden');
         });
 
-        // 核心：時間轉 X 軸百分比算法 (一天1440分鐘)
-        function timeToPercent(timeStr) {
+        // 核心：時間與區塊計算
+        function timeToMinutes(timeStr) {
             if(!timeStr) return 0;
             const [h, m] = timeStr.split(':').map(Number);
-            return ((h * 60 + m) / 1440) * 100;
+            return (h * 60 + m);
+        }
+        function timeToPercent(timeStr) {
+            return (timeToMinutes(timeStr) / 1440) * 100;
         }
 
         async function loadResources(selectedDate) {
@@ -179,7 +197,6 @@
             const weekId = `${d.getFullYear()}-W${(1 + Math.ceil((firstThu - target) / 604800000)).toString().padStart(2, '0')}`;
             const dayKey = days[d.getDay()];
 
-            // 抓駕駛
             currentAvailableDrivers = []; 
             try {
                 const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
@@ -194,7 +211,6 @@
                 }
             } catch (e) {}
 
-            // 抓車輛
             currentAvailableVehicles = [];
             try {
                 const snapshot = await getDocs(collection(db, "Vehicles"));
@@ -232,7 +248,6 @@
                     </div>`;
             });
 
-            // 綁定拖曳起始事件
             document.querySelectorAll('.resource-card').forEach(card => {
                 card.addEventListener('dragstart', (e) => {
                     const data = { type: card.dataset.type };
@@ -256,9 +271,18 @@
                 snapshot.forEach(docSnap => currentDayTrips.push({ id: docSnap.id, ...docSnap.data() }));
 
                 currentDayTrips.forEach(data => {
+                    // 計算區塊長度邏輯：若沒設定到達時間，預設抓發車時間+90分鐘
+                    let arrTime = data.arrival_time;
+                    if (!arrTime) {
+                        let [h, m] = data.departure_time.split(':').map(Number);
+                        m += 90; h += Math.floor(m / 60); m %= 60;
+                        arrTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    }
+
                     const leftPercent = timeToPercent(data.departure_time);
-                    // 視覺化區塊寬度：預設畫 90 分鐘 (約 6.25%)
-                    const widthPercent = (90 / 1440) * 100;
+                    let diffMinutes = timeToMinutes(arrTime) - timeToMinutes(data.departure_time);
+                    if (diffMinutes < 0) diffMinutes += 1440; // 跨夜處理
+                    const widthPercent = (diffMinutes / 1440) * 100;
                     
                     const isAssigned = (data.assigned_driver !== "尚未指派" && data.assigned_vehicle !== "尚未指派");
                     const blockClass = isAssigned ? "trip-block assigned" : "trip-block";
@@ -266,26 +290,26 @@
                     const driverText = data.assigned_driver === "尚未指派" ? "👤 需指派駕駛" : `👤 ${data.assigned_driver}`;
                     const vehText = data.assigned_vehicle === "尚未指派" ? "🚍 需指派車輛" : `🚍 ${data.assigned_vehicle}`;
 
-                    // HTML 軌道結構
                     const trackHtml = `
                         <div class="trip-track group relative drop-zone" data-trip-id="${data.id}">
-                            <!-- 左側表頭資訊 -->
                             <div class="w-48 flex-shrink-0 px-3 py-2 flex flex-col justify-center bg-slate-900 border-r border-gray-700 z-10 h-full group-hover:bg-slate-800">
                                 <div class="flex items-center gap-2">
                                     <span class="bg-yellow-500/20 text-yellow-400 text-xs px-1.5 rounded font-bold">${data.route}</span>
                                     <span class="text-gray-300 font-mono text-sm">${data.departure_time}</span>
                                 </div>
-                                <div class="text-[11px] text-gray-500 mt-1 truncate" title="${data.start_point} ➔ ${data.end_point}">${data.start_point} ➔ ${data.end_point}</div>
+                                <div class="text-[11px] text-gray-500 mt-1 truncate" title="${data.start_point} ➔ ${data.end_point || ''}">${data.start_point} ➔ ${data.end_point || ''}</div>
                             </div>
                             
-                            <!-- 絕對定位的車趟時間區塊 -->
-                            <div class="${blockClass}" style="left: calc(12rem + ${leftPercent}% * 0.85); width: ${widthPercent}% * 0.85; min-width: 130px;">
+                            <div class="${blockClass}" style="left: calc(12rem + ${leftPercent}% * 0.85); width: ${widthPercent}% * 0.85; min-width: 140px;">
+                                <div class="text-[10px] text-yellow-200 mb-0.5 font-mono drop-shadow-md tracking-wider">${data.departure_time} - ${arrTime}</div>
                                 <div class="text-xs font-bold truncate">${driverText}</div>
                                 <div class="text-[10px] opacity-80 truncate">${vehText}</div>
                             </div>
                             
-                            <!-- 刪除按鈕 (懸浮顯示) -->
-                            <button class="absolute right-4 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition btn-delete" data-id="${data.id}">🗑️</button>
+                            <div class="absolute right-4 flex gap-3 opacity-0 group-hover:opacity-100 transition z-20">
+                                <button class="text-blue-400 hover:text-blue-300 bg-slate-800 px-2 py-1 rounded border border-gray-600 transition btn-edit" data-id="${data.id}">✏️ 編輯</button>
+                                <button class="text-red-400 hover:text-red-300 bg-slate-800 px-2 py-1 rounded border border-gray-600 transition btn-delete" data-id="${data.id}">🗑️ 刪除</button>
+                            </div>
                         </div>`;
                     
                     timeline.insertAdjacentHTML('beforeend', trackHtml);
@@ -293,20 +317,40 @@
 
                 bindDropZones();
                 
+                // 綁定編輯按鈕
+                document.querySelectorAll('.btn-edit').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const tripId = e.currentTarget.dataset.id;
+                        const trip = currentDayTrips.find(t => t.id === tripId);
+                        if(trip) {
+                            document.getElementById('inputTime').value = trip.departure_time;
+                            document.getElementById('inputEndTime').value = trip.arrival_time || '';
+                            document.getElementById('inputRoute').value = trip.route;
+                            document.getElementById('inputStart').value = trip.start_point;
+                            document.getElementById('inputEnd').value = trip.end_point || '';
+                            
+                            editingDocId = tripId;
+                            const addBtn = document.getElementById('addTripBtn');
+                            addBtn.innerText = "💾 儲存編輯";
+                            addBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded font-bold transition";
+                            document.getElementById('cancelEditBtn').classList.remove('hidden');
+                        }
+                    });
+                });
+
                 // 綁定刪除按鈕
                 document.querySelectorAll('.btn-delete').forEach(btn => {
                     btn.addEventListener('click', async (e) => {
-                        if(confirm("確定刪除此車趟？")) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
+                        if(confirm("確定刪除此車趟？")) await deleteDoc(doc(db, "daily_dispatches", e.currentTarget.dataset.id));
                     });
                 });
             });
         }
 
-        // === 核心：拖放事件綁定 ===
         function bindDropZones() {
             document.querySelectorAll('.drop-zone').forEach(zone => {
                 zone.addEventListener('dragover', e => {
-                    e.preventDefault(); // 允許 Drop
+                    e.preventDefault(); 
                     zone.querySelector('.trip-block').classList.add('drag-over');
                 });
                 zone.addEventListener('dragleave', e => {
@@ -315,7 +359,6 @@
                 zone.addEventListener('drop', async e => {
                     e.preventDefault();
                     zone.querySelector('.trip-block').classList.remove('drag-over');
-                    
                     try {
                         const tripId = zone.dataset.tripId;
                         const data = JSON.parse(e.dataTransfer.getData('application/json'));
@@ -326,33 +369,255 @@
                         } else if (data.type === 'vehicle') {
                             payload = { assigned_vehicle: data.plate };
                         }
-                        
-                        // 寫入 Firebase，畫面會透過 onSnapshot 自動更新
                         await updateDoc(doc(db, "daily_dispatches", tripId), payload);
                     } catch(err) { console.error("指派失敗", err); }
                 });
             });
         }
 
-        // 新增車趟 (維持原邏輯)
-        document.getElementById('addTripBtn').addEventListener('click', async () => {
+        // 新增 / 編輯車趟
+        const addBtn = document.getElementById('addTripBtn');
+        const cancelBtn = document.getElementById('cancelEditBtn');
+
+        addBtn.addEventListener('click', async () => {
             const date = dateInput.value;
             const time = document.getElementById('inputTime').value;
+            const endTime = document.getElementById('inputEndTime').value;
             const route = document.getElementById('inputRoute').value.trim();
             const start = document.getElementById('inputStart').value.trim();
             const end = document.getElementById('inputEnd').value.trim();
-            if (!time || !route || !start) return alert("請填寫時間、路線與起點！");  
+            
+            if (!time || !route || !start || !endTime) return alert("請填寫發車時間、預計到達、路線與起點！");  
 
-            await addDoc(dispatchesCol, { date, departure_time: time, route, start_point: start, end_point: end, assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending" });
-            document.getElementById('inputTime').value = ''; document.getElementById('inputRoute').value = ''; document.getElementById('inputStart').value = ''; document.getElementById('inputEnd').value = '';
+            const payload = {
+                date: date,
+                departure_time: time,
+                arrival_time: endTime, // 寫入資料庫
+                route: route,
+                start_point: start,
+                end_point: end,
+            };
+
+            try {
+                if (editingDocId) {
+                    await updateDoc(doc(db, "daily_dispatches", editingDocId), payload);
+                    resetForm();
+                } else {
+                    payload.assigned_driver = "尚未指派";
+                    payload.assigned_empid = "";
+                    payload.assigned_vehicle = "尚未指派";
+                    payload.status = "pending";
+                    await addDoc(dispatchesCol, payload);
+                    resetForm();
+                }
+            } catch(e) { console.error(e); alert("儲存失敗！"); }
         });
+
+        cancelBtn.addEventListener('click', resetForm);
+
+        function resetForm() {
+            editingDocId = null;
+            document.getElementById('inputTime').value = '';
+            document.getElementById('inputEndTime').value = '';
+            document.getElementById('inputRoute').value = '';
+            document.getElementById('inputStart').value = '';
+            document.getElementById('inputEnd').value = '';
+            addBtn.innerText = "＋ 新增";
+            addBtn.className = "bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded font-bold transition";
+            cancelBtn.classList.add('hidden');
+        }
 
         dateInput.addEventListener('change', e => listenToDispatches(e.target.value));
         listenToDispatches(dateInput.value);
 
-        // (智慧調度與列印的邏輯，為了確保架構完整，您可以直接貼上先前回答中對 btnAutoDispatch 與 btnPrintAll 的寫法，完全相容此資料結構)
+        // ===== 智慧調度功能 =====
+        document.getElementById('btnClearAssign').addEventListener('click', async () => {
+            if(currentDayTrips.length === 0) return;
+            if (!confirm("確定要將今日所有的車趟還原為「尚未指派」嗎？")) return;
+            const btn = document.getElementById('btnClearAssign');
+            btn.innerText = "清除中..."; btn.disabled = true;
+            try {
+                const batch = writeBatch(db);
+                currentDayTrips.forEach(trip => {
+                    if(trip.assigned_driver !== "尚未指派" || trip.assigned_vehicle !== "尚未指派") {
+                        batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派" });
+                    }
+                });
+                await batch.commit();
+            } catch(e) { console.error(e); }
+            btn.innerText = "一鍵清除"; btn.disabled = false;
+        });
 
-    }).catch((err) => console.error("驗證失敗或未登入", err));
+        document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
+            if (!confirm("確定執行「智慧自動調度」嗎？")) return;
+            const btn = document.getElementById('btnAutoDispatch');
+            btn.innerText = "運算中..."; btn.disabled = true;
+
+            try {
+                await loadAvailableDrivers(dateInput.value);
+                await loadAvailableVehicles();
+
+                let fleet = currentAvailableDrivers.map(d => ({
+                    ...d, vehicle: currentAvailableVehicles.length > 0 ? currentAvailableVehicles.shift().plate : "無車可用", availableTime: "00:00", tripsCount: 0
+                })).filter(f => f.vehicle !== "無車可用");
+
+                let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派");
+                pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+
+                const batch = writeBatch(db); 
+                let successCount = 0;
+
+                for (let trip of pendingTrips) {
+                    let hour = parseInt(trip.departure_time.split(':')[0]);
+                    let candidates = fleet.filter(unit => {
+                        if (unit.availableTime > trip.departure_time) return false; 
+                        let s = unit.shift || "";
+                        if (s.includes("早") && (hour < 5 || hour >= 14)) return false; 
+                        if (s.includes("晚") && hour < 16) return false;  
+                        if (s.includes("頭") && (hour >= 10 && hour < 16)) return false; 
+                        return true; 
+                    });
+
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => a.tripsCount - b.tripsCount);
+                        let assignedUnit = candidates[0];
+
+                        batch.update(doc(db, "daily_dispatches", trip.id), { 
+                            assigned_driver: assignedUnit.name, assigned_empid: assignedUnit.empId, assigned_vehicle: assignedUnit.vehicle
+                        });
+                        successCount++;
+                        assignedUnit.tripsCount++;
+                        
+                        // 計算到達與休息時間 (如果有輸入到達時間，以此為準加上 30 分鐘休息；沒有則算 90 分鐘)
+                        if (trip.arrival_time) {
+                            let [eh, em] = trip.arrival_time.split(':').map(Number);
+                            em += 30; eh += Math.floor(em / 60); em %= 60; eh %= 24;
+                            assignedUnit.availableTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+                        } else {
+                            let [h, m] = trip.departure_time.split(':').map(Number);
+                            m += 90; h += Math.floor(m / 60); m %= 60; h %= 24;
+                            assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        }
+                    }
+                }
+                if (successCount > 0) await batch.commit();
+                alert(`✅ 智慧調度完成！成功綁定 ${successCount} 趟。`);
+            } catch (e) { console.error(e); }
+            btn.innerText = "✨ 智慧調度"; btn.disabled = false;
+        });
+
+        // ===== 列印功能 =====
+        document.getElementById('btnPrintAll').addEventListener('click', async () => {
+            const printZone = document.getElementById('print-zone');
+            printZone.innerHTML = ''; 
+            
+            let dailyShifts = {};
+            const { weekId, dayKey } = getWeekInfo(dateInput.value);
+            try {
+                const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+                if (docSnap.exists() && docSnap.data().roster) {
+                    const roster = docSnap.data().roster;
+                    for (let driverId in roster) { dailyShifts[driverId] = roster[driverId][dayKey] || ""; }
+                }
+            } catch (e) {}
+
+            const getLEDCode = (route) => {
+                const num = route.replace(/\D/g, ''); 
+                return !num ? "N/A" : `Hanover: *${num}# | Mobitec: ${num.padEnd(4, '0')}`;
+            };
+
+            const scheduleByDriver = {};
+            currentDayTrips.forEach(trip => {
+                if (trip.assigned_driver === "尚未指派") return;
+                if (!scheduleByDriver[trip.assigned_driver]) {
+                    let shiftName = dailyShifts[trip.assigned_empid] || "";
+                    if (!shiftName) {
+                        let dInfo = currentAvailableDrivers.find(d => d.empId === trip.assigned_empid || d.name === trip.assigned_driver);
+                        if (dInfo && dInfo.shift) shiftName = dInfo.shift;
+                    }
+                    scheduleByDriver[trip.assigned_driver] = { driver: trip.assigned_driver, empId: trip.assigned_empid || "", shiftType: shiftName, vehicle: trip.assigned_vehicle, trips: [] };
+                }
+                scheduleByDriver[trip.assigned_driver].trips.push(trip);
+            });
+
+            const printDate = dateInput.value.replace(/-/g, '/');
+            const blankCheckbox = `<span style="font-size:16px; color:#000 !important; font-weight:bold;">□</span>`;
+
+            Object.values(scheduleByDriver).forEach(assign => {
+                assign.trips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+                let tripsRowsHtml = '';
+                let lastHour = -1;
+
+                assign.trips.forEach((t, idx) => {
+                    let currentHour = parseInt(t.departure_time.split(':')[0]);
+                    if (lastHour !== -1 && (currentHour - lastHour >= 4)) {
+                        tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:8px; color:#475569 !important; font-size:16px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;
+                    }
+                    lastHour = currentHour;
+                    const ledCode = getLEDCode(t.route);
+                    const arrStr = t.arrival_time ? `~ ${t.arrival_time}` : '';
+
+                    tripsRowsHtml += `
+                        <tr>
+                            <td class="font-bold text-black">${idx + 1}</td>
+                            <td class="font-bold text-left text-black">${t.route} <br><span style="font-size:10px; color:#64748b !important;">[LED: ${ledCode}]</span></td>
+                            <td class="font-bold text-black" style="font-family: monospace;">${t.departure_time} <span style="font-size:10px; font-weight:normal;">${arrStr}</span></td>
+                            <td></td><td></td>
+                            <td class="font-bold text-left text-black">${t.end_point || ''}</td>
+                            <td></td><td></td><td></td>
+                        </tr>
+                    `;
+                });
+
+                for(let i = assign.trips.length; i < 12; i++) {
+                    tripsRowsHtml += `<tr><td class="font-bold text-black">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                }
+
+                const voucherHtml = `
+                <div class="voucher-page text-black">
+                    <div>
+                        <div style="text-align: center; margin-bottom: 6px;">
+                            <h1 style="font-size: 24px; font-weight: bold; display: inline-block; padding: 0 16px; letter-spacing: 2px; margin: 0; color:#000 !important;">愛巴士交通客運 駛車憑單(行車日報表)</h1>
+                        </div>
+                        <table class="voucher-table" style="color:#000 !important;">
+                            <tr>
+                                <th style="width:12%; color:#000 !important;">駕駛姓名</th><td style="width:18%; color:#000 !important;" class="font-bold">${assign.driver}</td>
+                                <th style="width:12%; color:#000 !important;">員工編號</th><td style="width:14%; color:#000 !important; font-family:monospace; font-weight:bold; font-size:14px;">${assign.empId}</td>
+                                <th style="width:12%; color:#000 !important;">車　　號</th><td style="width:18%; color:#000 !important;" class="font-bold">${assign.vehicle}</td>
+                                <th style="width:14%; color:#000 !important;">日　　期</th>
+                            </tr>
+                            <tr>
+                                <th style="color:#000 !important;">路線班別</th>
+                                <td class="font-bold" style="color:#000 !important; font-size:16px;">${assign.shiftType}</td>
+                                <td colspan="4" class="text-left" style="font-size:12px; color:#000 !important;">行車系統時間： □ 正確　□ 不正確</td>
+                                <td style="font-family:monospace; font-size:14px; color:#000 !important; font-weight:bold;">${printDate}</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="trips-section">
+                        <div class="trips-table-wrapper">
+                            <table class="voucher-table trips-table" style="margin-bottom:0; color:#000 !important;">
+                                <thead>
+                                    <tr>
+                                        <th style="width:6%; color:#000 !important;">班次</th><th style="width:18%; color:#000 !important;">出發站/端點</th><th style="width:10%; color:#000 !important;">排定時間</th>
+                                        <th style="width:10%; font-size:10px; color:#000 !important;">出發/管制時間<br>(實際發車)</th><th style="width:8%; color:#000 !important;">站務簽章</th>
+                                        <th style="width:18%; color:#000 !important;">到達站</th><th style="width:10%; font-size:10px; color:#000 !important;">到達時間<br>(實際到站)</th>
+                                        <th style="width:8%; color:#000 !important;">站務簽章</th><th style="width:12%; color:#000 !important;">備註</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${tripsRowsHtml}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>`;
+                printZone.innerHTML += voucherHtml;
+            });
+            setTimeout(() => { window.print(); }, 300);
+        });
+    }).catch((err) => {
+        console.error("驗證失敗或未登入", err);
+    });
 </script>
 </body>
 </html>
