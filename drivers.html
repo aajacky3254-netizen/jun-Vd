@@ -111,26 +111,29 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    
-    // 【權限模組引入】
-    import { checkAuthAndGetRole, logout } from './auth.js';
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    // 只有站長與總公司人員可以進入人事系統
-    const allowedRoles = ['SuperAdmin', 'StationManager'];
+    // --- 根據不同頁面設定權限 ---
+    // 例如：dispatch.html 用 ['SuperAdmin', 'StationManager', '調度員']
+    // 例如：vehicles.html 用 ['SuperAdmin', 'StationManager', '調度員', 'Employee']
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
-    // 【系統大門：驗證通過才執行以下所有程式碼】
     checkAuthAndGetRole(allowedRoles).then((user) => {
-        
-        const nav = document.getElementById('main-nav');
+        // A. 顯示網頁內容
+        document.body.style.display = 'block'; // 確保 CSS 控制 body 預設隱藏
+
+        // B. 動態加入登出導覽列
+        const nav = document.querySelector('.navbar');
         nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold">
-                <span class="bg-blue-800 px-3 py-1 rounded-full shadow-inner">👤 ${user.name} (${user.role})</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded transition shadow">登出系統</button>
+            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
+                <span>👤 ${user.name} (${user.role})</span>
+                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
             </div>
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
+        // C. 初始化 Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
           authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -139,7 +142,6 @@
           messagingSenderId: "621725744717",
           appId: "1:621725744717:web:64e663648d8c76b9bd6604"
         };
-
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const driversCol = collection(db, "Drivers");
