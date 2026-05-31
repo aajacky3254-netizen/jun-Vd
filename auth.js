@@ -2,24 +2,18 @@
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
         const userStr = sessionStorage.getItem('busSystemUser');
-        
-        if (!userStr) {
-            // 沒登入，強制踢回登入頁面
-            window.location.href = 'login.html';
-            return reject("未登入");
-        }
+        if (!userStr) { window.location.href = 'login.html'; return reject("未登入"); }
 
         const user = JSON.parse(userStr);
-
-        if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-            alert(`權限不足！您的職稱為「${user.role}」，無法存取此頁面。`);
-            // 權限不足時，踢回總大門 (首頁)
-            window.location.href = 'index.html'; 
+        // 如果不是 SuperAdmin 且角色不在允許清單內
+        if (user.role !== 'SuperAdmin' && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+            alert("權限不足，無法存取此頁面。");
+            window.location.href = 'index.html';
             return reject("權限不足");
         }
 
-        window.currentUser = user;
-        resolve(user);
+        //window.currentUser = user;
+        resolve(user);// 回傳包含 stationId, role, name 的完整物件
     });
 }
 
