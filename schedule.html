@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>車輛調度系統 - 週班表管理</title>
+    <title>車輛調度系統 - 週班表管理 (本地穩定版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
         body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
-        .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); height: 64px; }
+        .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); height: 64px;}
         .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
         .navbar a.nav-link { color: #f8f9fa; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
         .navbar a.nav-link:hover { background-color: #374151; color: white; }
@@ -32,7 +33,7 @@
 <body>
 
     <nav class="navbar">
-        <a href="index.html" class="navbar-brand">🚌 愛巴士交通客運 | 智慧車輛調度系統</a>
+        <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
         <a href="schedule.html" class="nav-link active">🗓️ 週班表管理</a>
         <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
         <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
@@ -77,241 +78,256 @@
                 </tbody>
             </table>
             <div class="p-3 bg-white text-sm text-gray-500 border-t border-gray-200">
-                💡 <strong>實務提示：</strong>請善用「複製上週」或「自動排班」打底，再手動微調。系統會在點擊「儲存」時自動攔截【晚班接早班】等違規情況。
+                💡 <strong>實務提示：</strong>請善用「複製上週」或「自動排班」打底，再手動微調。此頁面已設定為僅列出「職稱為：駕駛長」的員工。
             </div>
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, getDocs, doc, getDoc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { checkAuthAndGetRole, logout } from './auth.js'; 
+   <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, getDoc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-        const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
-        checkAuthAndGetRole(allowedRoles).then((user) => {
-            document.body.style.display = 'block';
-            const nav = document.querySelector('.navbar');
-            nav.innerHTML += `
-                <div class="ml-auto flex items-center gap-4 text-white font-bold px-4">
-                    <span class="text-sm bg-blue-800 px-3 py-1 rounded">👤 ${user.name}</span>
-                    <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">登出</button>
-                </div>
-            `;
-            document.getElementById('btnLogout').addEventListener('click', logout);
+    checkAuthAndGetRole(allowedRoles).then((user) => {
+        
+        document.body.style.display = 'block';
+        
+        const nav = document.querySelector('.navbar');
+        nav.innerHTML += `
+            <div class="ml-auto flex items-center gap-4 text-white font-bold px-4">
+                <span class="text-sm bg-blue-800 px-3 py-1 rounded">👤 ${user.name}</span>
+                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">登出</button>
+            </div>
+        `;
+        document.getElementById('btnLogout').addEventListener('click', logout);
 
-            const firebaseConfig = {
-                apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-                authDomain: "jun-bus-dispatch.firebaseapp.com",
-                projectId: "jun-bus-dispatch",
-                storageBucket: "jun-bus-dispatch.firebasestorage.app",
-                messagingSenderId: "621725744717",
-                appId: "1:621725744717:web:64e663648d8c76b9bd6604"
-            };
-            const app = initializeApp(firebaseConfig);
-            const db = getFirestore(app);
-            const dbStatusEl = document.getElementById('db-status');
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
+            authDomain: "jun-bus-dispatch.firebaseapp.com",
+            projectId: "jun-bus-dispatch",
+            storageBucket: "jun-bus-dispatch.firebasestorage.app",
+            messagingSenderId: "621725744717",
+            appId: "1:621725744717:web:64e663648d8c76b9bd6604"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const dbStatusEl = document.getElementById('db-status');
 
-            let currentDrivers = [];
-            let currentWeekId = "";
-            const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+        let currentDrivers = [];
+        let currentWeekId = "";
+        const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-            const shiftOptions = [
-                { val: "S (單)", class: "shift-S" }, { val: "M (早)", class: "shift-M" },
-                { val: "E (晚)", class: "shift-E" }, { val: "AB (兩頭)", class: "shift-AB" },
-                { val: "OFF (休)", class: "shift-OFF" }, { val: "STB (待命)", class: "shift-STB" }
-            ];
+        const shiftOptions = [
+            { val: "S (單)", class: "shift-S" },
+            { val: "M (早)", class: "shift-M" },
+            { val: "E (晚)", class: "shift-E" },
+            { val: "AB (兩頭)", class: "shift-AB" },
+            { val: "OFF (休)", class: "shift-OFF" },
+            { val: "STB (待命)", class: "shift-STB" }
+        ];
 
-            window.getShiftClass = function(val) {
-                const opt = shiftOptions.find(o => o.val === val);
-                return opt ? opt.class : '';
-            };
+        window.getShiftClass = function(val) {
+            const opt = shiftOptions.find(o => o.val === val);
+            return opt ? opt.class : '';
+        };
 
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('week-picker').value = today;
-            updateWeekTitle(today);
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('week-picker').value = today;
+        updateWeekTitle(today);
 
-            async function init() {
-                await fetchDrivers();
-                await loadSchedule(currentWeekId);
-            }
-            init();
+        async function init() {
+            await fetchDrivers();
+            await loadSchedule(currentWeekId);
+        }
+        init();
 
-            document.getElementById('week-picker').addEventListener('change', async (e) => {
-                updateWeekTitle(e.target.value);
-                await loadSchedule(currentWeekId); 
-            });
-
-            function getWeekStr(dateStr) {
-                const d = new Date(dateStr);
-                const target = new Date(d.valueOf());
-                const dayNr = (d.getDay() + 6) % 7;
-                target.setDate(target.getDate() - dayNr + 3);
-                const firstThursday = target.valueOf();
-                target.setMonth(0, 1);
-                if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-                const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
-                return `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
-            }
-
-            function updateWeekTitle(dateStr) {
-                currentWeekId = getWeekStr(dateStr);
-                document.getElementById('week-title').innerText = `本週班表看板 (${currentWeekId})`;
-            }
-
-            async function fetchDrivers() {
-                try {
-                    const qStr = query(collection(db, "Drivers"), where("status", "==", "active"), where("role", "==", "駕駛長"));
-                    const snap = await getDocs(qStr);
-                    currentDrivers = [];
-                    snap.forEach(docSnap => {
-                        currentDrivers.push({ empId: docSnap.id, name: docSnap.data().name });
-                    });
-                    currentDrivers.sort((a, b) => String(a.empId).localeCompare(String(b.empId)));
-                    dbStatusEl.className = "px-2 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
-                    dbStatusEl.innerText = "資料庫已連線";
-                } catch (error) {
-                    console.error("讀取駕駛失敗:", error);
-                    dbStatusEl.className = "px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-300";
-                    dbStatusEl.innerText = "連線失敗";
-                }
-            }
-
-            function generateSelectHtml(empId, dayKey, selectedValue = "OFF (休)") {
-                let optionsHtml = '';
-                let currentClass = 'shift-OFF';
-                shiftOptions.forEach(opt => {
-                    const isSelected = (opt.val === selectedValue);
-                    if (isSelected) currentClass = opt.class;
-                    optionsHtml += `<option value="${opt.val}" ${isSelected ? 'selected' : ''}>${opt.val}</option>`;
-                });
-                const safeEmpId = String(empId).replace(/[^a-zA-Z0-9]/g, '_');
-                return `<select id="sel-${safeEmpId}-${dayKey}" class="${currentClass}" onchange="this.className = window.getShiftClass(this.value)">${optionsHtml}</select>`;
-            }
-
-            async function loadSchedule(weekId) {
-                const tbody = document.getElementById('roster-body');
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500 font-bold">載入中，請稍候...</td></tr>';
-                try {
-                    const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
-                    const data = docSnap.data();
-                    const savedRoster = (data && data.roster) ? data.roster : {};
-
-                    tbody.innerHTML = '';
-                    currentDrivers.forEach(driver => {
-                        const row = document.createElement('tr');
-                        let html = `<td class="driver-cell"><span class="emp-id">${driver.empId}</span> ${driver.name}</td>`;
-                        daysOfWeek.forEach(day => {
-                            const savedShift = (savedRoster[driver.empId] && savedRoster[driver.empId][day]) 
-                                                ? savedRoster[driver.empId][day] : "OFF (休)";
-                            html += `<td>${generateSelectHtml(driver.empId, day, savedShift)}</td>`;
-                        });
-                        row.innerHTML = html;
-                        tbody.appendChild(row);
-                    });
-                } catch (error) {
-                    console.error("載入班表失敗:", error);
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 font-bold">讀取錯誤，請檢查網路連線或重新整理</td></tr>';
-                }
-            }
-
-            document.getElementById('btn-auto').addEventListener('click', () => {
-                if(!confirm("確定要執行「智慧動態輪班」嗎？")) return;
-                const healthyPattern = ['S (單)', 'M (早)', 'AB (兩頭)', 'E (晚)', 'OFF (休)', 'STB (待命)', 'S (單)'];
-                const weekNum = parseInt(currentWeekId.split('W')[1], 10) || 0;
-
-                currentDrivers.forEach((driver, driverIndex) => {
-                    daysOfWeek.forEach((day, dayIndex) => {
-                        const shiftIndex = (driverIndex + dayIndex + weekNum) % healthyPattern.length;
-                        const assignedShift = healthyPattern[shiftIndex];
-                        const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                        const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                        if(selectEl) {
-                            selectEl.value = assignedShift;
-                            selectEl.className = window.getShiftClass(assignedShift);
-                        }
-                    });
-                });
-                alert("✅ 動態輪班已套用至畫面！確認無誤後請務必點擊「儲存」。");
-            });
-
-            document.getElementById('btn-copy-prev').addEventListener('click', async () => {
-                if(!confirm("確定要載入「上週」底稿嗎？")) return;
-                const d = new Date(document.getElementById('week-picker').value);
-                d.setDate(d.getDate() - 7);
-                const prevWeekId = getWeekStr(d.toISOString());
-
-                try {
-                    const docSnap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
-                    const data = docSnap.data();
-                    
-                    if (data && data.roster) {
-                        currentDrivers.forEach(driver => {
-                            daysOfWeek.forEach(day => {
-                                if (data.roster[driver.empId] && data.roster[driver.empId][day]) {
-                                    const shift = data.roster[driver.empId][day];
-                                    const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                                    if (selectEl) {
-                                        selectEl.value = shift;
-                                        selectEl.className = window.getShiftClass(shift);
-                                    }
-                                }
-                            });
-                        });
-                        alert(`✅ 已載入上週 (${prevWeekId}) 班表！`);
-                    } else {
-                        alert(`⚠️ 雲端找不到上週 (${prevWeekId}) 紀錄！`);
-                    }
-                } catch (err) { console.error(err); alert("讀取失敗。"); }
-            });
-
-            document.getElementById('btn-save').addEventListener('click', async () => {
-                const rosterToSave = {};
-                let hasViolation = false;
-                let violationMsg = "";
-
-                currentDrivers.forEach(driver => {
-                    rosterToSave[driver.empId] = { name: driver.name };
-                    let prevShift = ""; 
-                    daysOfWeek.forEach(day => {
-                        const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                        const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                        if (selectEl) {
-                            const currentShift = selectEl.value;
-                            rosterToSave[driver.empId][day] = currentShift;
-                            if (prevShift === "E (晚)" && (currentShift === "M (早)" || currentShift === "AB (兩頭)")) {
-                                hasViolation = true;
-                                violationMsg += `駕駛員 [${driver.empId} ${driver.name}] 排班違規：前一日為「晚班」，今日不可緊接「${currentShift}」。\n`;
-                            }
-                            prevShift = currentShift; 
-                        }
-                    });
-                });
-
-                if (hasViolation) {
-                    alert("❌ 儲存失敗！系統偵測到危險排班情形：\n\n" + violationMsg);
-                    return;
-                }
-
-                const btn = document.getElementById('btn-save');
-                btn.innerText = "⏳ 儲存中...";
-                btn.disabled = true;
-                try {
-                    await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
-                    alert("✅ 班表已成功儲存並同步！");
-                    await loadSchedule(currentWeekId);
-                } catch (err) {
-                    console.error("存檔錯誤:", err);
-                    alert("❌ 儲存失敗！");
-                }
-                btn.innerText = "💾 儲存並發布";
-                btn.disabled = false;
-            });
-
-        }).catch((err) => {
-            console.error("驗證失敗或未登入", err);
+        document.getElementById('week-picker').addEventListener('change', async (e) => {
+            updateWeekTitle(e.target.value);
+            await loadSchedule(currentWeekId); 
         });
-    </script>
+
+        function getWeekStr(dateStr) {
+            const d = new Date(dateStr);
+            const target = new Date(d.valueOf());
+            const dayNr = (d.getDay() + 6) % 7;
+            target.setDate(target.getDate() - dayNr + 3);
+            const firstThursday = target.valueOf();
+            target.setMonth(0, 1);
+            if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+            const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
+            return `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+        }
+
+        function updateWeekTitle(dateStr) {
+            currentWeekId = getWeekStr(dateStr);
+            document.getElementById('week-title').innerText = `本週班表看板 (${currentWeekId})`;
+        }
+
+        async function fetchDrivers() {
+            try {
+                // 💡 修改重點：先抓取所有「在職」的員工
+                const qStr = query(collection(db, "Drivers"), where("status", "==", "active"));
+                const snap = await getDocs(qStr);
+                currentDrivers = [];
+                
+                snap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    // 💡 修改重點：相容舊資料。如果沒有設定 role，預設視為「駕駛長」
+                    const role = data.role || "駕駛長"; 
+                    
+                    // 只有「駕駛長」才允許進入排班表
+                    if (role === "駕駛長") {
+                        currentDrivers.push({ empId: docSnap.id, name: data.name });
+                    }
+                });
+                
+                currentDrivers.sort((a, b) => String(a.empId).localeCompare(String(b.empId)));
+                dbStatusEl.className = "px-2 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+                dbStatusEl.innerText = "資料庫已連線";
+            } catch (error) {
+                console.error("讀取駕駛失敗:", error);
+                dbStatusEl.className = "px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-300";
+                dbStatusEl.innerText = "連線失敗";
+            }
+        }
+
+        function generateSelectHtml(empId, dayKey, selectedValue = "OFF (休)") {
+            let optionsHtml = '';
+            let currentClass = 'shift-OFF';
+            shiftOptions.forEach(opt => {
+                const isSelected = (opt.val === selectedValue);
+                if (isSelected) currentClass = opt.class;
+                optionsHtml += `<option value="${opt.val}" ${isSelected ? 'selected' : ''}>${opt.val}</option>`;
+            });
+            const safeEmpId = String(empId).replace(/[^a-zA-Z0-9]/g, '_');
+            return `<select id="sel-${safeEmpId}-${dayKey}" class="${currentClass}" onchange="this.className = window.getShiftClass(this.value)">${optionsHtml}</select>`;
+        }
+
+        async function loadSchedule(weekId) {
+            const tbody = document.getElementById('roster-body');
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500 font-bold">載入中，請稍候...</td></tr>';
+            try {
+                const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+                const data = docSnap.data();
+                const savedRoster = (data && data.roster) ? data.roster : {};
+
+                tbody.innerHTML = '';
+                currentDrivers.forEach(driver => {
+                    const row = document.createElement('tr');
+                    let html = `<td class="driver-cell"><span class="emp-id">${driver.empId}</span> ${driver.name}</td>`;
+                    daysOfWeek.forEach(day => {
+                        const savedShift = (savedRoster[driver.empId] && savedRoster[driver.empId][day]) 
+                                            ? savedRoster[driver.empId][day] : "OFF (休)";
+                        html += `<td>${generateSelectHtml(driver.empId, day, savedShift)}</td>`;
+                    });
+                    row.innerHTML = html;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error("載入班表失敗:", error);
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 font-bold">讀取錯誤，請檢查網路連線或重新整理</td></tr>';
+            }
+        }
+
+        document.getElementById('btn-auto').addEventListener('click', () => {
+            if(!confirm("確定要執行「智慧動態輪班」嗎？")) return;
+            const healthyPattern = ['S (單)', 'M (早)', 'AB (兩頭)', 'E (晚)', 'OFF (休)', 'STB (待命)', 'S (單)'];
+            const weekNum = parseInt(currentWeekId.split('W')[1], 10) || 0;
+
+            currentDrivers.forEach((driver, driverIndex) => {
+                daysOfWeek.forEach((day, dayIndex) => {
+                    const shiftIndex = (driverIndex + dayIndex + weekNum) % healthyPattern.length;
+                    const assignedShift = healthyPattern[shiftIndex];
+                    const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    if(selectEl) {
+                        selectEl.value = assignedShift;
+                        selectEl.className = window.getShiftClass(assignedShift);
+                    }
+                });
+            });
+            alert("✅ 動態輪班已套用至畫面！確認無誤後請務必點擊「儲存」。");
+        });
+
+        document.getElementById('btn-copy-prev').addEventListener('click', async () => {
+            if(!confirm("確定要載入「上週」底稿嗎？")) return;
+            const d = new Date(document.getElementById('week-picker').value);
+            d.setDate(d.getDate() - 7);
+            const prevWeekId = getWeekStr(d.toISOString());
+
+            try {
+                const docSnap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
+                const data = docSnap.data();
+                
+                if (data && data.roster) {
+                    currentDrivers.forEach(driver => {
+                        daysOfWeek.forEach(day => {
+                            if (data.roster[driver.empId] && data.roster[driver.empId][day]) {
+                                const shift = data.roster[driver.empId][day];
+                                const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                                const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                                if (selectEl) {
+                                    selectEl.value = shift;
+                                    selectEl.className = window.getShiftClass(shift);
+                                }
+                            }
+                        });
+                    });
+                    alert(`✅ 已載入上週 (${prevWeekId}) 班表！`);
+                } else {
+                    alert(`⚠️ 雲端找不到上週 (${prevWeekId}) 紀錄！`);
+                }
+            } catch (err) { console.error(err); alert("讀取失敗。"); }
+        });
+
+        document.getElementById('btn-save').addEventListener('click', async () => {
+            const rosterToSave = {};
+            let hasViolation = false;
+            let violationMsg = "";
+
+            currentDrivers.forEach(driver => {
+                rosterToSave[driver.empId] = { name: driver.name };
+                let prevShift = ""; 
+                daysOfWeek.forEach(day => {
+                    const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    if (selectEl) {
+                        const currentShift = selectEl.value;
+                        rosterToSave[driver.empId][day] = currentShift;
+                        if (prevShift === "E (晚)" && (currentShift === "M (早)" || currentShift === "AB (兩頭)")) {
+                            hasViolation = true;
+                            violationMsg += `駕駛員 [${driver.empId} ${driver.name}] 排班違規：前一日為「晚班」，今日不可緊接「${currentShift}」。\n`;
+                        }
+                        prevShift = currentShift; 
+                    }
+                });
+            });
+
+            if (hasViolation) {
+                alert("❌ 儲存失敗！系統偵測到危險排班情形：\n\n" + violationMsg);
+                return;
+            }
+
+            const btn = document.getElementById('btn-save');
+            btn.innerText = "⏳ 儲存中...";
+            btn.disabled = true;
+            try {
+                await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
+                alert("✅ 班表已成功儲存並同步！");
+                await loadSchedule(currentWeekId);
+            } catch (err) {
+                console.error("存檔錯誤:", err);
+                alert("❌ 儲存失敗！");
+            }
+            btn.innerText = "💾 儲存並發布";
+            btn.disabled = false;
+        });
+
+    }).catch((err) => {
+        console.error("驗證失敗或未登入", err);
+    });
+</script>
 </body>
 </html>
