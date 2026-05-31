@@ -1,311 +1,154 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🚌 愛巴士交通客運 | 智慧車輛調度系統 - 個人班表</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; display: none; overscroll-behavior-y: contain; }
-        
-        /* 仿 APP 頂部導覽列 */
-        .app-header { background-color: #ffffff; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 2px solid #e5e7eb; position: sticky; top: 0; z-index: 50; }
-        .app-header .logo { color: #dc2626; font-size: 20px; font-weight: 900; font-style: italic; letter-spacing: -1px; }
-        
-        /* 資訊區塊 */
-        .info-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb; }
-        .info-bar h2 { font-size: 18px; font-weight: bold; margin: 0; color: #1f2937; }
-        .info-bar .date-picker { border: none; font-size: 16px; font-weight: bold; color: #4b5563; outline: none; background: transparent; text-align: right;}
-
-        /* 表格樣式 (高度還原截圖) */
-        .schedule-table { width: 100%; border-collapse: collapse; background: #ffffff; text-align: center; }
-        .schedule-table th { background-color: #4b5563; color: #ffffff; font-weight: normal; font-size: 14px; padding: 10px 4px; border: 1px solid #9ca3af; white-space: nowrap;}
-        .schedule-table td { border: 1px solid #d1d5db; padding: 12px 4px; font-size: 15px; color: #1f2937; font-weight: bold;}
-        .schedule-table tr:nth-child(even) { background-color: #fdf2f8; } /* 截圖中的淡粉色交錯 */
-        
-        .col-route { width: 35%; text-align: left; padding-left: 8px !important; font-size: 14px !important; }
-        .col-time { width: 20%; font-size: 16px !important; }
-        .col-veh { width: 20%; font-size: 14px !important;}
-        .col-station { width: 15%; font-size: 14px !important;}
-        .col-ack { width: 10%; }
-
-        /* 簽名區塊 */
-        .signature-section { background-color: #ffffff; padding: 20px 16px; margin-top: 10px; border-top: 1px solid #e5e7eb; text-align: center; }
-        .sig-status { font-size: 16px; font-weight: bold; color: #374151; margin-bottom: 10px; }
-        #sig-canvas { border: 2px solid #22c55e; border-radius: 4px; width: 100%; height: 200px; background-color: #ffffff; touch-action: none; cursor: crosshair;}
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>駕駛長個人作業台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: "微軟正黑體", sans-serif; background-color: #f4f6f9; margin:0; padding:0; }
+    .header-bar { background-color: #dc2626; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .table-container { background: white; margin: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: center; }
+    th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
+    th { background-color: #475569; color: white; white-space: nowrap; }
+    .btn-ack { background-color: #10b981; color: white; padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; }
+    .btn-ack:disabled { background-color: #94a3b8; cursor: not-allowed; }
+  </style>
 </head>
 <body>
 
-    <div class="app-header">
-        <a href="index.html" class="text-gray-600 text-2xl font-bold no-underline mr-4">〈</a>
-        <div class="logo flex items-center">
-            <span class="mr-2">ibus</span> 
-            <span class="text-gray-800 text-sm font-normal not-italic mt-1" id="driverInfo">載入中...</span>
-        </div>
-        <button id="btnLogout" class="text-gray-400 hover:text-red-500 text-xl font-bold">✕</button>
+  <div class="header-bar">
+    <div class="font-bold text-lg">ibus【<span id="displayEmpId"></span>】<span id="displayName"></span></div>
+    <div>
+        <input type="date" id="searchDate" class="text-black px-2 py-1 rounded outline-none font-bold">
+        <button id="btnLogout" class="ml-4 bg-gray-800 hover:bg-gray-900 px-3 py-1 rounded text-sm transition">登出</button>
     </div>
+  </div>
 
-    <div class="info-bar">
-        <h2>明日作業</h2>
-        <input type="date" id="targetDate" class="date-picker">
-    </div>
-
-    <table class="schedule-table">
-        <thead>
-            <tr>
-                <th class="col-route">路線</th>
-                <th class="col-time">發車時<br>間</th>
-                <th class="col-veh">車號</th>
-                <th class="col-起站">起站</th>
-                <th class="col-ack">知<br>悉</th>
-            </tr>
-        </thead>
-        <tbody id="scheduleBody">
-            <tr><td colspan="5" class="py-10 text-gray-400">載入中...</td></tr>
-        </tbody>
+  <div class="table-container">
+    <table id="personalTable">
+      <thead>
+        <tr>
+          <th>路線</th>
+          <th>發車時間</th>
+          <th>車號</th>
+          <th>起站</th>
+          <th>知悉</th>
+        </tr>
+      </thead>
+      <tbody id="personalBody">
+        <tr><td colspan="5" class="py-10 text-gray-500 font-bold">載入中...</td></tr>
+      </tbody>
     </table>
+  </div>
 
-    <div class="signature-section" id="sigSection" style="display: none;">
-        <div class="flex justify-between items-center mb-4 px-2">
-            <div class="sig-status" id="sigStatusText">班表尚未回報</div>
-            <button id="btnResign" class="bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-bold shadow hidden">重新簽名</button>
-        </div>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js';
+
+    // XSS 防護
+    const escapeHTML = (str) => {
+        return str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
+    };
+
+    // 放寬權限：允許駕駛長進入
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長'];
+
+    checkAuthAndGetRole(allowedRoles).then((user) => {
+        document.getElementById('displayEmpId').textContent = escapeHTML(user.empId || '無編號');
+        document.getElementById('displayName').textContent = escapeHTML(user.name || '未知');
+        document.getElementById('btnLogout').addEventListener('click', logout);
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
+          authDomain: "jun-bus-dispatch.firebaseapp.com",
+          projectId: "jun-bus-dispatch",
+          storageBucket: "jun-bus-dispatch.firebasestorage.app"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
         
-    </div>
+        const dateInput = document.getElementById('searchDate');
+        // 預設載入明天 (因為截圖顯示「明日作業」)
+        let targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + 1);
+        dateInput.value = targetDate.toISOString().split('T')[0];
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-        import { checkAuthAndGetRole, logout } from './auth.js'; 
+        let unsubscribe = null;
+        const tbody = document.getElementById('personalBody');
 
-        // 允許所有有帳號的人進來 (但主要給駕駛長看)
-        checkAuthAndGetRole([]).then((user) => {
-            document.body.style.display = 'block'; 
+        function loadMySchedule(dateStr) {
+            tbody.innerHTML = '<tr><td colspan="5" class="py-10 text-gray-500 font-bold">載入中...</td></tr>';
             
-            document.getElementById('driverInfo').innerText = `【${user.empId}】${user.name}`;
-            document.getElementById('btnLogout').addEventListener('click', logout);
+            if (unsubscribe) unsubscribe();
 
-            const firebaseConfig = {
-                apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-                authDomain: "jun-bus-dispatch.firebaseapp.com",
-                projectId: "jun-bus-dispatch",
-                storageBucket: "jun-bus-dispatch.firebasestorage.app",
-                messagingSenderId: "621725744717",
-                appId: "1:621725744717:web:64e663648d8c76b9bd6604"
-            };
-            const app = initializeApp(firebaseConfig);
-            const db = getFirestore(app);
+            // ⚠️ 注意：這裡需要複合索引 (date ASC, assigned_empid ASC, departure_time ASC)
+            // 如果卡住，請去 F12 Console 點擊 Firebase 提供的建立索引連結！
+            const q = query(collection(db, "daily_dispatches"), 
+                where("date", "==", dateStr),
+                where("assigned_empid", "==", user.empId),
+                orderBy("departure_time", "asc")
+            );
 
-            // 預設日期為「明天」
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const dateInput = document.getElementById('targetDate');
-            dateInput.value = tomorrow.toISOString().split('T')[0];
-
-            const tbody = document.getElementById('scheduleBody');
-            const sigSection = document.getElementById('sigSection');
-
-            async function loadMyTrips(targetDate) {
-                tbody.innerHTML = '<tr><td colspan="5" class="py-10 text-gray-400">正在讀取派車資料...</td></tr>';
-                sigSection.style.display = 'none';
-
-                try {
-                    // 抓取指派給該員工、且日期符合的車趟
-                    const q = query(
-                        collection(db, "daily_dispatches"), 
-                        where("date", "==", targetDate),
-                        where("assigned_empid", "==", user.empId)
-                    );
-                    const snap = await getDocs(q);
-                    
-                    let trips = [];
-                    snap.forEach(docSnap => trips.push({ id: docSnap.id, ...docSnap.data() }));
-
-                    // 依據時間排序
-                    trips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
-
-                    tbody.innerHTML = '';
-                    if (trips.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="5" class="py-10 text-gray-500 font-bold">當日無排定您的車趟。</td></tr>';
-                        return;
-                    }
-
-                    // 渲染表格
-                    trips.forEach(t => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td class="col-route">${t.route}</td>
-                            <td class="col-time">${t.departure_time}</td>
-                            <td class="col-veh">${t.assigned_vehicle}</td>
-                            <td class="col-station">${t.start_point}</td>
-                            <td class="col-ack">V</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-
-                    // 檢查是否已簽名
-                    await checkSignatureStatus(targetDate);
-                    sigSection.style.display = 'block';
-
-                } catch (err) {
-                    console.error(err);
-                    tbody.innerHTML = '<tr><td colspan="5" class="py-10 text-red-500">讀取失敗</td></tr>';
-                }
-            }
-
-            // --- 電子簽名板邏輯 ---
-            const canvas = document.getElementById('sig-canvas');
-            const ctx = canvas.getContext('2d');
-            const placeholder = document.getElementById('sigPlaceholder');
-            let isDrawing = false;
-
-            // 動態設定 Canvas 實際像素大小 (避免模糊或定位跑掉)
-            function resizeCanvas() {
-                const rect = canvas.getBoundingClientRect();
-                canvas.width = rect.width;
-                canvas.height = rect.height;
-                ctx.lineWidth = 4;
-                ctx.lineCap = 'round';
-                ctx.strokeStyle = '#000000';
-            }
-            window.addEventListener('resize', resizeCanvas);
-            // 延遲一下讓 DOM 畫完再設定
-            setTimeout(resizeCanvas, 100);
-
-            function startDrawing(e) {
-                isDrawing = true;
-                placeholder.style.display = 'none'; // 隱藏提示字
-                draw(e);
-            }
-
-            function stopDrawing() {
-                isDrawing = false;
-                ctx.beginPath(); // 重置路徑避免連線
-            }
-
-            function draw(e) {
-                if (!isDrawing) return;
-                e.preventDefault(); // 避免手機滑動畫面
-                
-                const rect = canvas.getBoundingClientRect();
-                let x, y;
-                
-                if (e.type.includes('touch')) {
-                    x = e.touches[0].clientX - rect.left;
-                    y = e.touches[0].clientY - rect.top;
-                } else {
-                    x = e.clientX - rect.left;
-                    y = e.clientY - rect.top;
-                }
-
-                ctx.lineTo(x, y);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-            }
-
-            // 綁定滑鼠與觸控事件
-            canvas.addEventListener('mousedown', startDrawing);
-            canvas.addEventListener('mousemove', draw);
-            canvas.addEventListener('mouseup', stopDrawing);
-            canvas.addEventListener('mouseout', stopDrawing);
-
-            canvas.addEventListener('touchstart', startDrawing, { passive: false });
-            canvas.addEventListener('touchmove', draw, { passive: false });
-            canvas.addEventListener('touchend', stopDrawing);
-
-            // --- 簽名存檔與讀取邏輯 ---
-            const btnSaveSig = document.getElementById('btnSaveSig');
-            const btnResign = document.getElementById('btnResign');
-            const sigStatusText = document.getElementById('sigStatusText');
-
-            async function checkSignatureStatus(targetDate) {
-                const sigRef = doc(db, "Signatures", `${user.empId}_${targetDate}`);
-                const sigSnap = await getDoc(sigRef);
-                
-                ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空畫布
-
-                if (sigSnap.exists() && sigSnap.data().image) {
-                    // 已簽名，鎖定畫布並顯示舊簽名
-                    sigStatusText.innerText = '班表已回報：知悉';
-                    sigStatusText.style.color = '#166534'; // 深綠色
-                    placeholder.style.display = 'none';
-                    canvas.style.pointerEvents = 'none'; // 鎖死不能畫
-                    btnSaveSig.style.display = 'none';
-                    btnResign.style.display = 'block';
-
-                    // 畫出存檔的簽名
-                    const img = new Image();
-                    img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    img.src = sigSnap.data().image;
-                } else {
-                    // 未簽名
-                    sigStatusText.innerText = '簽名檔 (請手寫簽名確認)';
-                    sigStatusText.style.color = '#374151';
-                    placeholder.style.display = 'flex';
-                    canvas.style.pointerEvents = 'auto'; // 開放繪圖
-                    btnSaveSig.style.display = 'block';
-                    btnResign.style.display = 'none';
-                }
-            }
-
-            btnResign.addEventListener('click', () => {
-                // 解鎖畫布重新簽名
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                sigStatusText.innerText = '簽名檔 (請手寫簽名確認)';
-                sigStatusText.style.color = '#374151';
-                placeholder.style.display = 'flex';
-                canvas.style.pointerEvents = 'auto';
-                btnSaveSig.style.display = 'block';
-                btnResign.style.display = 'none';
-            });
-
-            btnSaveSig.addEventListener('click', async () => {
-                const targetDate = dateInput.value;
-                
-                // 檢查畫布是不是空白的 (簡單檢查)
-                const blank = document.createElement('canvas');
-                blank.width = canvas.width;
-                blank.height = canvas.height;
-                if(canvas.toDataURL() === blank.toDataURL()) {
-                    alert('請先在框內簽名後再儲存！');
+            unsubscribe = onSnapshot(q, (snapshot) => {
+                if (snapshot.empty) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="py-10 text-gray-500 font-bold">目前無排定車趟</td></tr>`;
                     return;
                 }
 
-                btnSaveSig.innerText = '⏳ 儲存中...';
-                btnSaveSig.disabled = true;
-
-                try {
-                    const dataUrl = canvas.toDataURL('image/png'); // 取得 base64 圖片字串
-                    const sigRef = doc(db, "Signatures", `${user.empId}_${targetDate}`);
-                    await setDoc(sigRef, {
-                        empId: user.empId,
-                        date: targetDate,
-                        image: dataUrl,
-                        timestamp: new Date().toISOString()
-                    });
+                let htmlBuffer = "";
+                snapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    const tripId = docSnap.id;
+                    const isAck = data.driver_acknowledged === true;
                     
-                    alert('✅ 簽名已成功回報！');
-                    await checkSignatureStatus(targetDate); // 重新整理狀態
+                    let btnHtml = isAck 
+                        ? `<button class="btn-ack" disabled>已確認</button>`
+                        : `<button class="btn-ack ack-btn" data-id="${tripId}">點擊確認</button>`;
+
+                    htmlBuffer += `
+                        <tr>
+                            <td class="font-bold text-blue-600">${escapeHTML(data.route)}</td>
+                            <td class="font-bold">${escapeHTML(data.departure_time)}</td>
+                            <td>${escapeHTML(data.assigned_vehicle)}</td>
+                            <td>${escapeHTML(data.start_point)}</td>
+                            <td>${btnHtml}</td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = htmlBuffer;
+            }, (error) => {
+                console.error("載入失敗:", error);
+                tbody.innerHTML = `<tr><td colspan="5" class="py-10 text-red-500 font-bold">載入失敗，請檢查網路或系統索引 (F12)</td></tr>`;
+            });
+        }
+
+        // 初始載入
+        loadMySchedule(dateInput.value);
+
+        // 日期變更時重新載入
+        dateInput.addEventListener('change', (e) => loadMySchedule(e.target.value));
+
+        // 知悉按鈕事件委派
+        tbody.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('ack-btn')) {
+                const tripId = e.target.dataset.id;
+                try {
+                    await updateDoc(doc(db, "daily_dispatches", tripId), {
+                        driver_acknowledged: true
+                    });
                 } catch (err) {
                     console.error(err);
-                    alert('儲存失敗，請檢查網路。');
+                    alert("確認失敗！");
                 }
-                
-                btnSaveSig.innerText = '💾 儲存簽名並回報';
-                btnSaveSig.disabled = false;
-            });
-
-            // 監聽日期切換
-            dateInput.addEventListener('change', (e) => loadMyTrips(e.target.value));
-            
-            // 初始載入
-            loadMyTrips(dateInput.value);
-
-        }).catch((err) => {
-            console.error("未登入", err);
+            }
         });
-    </script>
+
+    }).catch((err) => {
+        console.error("驗證失敗或未登入", err);
+    });
+</script>
 </body>
 </html>
