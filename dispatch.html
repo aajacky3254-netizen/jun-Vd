@@ -165,16 +165,24 @@
   </div>
   
   <div id="print-zone"></div>
- </div> <script type="module">
+ </div> 
+
+<script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, addDoc, setDoc, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
 
-    // 💡 新增：防止 XSS 攻擊的跳脫函式
     const escapeHTML = (str) => {
         return str ? String(str).replace(/[&<>'"]/g, 
             tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])
         ) : '';
+    };
+
+    // 時間轉分鐘，方便計算工時與緩衝
+    const timeToMins = (t) => {
+        if(!t) return 0;
+        let [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
     };
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
@@ -289,7 +297,7 @@
                     return;
                 }
 
-                let htmlBuffer = ""; // 💡 優化：使用字串拼接一次性渲染，減少 DOM 操作
+                let htmlBuffer = ""; 
 
                 snapshot.forEach(docSnap => { 
                     const data = { id: docSnap.id, ...docSnap.data() };
@@ -324,7 +332,6 @@
                                       ? `${escapeHTML(data.departure_time)} <br><span style="font-size:12px; color:#64748b;">~ ${escapeHTML(data.arrival_time)}</span>` 
                                       : escapeHTML(data.departure_time);
 
-                    // 💡 新增：全面使用 escapeHTML 防止資料庫內有惡意字元
                     htmlBuffer += `
                       <tr class="${rowClass}">
                         <td style="font-size: 17px; font-weight: 800; color: #0f172a; line-height: 1.2;">${timeDisplay}</td>
@@ -346,7 +353,6 @@
             });
         }
 
-        // 💡 效能優化：使用事件委派 (Event Delegation) 綁定在 tbody 上，避免在 onSnapshot 迴圈內重複綁定數百個監聽器
         tbody.addEventListener('click', async (e) => {
             const target = e.target;
             
@@ -427,7 +433,6 @@
 
           try {
             if (editingDocId) {
-              // 💡 錯誤處理優化：檢查文件是否還存在才更新
               const docRef = doc(db, "daily_dispatches", editingDocId);
               const docSnap = await getDoc(docRef);
               if (docSnap.exists()) {
@@ -497,7 +502,6 @@
                 if (snap.empty) {
                     alert(`⚠️ 找不到 ${sourceDateStr} 的任何車趟紀錄！`);
                 } else {
-                    // 💡 修復 Firebase Batch 限制：處理超過 500 筆的狀況
                     let count = 0;
                     let batch = writeBatch(db);
                     
@@ -519,7 +523,7 @@
                         });
                         count++;
                         
-                        if (count % 490 === 0) { // 保留安全範圍
+                        if (count % 490 === 0) { 
                             await batch.commit();
                             batch = writeBatch(db);
                         }
@@ -549,7 +553,6 @@
             btn.disabled = true;
 
             try {
-                // 💡 修復 Firebase Batch 限制：處理超過 500 筆狀況
                 let count = 0;
                 let batch = writeBatch(db);
                 
@@ -572,8 +575,9 @@
             btn.disabled = false;
         });
 
+        // 🤖 強化的智慧自動調度：加入工時防護與空間移動緩衝
         document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
-            if (!confirm("確定執行「智慧自動調度」嗎？\n系統將考慮「休息時間」、「早晚兩頭班防呆」與「路線起訖站連貫性」進行最佳化配置！")) return;
+            if (!confirm("確定執行「智慧自動調度」嗎？\n系統將嚴格執行「工時上限 12H」、「站點移動防呆」與「路線連貫性」進行最佳化配置！")) return;
 
             const btn = document.getElementById('btnAutoDispatch');
             btn.innerHTML = "🤖 運算中...";
@@ -604,19 +608,20 @@
 
                 function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
 
+                // 初始化車隊屬性：新增 firstTripTime 用於計算勞基法總工時
                 [...singleShifts, ...splitShifts].forEach(d => {
-                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
                 });
 
                 let maxPairs = Math.max(morningShifts.length, eveningShifts.length);
                 for (let i = 0; i < maxPairs; i++) {
                     let sharedCar = assignVehicle();
-                    if (morningShifts[i]) fleet.push({ ...morningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
-                    if (eveningShifts[i]) fleet.push({ ...eveningShifts[i], vehicle: sharedCar, availableTime: "00:00", lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                    if (morningShifts[i]) fleet.push({ ...morningShifts[i], vehicle: sharedCar, availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
+                    if (eveningShifts[i]) fleet.push({ ...eveningShifts[i], vehicle: sharedCar, availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
                 }
 
                 standbys.forEach(d => {
-                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", lastStation: "", lastRoute: "", priority: 2, tripsCount: 0 });
+                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 2, tripsCount: 0 });
                 });
 
                 fleet = fleet.filter(f => f.vehicle !== "無車可用");
@@ -626,16 +631,32 @@
 
                 let successCount = 0;
                 let failCount = 0;
-                let batch = writeBatch(db); // 💡 修復 Batch 限制
+                let batch = writeBatch(db); 
                 let batchCount = 0;
 
                 for (let trip of pendingTrips) {
                     let depTime = trip.departure_time;
-                    if (!depTime) continue; // 💡 錯誤處理防呆
+                    if (!depTime) continue; 
+                    
+                    let depMins = timeToMins(depTime);
                     let hour = parseInt(depTime.split(':')[0]);
 
                     let candidates = fleet.filter(unit => {
-                        if (unit.availableTime > depTime) return false;
+                        let availMins = timeToMins(unit.availableTime);
+                        
+                        // 1. 勞基法工時上限保護 (Max 12H = 720 Mins)
+                        if (unit.firstTripTime) {
+                            let firstMins = timeToMins(unit.firstTripTime);
+                            let estEndMins = trip.arrival_time ? timeToMins(trip.arrival_time) : depMins + 90;
+                            // 簡易跨日處理
+                            if (estEndMins < firstMins) estEndMins += 24 * 60;
+                            if ((estEndMins - firstMins) > 12 * 60) return false;
+                        }
+
+                        // 2. 空間移動緩衝保護 (空駛時間防呆)
+                        // 如果上一站跟這一趟的起點不同，強制加上 30 分鐘的車程緩衝
+                        let travelBuffer = (unit.lastStation && unit.lastStation !== trip.start_point) ? 30 : 0;
+                        if ((availMins + travelBuffer) > depMins) return false;
                         
                         let s = unit.shift || "";
                         if (s.includes("早") && hour >= 14) return false;
@@ -649,8 +670,13 @@
                         candidates.forEach(c => {
                             c.score = 0;
                             if (c.priority === 1) c.score += 100;
-                            if (c.lastStation === trip.start_point) c.score += 50;
-                            if (c.lastRoute === trip.route) c.score += 30;
+                            // 強烈鼓勵接續原站，大幅扣分空駛
+                            if (c.lastStation === trip.start_point) {
+                                c.score += 500; 
+                            } else {
+                                c.score -= 200;
+                            }
+                            if (c.lastRoute === trip.route) c.score += 50;
                         });
 
                         candidates.sort((a, b) => {
@@ -674,26 +700,30 @@
                             batch = writeBatch(db);
                         }
 
+                        // 更新該駕駛的狀態
+                        if (!assignedUnit.firstTripTime) {
+                            assignedUnit.firstTripTime = depTime;
+                        }
                         assignedUnit.tripsCount++;
                         assignedUnit.lastStation = trip.end_point;
                         assignedUnit.lastRoute = trip.route;
 
-                        let breakTime = 90;
+                        let breakTime = 60; // 基本趟間休息
                         if (assignedUnit.shift.includes("單") && assignedUnit.tripsCount >= 1 && hour >= 11 && hour <= 13) {
-                            breakTime = 150;
+                            breakTime = 120; // 午餐大休
                         }
 
                         if (trip.arrival_time) {
                             let [eh, em] = trip.arrival_time.split(':').map(Number);
                             if (!isNaN(eh) && !isNaN(em)) {
-                                em += 30; eh += Math.floor(em / 60); em = em % 60;
+                                em += breakTime; eh += Math.floor(em / 60); em = em % 60;
                                 if (eh >= 24) eh -= 24;
                                 assignedUnit.availableTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
                             }
                         } else {
                             let [h, m] = depTime.split(':').map(Number);
                             if (!isNaN(h) && !isNaN(m)) {
-                                m += breakTime;
+                                m += (90 + breakTime); // 預估行車90分 + 休息
                                 h += Math.floor(m / 60);
                                 m = m % 60;
                                 if (h >= 24) h -= 24;
@@ -709,9 +739,9 @@
 
                 setTimeout(() => {
                     if (failCount > 0) {
-                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)\n※ 系統已嚴格遵守連貫性與休息法規，略過車趟請手動微調。`);
+                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間/移動緩衝，或無順路車輛)\n※ 系統已嚴格遵守連貫性與勞基法規，剩餘車趟請手動微調。`);
                     } else {
-                        alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「彈性大中退」排班！`);
+                        alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「勞基防護」排班！`);
                     }
                     btn.innerHTML = "✨ 智慧自動調度";
                     btn.disabled = false;
@@ -746,12 +776,6 @@
                     }
                 }
             } catch (e) { console.error("無法抓取週班表：", e); }
-
-            const getLEDCode = (route) => {
-                const num = route.replace(/\D/g, '');
-                if(!num) return "N/A";
-                return `Hanover: *${num}# | Mobitec: ${num.padEnd(4, '0')}`;
-            };
 
             const scheduleByDriver = {};
             currentDayTrips.forEach(trip => {
@@ -805,18 +829,19 @@
                     }
                     lastHour = currentHour;
                     
-                    const ledCode = getLEDCode(t.route);
                     const arrStr = t.arrTime ? `~ ${escapeHTML(t.arrTime)}` : '';
 
+                    // 💡 優化：移除 LED 並讓版面更專業整齊
                     tripsRowsHtml += `
                         <tr>
-                            <td class="font-bold" style="color:#000 !important;">${idx + 1}</td>
-                            <td class="font-bold text-left" style="color:#000 !important;">
-                            <span style="color:#0369a1;">${escapeHTML(t.route)}</span> ${escapeHTML(t.startStation)} <br>
-                            <span style="font-size:10px; color:#64748b !important;">[LED: ${escapeHTML(ledCode)}]</span></td>
-                            <td style="font-family: monospace; color:#000 !important; font-weight:bold;">${escapeHTML(t.depTime)} <span style="font-size:10px; font-weight:normal;">${arrStr}</span></td>
+                            <td class="font-bold" style="color:#000 !important; font-size:14px;">${idx + 1}</td>
+                            <td class="font-bold text-left" style="color:#000 !important; font-size:14px;">
+                                <span style="color:#0369a1; border: 1px solid #bae6fd; padding: 2px 6px; border-radius: 4px; display:inline-block; margin-bottom:4px;">${escapeHTML(t.route)}</span><br>
+                                ${escapeHTML(t.startStation)}
+                            </td>
+                            <td style="font-family: monospace; color:#000 !important; font-weight:bold; font-size:15px;">${escapeHTML(t.depTime)} <br><span style="font-size:12px; font-weight:normal; color:#64748b;">${arrStr}</span></td>
                             <td></td><td></td>
-                            <td class="font-bold text-left" style="color:#000 !important;">${escapeHTML(t.arrStation)}</td>
+                            <td class="font-bold text-left" style="color:#000 !important; font-size:14px;">${escapeHTML(t.arrStation)}</td>
                             <td></td><td></td>
                             <td></td>
                         </tr>
