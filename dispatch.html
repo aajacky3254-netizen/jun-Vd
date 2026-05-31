@@ -577,183 +577,203 @@
 
         // 🤖 強化的智慧自動調度：加入工時防護與空間移動緩衝
         document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
-            if (!confirm("確定執行「智慧自動調度」嗎？\n系統將嚴格執行「工時上限 12H」、「站點移動防呆」與「路線連貫性」進行最佳化配置！")) return;
+    if (!confirm("確定執行「智慧自動調度」嗎？\n系統將嚴格執行「工時上限」、「動態緩衝」、「勞逸均衡」與「用餐大休」進行最佳化配置！")) return;
 
-            const btn = document.getElementById('btnAutoDispatch');
-            btn.innerHTML = "🤖 運算中...";
-            btn.disabled = true;
+    const btn = document.getElementById('btnAutoDispatch');
+    btn.innerHTML = "🤖 運算中...";
+    btn.disabled = true;
 
-            try {
-                await loadAvailableDrivers(dateInput.value);
-                await loadAvailableVehicles();
+    try {
+        await loadAvailableDrivers(dateInput.value);
+        await loadAvailableVehicles();
 
-                if (currentAvailableDrivers.length === 0 || currentAvailableVehicles.length === 0) {
-                    alert("⚠️ 錯誤：目前沒有可用且非休假的駕駛員或車輛！");
-                    btn.innerHTML = "✨ 智慧自動調度";
-                    btn.disabled = false;
-                    return;
-                }
+        if (currentAvailableDrivers.length === 0 || currentAvailableVehicles.length === 0) {
+            alert("⚠️ 錯誤：目前沒有可用且非休假的駕駛員或車輛！");
+            btn.innerHTML = "✨ 智慧自動調度";
+            btn.disabled = false;
+            return;
+        }
 
-                let singleShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("單"));
-                let splitShifts = currentAvailableDrivers.filter(d => d.shift && (d.shift.includes("頭")));
-                let morningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("早"));
-                let eveningShifts = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("晚"));
-                let standbys = currentAvailableDrivers.filter(d => d.shift && d.shift.includes("待命"));
-                
-                let others = currentAvailableDrivers.filter(d => !d.shift || (!d.shift.includes("單") && !d.shift.includes("早") && !d.shift.includes("晚") && !d.shift.includes("頭") && !d.shift.includes("待命")));
-                singleShifts.push(...others);
+        // 🔰 規則 8：新手標籤初始化 (假設人事資料有 isRookie，若無則預設為 false)
+        // 這裡可以根據系統實際資料庫擴充，目前先建立防呆屬性
+        let fleet = [];
+        let availableVehs = [...currentAvailableVehicles];
+        function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
 
-                let fleet = [];
-                let availableVehs = [...currentAvailableVehicles];
-
-                function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
-
-                // 初始化車隊屬性：新增 firstTripTime 用於計算勞基法總工時
-                [...singleShifts, ...splitShifts].forEach(d => {
-                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
-                });
-
-                let maxPairs = Math.max(morningShifts.length, eveningShifts.length);
-                for (let i = 0; i < maxPairs; i++) {
-                    let sharedCar = assignVehicle();
-                    if (morningShifts[i]) fleet.push({ ...morningShifts[i], vehicle: sharedCar, availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
-                    if (eveningShifts[i]) fleet.push({ ...eveningShifts[i], vehicle: sharedCar, availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 1, tripsCount: 0 });
-                }
-
-                standbys.forEach(d => {
-                    fleet.push({ ...d, vehicle: assignVehicle(), availableTime: "00:00", firstTripTime: null, lastStation: "", lastRoute: "", priority: 2, tripsCount: 0 });
-                });
-
-                fleet = fleet.filter(f => f.vehicle !== "無車可用");
-
-                let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
-                pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
-
-                let successCount = 0;
-                let failCount = 0;
-                let batch = writeBatch(db); 
-                let batchCount = 0;
-
-                for (let trip of pendingTrips) {
-                    let depTime = trip.departure_time;
-                    if (!depTime) continue; 
-                    
-                    let depMins = timeToMins(depTime);
-                    let hour = parseInt(depTime.split(':')[0]);
-
-                    let candidates = fleet.filter(unit => {
-                        let availMins = timeToMins(unit.availableTime);
-                        
-                        // 1. 勞基法工時上限保護 (Max 12H = 720 Mins)
-                        if (unit.firstTripTime) {
-                            let firstMins = timeToMins(unit.firstTripTime);
-                            let estEndMins = trip.arrival_time ? timeToMins(trip.arrival_time) : depMins + 90;
-                            // 簡易跨日處理
-                            if (estEndMins < firstMins) estEndMins += 24 * 60;
-                            if ((estEndMins - firstMins) > 12 * 60) return false;
-                        }
-
-                        // 2. 空間移動緩衝保護 (空駛時間防呆)
-                        // 如果上一站跟這一趟的起點不同，強制加上 30 分鐘的車程緩衝
-                        let travelBuffer = (unit.lastStation && unit.lastStation !== trip.start_point) ? 30 : 0;
-                        if ((availMins + travelBuffer) > depMins) return false;
-                        
-                        let s = unit.shift || "";
-                        if (s.includes("早") && hour >= 14) return false;
-                        if (s.includes("晚") && hour < 14) return false;
-                        if (s.includes("頭") && (hour >= 10 && hour <= 14)) return false;
-                        
-                        return true;
-                    });
-
-                    if (candidates.length > 0) {
-                        candidates.forEach(c => {
-                            c.score = 0;
-                            if (c.priority === 1) c.score += 100;
-                            // 強烈鼓勵接續原站，大幅扣分空駛
-                            if (c.lastStation === trip.start_point) {
-                                c.score += 500; 
-                            } else {
-                                c.score -= 200;
-                            }
-                            if (c.lastRoute === trip.route) c.score += 50;
-                        });
-
-                        candidates.sort((a, b) => {
-                            if (b.score !== a.score) return b.score - a.score;
-                            return a.tripsCount - b.tripsCount;
-                        });
-
-                        let assignedUnit = candidates[0];
-
-                        batch.update(doc(db, "daily_dispatches", trip.id), {
-                            assigned_driver: assignedUnit.name,
-                            assigned_empid: assignedUnit.empId,
-                            assigned_vehicle: assignedUnit.vehicle
-                        });
-                        
-                        successCount++;
-                        batchCount++;
-
-                        if (batchCount % 490 === 0) {
-                            await batch.commit();
-                            batch = writeBatch(db);
-                        }
-
-                        // 更新該駕駛的狀態
-                        if (!assignedUnit.firstTripTime) {
-                            assignedUnit.firstTripTime = depTime;
-                        }
-                        assignedUnit.tripsCount++;
-                        assignedUnit.lastStation = trip.end_point;
-                        assignedUnit.lastRoute = trip.route;
-
-                        let breakTime = 60; // 基本趟間休息
-                        if (assignedUnit.shift.includes("單") && assignedUnit.tripsCount >= 1 && hour >= 11 && hour <= 13) {
-                            breakTime = 120; // 午餐大休
-                        }
-
-                        if (trip.arrival_time) {
-                            let [eh, em] = trip.arrival_time.split(':').map(Number);
-                            if (!isNaN(eh) && !isNaN(em)) {
-                                em += breakTime; eh += Math.floor(em / 60); em = em % 60;
-                                if (eh >= 24) eh -= 24;
-                                assignedUnit.availableTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
-                            }
-                        } else {
-                            let [h, m] = depTime.split(':').map(Number);
-                            if (!isNaN(h) && !isNaN(m)) {
-                                m += (90 + breakTime); // 預估行車90分 + 休息
-                                h += Math.floor(m / 60);
-                                m = m % 60;
-                                if (h >= 24) h -= 24;
-                                assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                            }
-                        }
-                    } else {
-                        failCount++;
-                    }
-                }
-
-                if (batchCount % 490 !== 0) await batch.commit();
-
-                setTimeout(() => {
-                    if (failCount > 0) {
-                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間/移動緩衝，或無順路車輛)\n※ 系統已嚴格遵守連貫性與勞基法規，剩餘車趟請手動微調。`);
-                    } else {
-                        alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「勞基防護」排班！`);
-                    }
-                    btn.innerHTML = "✨ 智慧自動調度";
-                    btn.disabled = false;
-                }, 500);
-
-            } catch (e) {
-                console.error(e);
-                alert("執行自動調度時發生錯誤！請檢查網路。");
-                btn.innerHTML = "✨ 智慧自動調度";
-                btn.disabled = false;
-            }
+        currentAvailableDrivers.forEach(d => {
+            // 過濾掉休假
+            if (d.shift && (d.shift.includes("休") || d.shift === "OFF")) return;
+            
+            fleet.push({ 
+                ...d, 
+                vehicle: assignVehicle(), 
+                availableTime: "00:00", 
+                firstTripTime: null, 
+                lastStation: "", 
+                lastRoute: "", 
+                priority: d.shift.includes("待命") ? 2 : 1, 
+                tripsCount: 0,
+                hasLunch: false,   // 🍽️ 規則 5：追蹤大休
+                hasDinner: false,  // 🍽️ 規則 5：追蹤大休
+                isRookie: d.experience === '新手' || false, // 🔰 規則 8
+                hardRouteCount: 0  // ⚖️ 規則 6：勞逸積分追蹤
+            });
         });
+
+        fleet = fleet.filter(f => f.vehicle !== "無車可用");
+
+        let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
+        pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
+
+        let successCount = 0;
+        let failCount = 0;
+        let batch = writeBatch(db); 
+        let batchCount = 0;
+
+        for (let trip of pendingTrips) {
+            let depTime = trip.departure_time;
+            if (!depTime) continue; 
+            
+            let depMins = timeToMins(depTime);
+            let hour = parseInt(depTime.split(':')[0]);
+            
+            // 預估本趟結束時間 (加上尖峰加權)
+            let rawEstEnd = trip.arrival_time ? timeToMins(trip.arrival_time) : depMins + 90;
+            // 🚦 規則 7：尖峰時段行車時間動態延長 (假設預設車程乘上 1.2 倍)
+            if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
+                if (!trip.arrival_time) rawEstEnd = depMins + (90 * 1.2); 
+            }
+            let estEndMins = rawEstEnd;
+
+            let candidates = fleet.filter(unit => {
+                let availMins = timeToMins(unit.availableTime);
+                let s = unit.shift || "";
+
+                // 💼 規則 2：隱形工時 (前後各加 30 分，總共 60 分鐘)
+                // 12 小時 = 720 分鐘。扣除前後備車 60 分鐘，純開車極限為 660 分鐘 (11 小時)
+                if (unit.firstTripTime) {
+                    let firstMins = timeToMins(unit.firstTripTime);
+                    let checkEndMins = estEndMins;
+                    if (checkEndMins < firstMins) checkEndMins += 24 * 60; // 跨日處理
+                    if ((checkEndMins - firstMins) > 660) return false; 
+                }
+
+                // 🚗 空間移動緩衝：若需要跨站接車，可用時間需加上 30 分鐘防呆
+                let travelBuffer = (unit.lastStation && unit.lastStation !== trip.start_point) ? 30 : 0;
+                if ((availMins + travelBuffer) > depMins) return false;
+                
+                // 🔰 規則 8：新手保護 (不排複雜的兩頭班)
+                if (unit.isRookie && (s.includes("頭") || s.includes("AB"))) return false;
+
+                // 🕒 規則 1 & 班別嚴格鎖定
+                if (s.includes("早")) {
+                    if (depMins < 300 || estEndMins > 840) return false; // 05:00 - 14:00
+                } else if (s.includes("晚")) {
+                    if (depMins < 900 || estEndMins > 1440) return false; // 15:00 - 24:00
+                } else if (s.includes("頭") || s.includes("AB")) {
+                    let isMorningPeak = (depMins >= 300 && estEndMins <= 540);  // 05:00 - 09:00
+                    let isEveningPeak = (depMins >= 960 && estEndMins <= 1200); // 16:00 - 20:00 (放寬至20:00)
+                    if (!isMorningPeak && !isEveningPeak) return false;
+                }
+                
+                // 🛌 規則 3：七休一與 10 小時跨日休息 
+                // (註：這裡預留擴充接口，未來若從 Firebase 讀取 unit.yesterdayEndTime 即可啟動此防呆)
+                if (unit.yesterdayEndTime) {
+                    let restGap = (depMins + 24 * 60) - timeToMins(unit.yesterdayEndTime);
+                    if (restGap < 600) return false; // 休息小於 10 小時 (600分鐘) 剔除
+                }
+
+                return true;
+            });
+
+            if (candidates.length > 0) {
+                // ⚖️ 規則 6：勞逸均衡積分評估
+                candidates.forEach(c => {
+                    c.score = 0;
+                    if (c.priority === 1) c.score += 100;
+                    
+                    // 優先排順趟，極度排斥空車調度
+                    if (c.lastStation === trip.start_point) c.score += 500;
+                    else c.score -= 200;
+                    
+                    if (c.lastRoute === trip.route) c.score += 50;
+
+                    // 公平原則：趟數多的人扣分，讓趟數少的人優先接單
+                    c.score -= (c.tripsCount * 30);
+                    // 若這是一條「硬線」(可根據路線關鍵字判斷，此處為概念展示)，增加壓力積分
+                    if (trip.route.includes("火車站") || trip.route.includes("百貨")) {
+                        c.score -= (c.hardRouteCount * 40); 
+                    }
+                });
+
+                // 取最高分者
+                candidates.sort((a, b) => b.score - a.score);
+                let assignedUnit = candidates[0];
+
+                batch.update(doc(db, "daily_dispatches", trip.id), {
+                    assigned_driver: assignedUnit.name,
+                    assigned_empid: assignedUnit.empId,
+                    assigned_vehicle: assignedUnit.vehicle
+                });
+                
+                successCount++;
+                batchCount++;
+                if (batchCount % 490 === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                }
+
+                // 📝 狀態更新與緩衝計算
+                if (!assignedUnit.firstTripTime) assignedUnit.firstTripTime = depTime;
+                assignedUnit.tripsCount++;
+                assignedUnit.lastStation = trip.end_point;
+                assignedUnit.lastRoute = trip.route;
+                if (trip.route.includes("火車站") || trip.route.includes("百貨")) assignedUnit.hardRouteCount++;
+
+                // 🚽 規則 4：基本端點休息緩衝 (最少 15 分鐘)
+                let breakTime = 15;
+                if (assignedUnit.isRookie) breakTime += 15; // 新手再多 15 分鐘冷靜期
+
+                // 🍽️ 規則 5：完整用餐大休 (45~60分鐘)
+                if (hour >= 11 && hour <= 13 && !assignedUnit.hasLunch) {
+                    breakTime = Math.max(breakTime, 60);
+                    assignedUnit.hasLunch = true;
+                } else if (hour >= 17 && hour <= 19 && !assignedUnit.hasDinner) {
+                    breakTime = Math.max(breakTime, 60);
+                    assignedUnit.hasDinner = true;
+                }
+
+                // 結算下一趟的 availableTime
+                let nextAvailMins = estEndMins + breakTime;
+                let h = Math.floor(nextAvailMins / 60);
+                let m = nextAvailMins % 60;
+                if (h >= 24) h -= 24;
+                assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                
+            } else {
+                failCount++;
+            }
+        }
+
+        if (batchCount % 490 !== 0) await batch.commit();
+
+        setTimeout(() => {
+            if (failCount > 0) {
+                alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟\n(可能原因：勞基法超時、無大休空檔、無跨站緩衝)。\n剩餘車趟請手動微調。`);
+            } else {
+                alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟。\n完美套用「12H工時上限」、「餐期大休」與「勞逸均衡」排班！`);
+            }
+            btn.innerHTML = "✨ 智慧自動調度";
+            btn.disabled = false;
+        }, 500);
+
+    } catch (e) {
+        console.error(e);
+        alert("執行自動調度時發生錯誤！請檢查網路。");
+        btn.innerHTML = "✨ 智慧自動調度";
+        btn.disabled = false;
+    }
+});
 
         document.getElementById('btnPrintAll').addEventListener('click', async () => {
             const inputDateVal = document.getElementById('inputDate').value;
