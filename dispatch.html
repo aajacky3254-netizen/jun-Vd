@@ -84,7 +84,7 @@
     <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
     <a href="vehicles.html" class="nav-link">🚍 車輛資訊系統</a>
   </nav>
-
+ <div id="main-content">
   <h2>🚦 每日發車時刻表控制台</h2>
 
   <div class="content-area">
@@ -130,7 +130,7 @@
         🖨️ 批次列印憑單
       </button>
     </div>
-
+</div>
     <table id="dispatchTable">
       <thead>
         <tr>
@@ -148,12 +148,12 @@
     </table>
   </div>
   
-  <div id="print-zone"></div>
+  <div id="print-zone"></div></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, addDoc, setDoc, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js'; // 【權限模組引入】
+    import { checkAuthAndGetRole, logout } from './js/auth.js'; // 【權限模組引入】
 
     // 1. 先宣告權限只有這些職稱可以進入發車控制台
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
@@ -362,7 +362,15 @@
           const start = document.getElementById('inputStart').value.trim();
           const end = document.getElementById('inputEnd').value.trim();
 
-          if (!time || !route || !start || !end) { alert("請填寫完整資訊！"); return; }
+          if (!time || !route || !start || !end) { alert("請填寫完整資訊！"); return; }  
+          const payload = {
+    date,
+    departure_time: time,
+    route,
+    start_point: start,
+    end_point: end,
+    status: "pending"
+  };
 
           try {
             if (editingDocId) {
