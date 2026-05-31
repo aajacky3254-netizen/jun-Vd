@@ -6,7 +6,6 @@
   <title>車輛調度系統 - 人事管理系統 (權限防護版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 💡 優化 1: 加上 display: none 避免權限驗證前畫面閃爍 */
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
     h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
     
@@ -43,7 +42,7 @@
 <body>
 
   <nav class="navbar" id="main-nav">
-    <a href="index.html" class="navbar-brand">🚌 愛巴士交通客運 | 智慧車輛調度系統</a>
+    <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
     <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
     <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
     <a href="drivers.html" class="nav-link active">👨‍✈️ 人事管理系統</a>
@@ -72,20 +71,25 @@
           <option value="inactive">離職/留停</option>
         </select>
       </div>
+      
+      <!-- 💡 將原本的駕照類型替換為場站 -->
       <div class="input-group" style="width: 140px;">
-        <label>駕照類型</label>
-        <select id="inpLicense">
-          <option value="大客車">大客車</option>
-          <option value="聯結車">聯結車</option>
+        <label>所屬場站</label>
+        <select id="inpStation">
+          <option value="東海站">東海站</option>
+          <option value="烏日站">烏日站</option>
+          <option value="潭子站">潭子站</option>
+          <option value="高鐵站">高鐵站</option>
         </select>
       </div>
+      
       <div class="input-group" style="width: 160px;">
         <label>系統職稱權限</label>
         <select id="inpRole">
           <option value="駕駛長">駕駛長 (僅檢視)</option>
           <option value="調度員">調度員 (可排班)</option>
-          <option value="StationManager">站長 (最高權限)</option>
           <option value="維修人員">維修保養班</option>
+          <option value="StationManager">站長 (最高權限)</option>
         </select>
       </div>
       
@@ -99,7 +103,7 @@
         <tr>
           <th style="width: 15%;">員工編號</th>
           <th style="width: 25%;">駕駛姓名</th>
-          <th style="width: 15%;">駕照類型</th>
+          <th style="width: 15%;">所屬場站</th>
           <th style="width: 15%;">系統職權</th>
           <th style="width: 15%;">在職狀態</th>
           <th style="width: 15%; text-align: center;">操作</th>
@@ -119,10 +123,8 @@
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
-        // A. 顯示網頁內容
         document.body.style.display = 'block'; 
 
-        // B. 動態加入登出導覽列
         const nav = document.querySelector('.navbar');
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
@@ -132,7 +134,6 @@
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // C. 初始化 Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
           authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -184,11 +185,11 @@
                 tr.innerHTML = `
                     <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${driver.id}</td>
                     <td style="font-weight: bold; color: #0f172a; font-size: 16px;">${driver.name}</td>
-                    <td style="color: #475569; font-weight: 600;">${driver.licenseType || '大客車'}</td>
+                    <td style="color: #475569; font-weight: 600;">${driver.station || '未指定'}</td>
                     <td style="color: #3b82f6; font-weight: 600;">${driver.role || '駕駛長'}</td>
                     <td>${statusHtml}</td>
                     <td style="text-align: center;">
-                        <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${driver.id}" data-name="${driver.name}" data-status="${driver.status}" data-license="${driver.licenseType}" data-role="${driver.role}">編輯</button>
+                        <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${driver.id}" data-name="${driver.name}" data-status="${driver.status}" data-station="${driver.station}" data-role="${driver.role}">編輯</button>
                         <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${driver.id}">刪除</button>
                     </td>
                 `;
@@ -202,14 +203,13 @@
                 document.getElementById('inpEmpId').style.backgroundColor = '#e2e8f0';
                 document.getElementById('inpName').value = btnData.name;
                 document.getElementById('inpStatus').value = btnData.status;
-                document.getElementById('inpLicense').value = btnData.license || '大客車';
+                document.getElementById('inpStation').value = btnData.station || '東海站';
                 document.getElementById('inpRole').value = btnData.role || '駕駛長';
                 
                 document.getElementById('btnSaveDriver').innerHTML = "💾 更新駕駛資料";
                 document.getElementById('btnSaveDriver').className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }));
 
-            // 💡 優化 3: 刪除防呆與錯誤捕捉
             document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', async (e) => {
                 if(confirm(`⚠️ 警告！刪除駕駛員將無法復原，確定要刪除編號 ${e.target.dataset.id} 嗎？`)) {
                     try {
@@ -226,7 +226,7 @@
             const empId = document.getElementById('inpEmpId').value.trim();
             const name = document.getElementById('inpName').value.trim();
             const status = document.getElementById('inpStatus').value;
-            const licenseType = document.getElementById('inpLicense').value;
+            const station = document.getElementById('inpStation').value;
             const role = document.getElementById('inpRole').value;
 
             if(!empId || !name) { alert("請填寫員工編號與姓名！"); return; }
@@ -234,14 +234,13 @@
             const btn = document.getElementById('btnSaveDriver');
             
             try {
-                // 💡 優化 2: 點擊後鎖定按鈕，防止連點重複寫入
                 btn.innerHTML = "⏳ 儲存中...";
                 btn.disabled = true;
 
                 const driverData = {
                     name: name,
                     status: status,
-                    licenseType: licenseType,
+                    station: station,
                     role: role 
                 };
 
@@ -252,7 +251,6 @@
 
                 await setDoc(doc(db, "Drivers", empId), driverData, { merge: true });
 
-                // 清空並復原表單狀態
                 document.getElementById('inpEmpId').value = '';
                 document.getElementById('inpEmpId').disabled = false;
                 document.getElementById('inpEmpId').style.backgroundColor = '#f8fafc';
@@ -260,13 +258,12 @@
                 document.getElementById('inpStatus').value = 'active';
                 
                 if (!docSnap.exists()) {
-                    alert(`✅ 帳號建立成功！\n員工編號: ${empId}\n預設密碼: 123\n系統權限: ${role}`);
+                    alert(`✅ 帳號建立成功！\n員工編號: ${empId}\n預設密碼: 123\n所屬場站: ${station}\n系統權限: ${role}`);
                 }
             } catch (err) {
                 console.error("寫入失敗:", err);
                 alert("儲存失敗，請檢查網路狀態。");
             } finally {
-                // 不論成功或失敗，都把按鈕還原
                 btn.innerHTML = "💾 儲存駕駛資料";
                 btn.disabled = false;
                 btn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
