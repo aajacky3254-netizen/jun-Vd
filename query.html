@@ -7,119 +7,125 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { background-color: #121212; color: #e5e7eb; font-family: "微軟正黑體", sans-serif; -webkit-tap-highlight-color: transparent; }
-    /* 隱藏捲軸但保持可捲動 */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     
-    /* 底部彈出選單動畫 */
     .bottom-sheet { transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     .bottom-sheet.open { transform: translateY(0); }
     .overlay { opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out; }
     .overlay.open { opacity: 1; pointer-events: auto; }
     
-    /* 載入中動畫 */
     .loader { border-top-color: #c4b5fd; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
     @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    /* 導覽列 Active 狀態過渡 */
+    .nav-btn { transition: color 0.2s ease-in-out; }
+    .nav-btn.active { color: #c084fc; } /* text-purple-400 */
+    .nav-btn.active span:first-child { transform: scale(1.1); transition: transform 0.2s; }
   </style>
 </head>
 <body class="h-screen flex flex-col">
 
   <header class="flex items-center justify-between px-4 py-3 bg-[#1e1e24] shadow-md z-10 sticky top-0 border-b border-gray-800">
     <div class="flex items-center gap-3">
-      <button id="btnBack" class="hidden text-gray-400 hover:text-white p-1">
+      <button id="btnBack" class="hidden text-gray-400 hover:text-white p-1 transition-transform active:scale-90">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
       </button>
       <h1 id="pageTitle" class="text-lg font-bold text-gray-100 tracking-wide">路線總覽</h1>
     </div>
-    <div class="text-xs font-medium bg-gray-800 px-2 py-1 rounded text-gray-300" id="userBadge">驗證中...</div>
+    <div class="text-xs font-medium bg-gray-800 px-2 py-1 rounded text-gray-300" id="userBadge">連線中...</div>
   </header>
 
-  <main id="viewRoutes" class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24">
+  <main id="viewRoutes" class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24 relative">
     <div class="bg-[#1e1e24] rounded-lg p-3 mb-4 flex justify-between items-center border border-gray-700 shadow-sm">
       <div class="flex flex-col">
-        <span class="text-xs text-gray-400 font-bold tracking-wider uppercase">查詢日期</span>
+        <span class="text-xs text-gray-400 font-bold tracking-wider uppercase">查詢營運日期</span>
         <input type="date" id="queryDate" class="bg-transparent text-purple-200 font-bold outline-none text-lg mt-1 tracking-wider">
       </div>
       <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
     </div>
 
-    <div class="relative mb-6 shadow-sm">
+    <div class="relative mb-6 shadow-sm sticky top-0 z-20">
       <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
         <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
       </div>
-      <input type="text" id="searchInput" class="block w-full pl-10 pr-3 py-3 border border-transparent rounded-xl leading-5 bg-[#2a2a35] text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 sm:text-sm transition-all" placeholder="搜尋路線或站名...">
+      <input type="text" id="searchInput" class="block w-full pl-10 pr-10 py-3 border border-gray-700 rounded-xl leading-5 bg-[#2a2a35] text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 sm:text-sm transition-all shadow-inner" placeholder="搜尋路線或站名 (支援 Regex)...">
+      <button id="btnClearSearch" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-200">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+      </button>
     </div>
 
     <div id="routesContainer">
       <div class="flex justify-center items-center py-10 flex-col">
         <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-700 h-10 w-10 mb-4"></div>
-        <p class="text-gray-400 font-bold text-sm">載入今日調度資料中...</p>
+        <p class="text-gray-400 font-bold text-sm">載入調度資料中...</p>
       </div>
     </div>
   </main>
 
-  <main id="viewTimetable" class="hidden flex-1 overflow-y-auto no-scrollbar p-4 pb-24 bg-[#121212]">
+  <main id="viewTimetable" class="hidden flex-1 overflow-y-auto no-scrollbar p-4 pb-24 bg-[#121212] scroll-smooth">
     <div id="timetableHeader" class="mb-4">
-      <div class="flex items-center mb-2">
+      <p class="text-xs text-gray-400 tracking-wider mb-1" id="timetableDateDisplay"></p>
+      <div class="flex items-center">
         <div class="w-1.5 h-4 bg-[#c4b5fd] rounded-full mr-2 shadow-[0_0_8px_rgba(196,181,253,0.5)]"></div>
-        <h3 id="timetableDirectionTitle" class="text-base font-bold text-gray-200"></h3>
+        <h3 class="text-lg font-bold text-gray-100">雙向發車時刻與配置</h3>
       </div>
-      <p class="text-xs text-gray-500 tracking-wider">每日發車時刻與車輛配置</p>
     </div>
 
-    <div id="timetableContainer" class="space-y-2.5">
+    <div id="timetableContainer" class="space-y-6">
       </div>
   </main>
 
-  <nav class="bg-[#1e1e24] border-t border-gray-800 flex justify-around py-2 pb-safe fixed bottom-0 w-full z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
-    <button class="flex flex-col items-center p-2 text-gray-500 hover:text-gray-300 transition">
+  <nav id="bottomNav" class="bg-[#1e1e24] border-t border-gray-800 flex justify-around py-2 pb-safe fixed bottom-0 w-full z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
+    <button class="nav-btn flex flex-col items-center p-2 text-gray-500 hover:text-gray-300" data-target="info">
       <span class="text-xl mb-0.5">ℹ️</span><span class="text-[10px] font-bold tracking-wider">資訊</span>
     </button>
-    <button class="flex flex-col items-center p-2 text-purple-400">
+    <button class="nav-btn active flex flex-col items-center p-2 text-gray-500 hover:text-gray-300" data-target="routes">
       <span class="text-xl mb-0.5">☈</span><span class="text-[10px] font-bold tracking-wider">路線</span>
     </button>
-    <button class="flex flex-col items-center p-2 text-gray-500 hover:text-gray-300 transition">
+    <button class="nav-btn flex flex-col items-center p-2 text-gray-500 hover:text-gray-300" data-target="fleet">
       <span class="text-xl mb-0.5">🚍</span><span class="text-[10px] font-bold tracking-wider">車隊</span>
     </button>
-    <button class="flex flex-col items-center p-2 text-gray-500 hover:text-gray-300 transition">
+    <button class="nav-btn flex flex-col items-center p-2 text-gray-500 hover:text-gray-300" data-target="settings">
       <span class="text-xl mb-0.5">⚙️</span><span class="text-[10px] font-bold tracking-wider">設定</span>
     </button>
   </nav>
 
-  <div id="overlay" class="overlay fixed inset-0 bg-black bg-opacity-70 z-40 backdrop-blur-sm"></div>
+  <div id="overlay" class="overlay fixed inset-0 bg-black bg-opacity-70 z-40 backdrop-blur-[2px]"></div>
   <div id="actionSheet" class="bottom-sheet fixed bottom-0 left-0 w-full bg-[#1e1e24] rounded-t-3xl z-50 p-6 pb-8 shadow-2xl border-t border-gray-700">
     <div class="w-12 h-1.5 bg-gray-600 rounded-full mx-auto mb-5"></div>
     
     <div class="flex justify-between items-center mb-6">
       <h3 id="actionSheetTitle" class="text-xl font-bold text-gray-100 flex items-center gap-2">
-        🚍 車輛操作: <span class="text-purple-300 font-mono tracking-wider"></span>
+        🚍 班次操作: <span class="text-purple-300 font-mono tracking-wider"></span>
       </h3>
     </div>
     
     <div class="space-y-3 text-sm font-bold text-gray-300">
       <div id="actionSheetDriverInfo" class="bg-[#2a2a35] p-3 rounded-xl mb-4 border border-gray-700 flex items-center gap-3">
           <div class="bg-gray-700 p-2 rounded-full text-lg">👨‍✈️</div>
-          <div>
+          <div class="flex-1">
               <p class="text-xs text-gray-400">排定駕駛長</p>
               <p class="text-base text-gray-100" id="sheetDriverName">載入中...</p>
           </div>
+          <button class="bg-purple-600 hover:bg-purple-500 text-white p-2 rounded-full transition-transform active:scale-95">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path></svg>
+          </button>
       </div>
 
-      <button class="w-full flex items-center gap-3 p-3 bg-[#2a2a35] hover:bg-gray-700 rounded-xl transition border border-transparent hover:border-gray-600"><span class="text-lg">📡</span> 系統即時動態</button>
-      <button class="w-full flex items-center gap-3 p-3 bg-[#2a2a35] hover:bg-gray-700 rounded-xl transition border border-transparent hover:border-gray-600"><span class="text-lg">🕒</span> 歷史行駛軌跡</button>
-      <button class="w-full flex items-center gap-3 p-3 bg-[#2a2a35] hover:bg-gray-700 rounded-xl transition border border-transparent hover:border-gray-600"><span class="text-lg">📅</span> 查詢人員班表</button>
+      <button class="action-btn w-full flex items-center gap-3 p-3 bg-[#2a2a35] hover:bg-gray-700 rounded-xl transition border border-transparent active:border-purple-500"><span class="text-lg">📡</span> 系統即時動態</button>
+      <button class="action-btn w-full flex items-center gap-3 p-3 bg-[#2a2a35] hover:bg-gray-700 rounded-xl transition border border-transparent active:border-purple-500"><span class="text-lg">🕒</span> 歷史行駛軌跡</button>
+      <button class="action-btn w-full flex items-center gap-3 p-3 bg-[#2a2a35] hover:bg-gray-700 rounded-xl transition border border-transparent active:border-purple-500"><span class="text-lg">📅</span> 查詢人員班表</button>
     </div>
   </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    // 如果不需要嚴格權限，可以註解掉這行；這裡預設使用你原本的權限系統
     import { checkAuthAndGetRole } from './auth.js'; 
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
-    // 初始化 Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
         authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -129,27 +135,25 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 全域狀態管理
     let currentDayTrips = []; 
     let currentSelectedRoute = null;
 
-    // DOM 元素綁定
     const dateInput = document.getElementById('queryDate');
     const searchInput = document.getElementById('searchInput');
+    const btnClearSearch = document.getElementById('btnClearSearch');
     const routesContainer = document.getElementById('routesContainer');
     const timetableContainer = document.getElementById('timetableContainer');
     const viewRoutes = document.getElementById('viewRoutes');
     const viewTimetable = document.getElementById('viewTimetable');
     const btnBack = document.getElementById('btnBack');
     const pageTitle = document.getElementById('pageTitle');
-    const timetableDirectionTitle = document.getElementById('timetableDirectionTitle');
     const userBadge = document.getElementById('userBadge');
+    const timetableDateDisplay = document.getElementById('timetableDateDisplay');
 
-    // 設定預設日期 (今日)
+    // 設定今日預設
     const today = new Date().toISOString().split('T')[0];
     dateInput.value = today;
 
-    // 權限驗證 (允許所有建檔人員查詢)
     checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員', '駕駛長']).then((user) => {
         userBadge.innerText = `👤 ${escapeHTML(user.name)}`;
     }).catch(() => {
@@ -158,7 +162,6 @@
 
     let unsubscribe = null;
 
-    // 🚀 核心邏輯 1：監聽並讀取指定日期的所有車趟
     function loadDispatchData(dateStr) {
         routesContainer.innerHTML = `
             <div class="flex justify-center items-center py-10 flex-col">
@@ -181,9 +184,8 @@
                 currentDayTrips.push({ id: doc.id, ...doc.data() });
             });
             
-            renderRoutesCard(); // 資料更新後，重新渲染路線清單
+            renderRoutesCard(searchInput.value); 
 
-            // 如果使用者剛好停留在時刻表畫面，也要同步更新裡面的資料
             if (!viewTimetable.classList.contains('hidden') && currentSelectedRoute) {
                 renderTimetable(currentSelectedRoute);
             }
@@ -193,135 +195,196 @@
         });
     }
 
-    // 🚀 核心邏輯 2：將車趟資料依「路線」分群，產出路線卡片
+    // 🚀 優化 1：支援 Regex 與防抖的過濾邏輯
     function renderRoutesCard(filterKeyword = "") {
         if (currentDayTrips.length === 0) {
-            routesContainer.innerHTML = `<div class="p-8 text-center text-gray-500 font-bold text-sm bg-[#1e1e24] rounded-xl border border-gray-800">🗓️ 此日期尚未建立任何發車時刻表。</div>`;
+            routesContainer.innerHTML = `<div class="p-8 text-center text-gray-500 font-bold text-sm bg-[#1e1e24] rounded-xl border border-gray-800 shadow-inner">🗓️ 此日期尚未建立任何發車時刻表。</div>`;
             return;
         }
 
-        // 資料分群：Map<路線名稱, { 起站, 迄站, 總趟數 }>
         const routeMap = new Map();
+        let regexPattern = null;
+
+        // 嘗試建立 Regex，若使用者輸入非法 Regex 則降級為一般字串比對
+        if (filterKeyword) {
+            try { regexPattern = new RegExp(filterKeyword, 'i'); } 
+            catch (e) { regexPattern = null; }
+        }
         
         currentDayTrips.forEach(trip => {
             if (!trip.route) return;
             const routeName = trip.route;
+            const startPt = trip.start_point || "";
+            const endPt = trip.end_point || "";
             
-            // 關鍵字搜尋過濾
-            if (filterKeyword && !routeName.includes(filterKeyword) && !(trip.start_point && trip.start_point.includes(filterKeyword))) {
-                return;
+            // 執行比對邏輯
+            if (filterKeyword) {
+                let isMatch = false;
+                if (regexPattern) {
+                    isMatch = regexPattern.test(routeName) || regexPattern.test(startPt) || regexPattern.test(endPt);
+                } else {
+                    const lowKey = filterKeyword.toLowerCase();
+                    isMatch = routeName.toLowerCase().includes(lowKey) || startPt.toLowerCase().includes(lowKey) || endPt.toLowerCase().includes(lowKey);
+                }
+                if (!isMatch) return;
             }
 
             if (!routeMap.has(routeName)) {
+                // 收集起迄站的 Set 以支援雙向顯示
                 routeMap.set(routeName, {
                     name: routeName,
-                    startPoint: trip.start_point || "未知起站",
-                    endPoint: trip.end_point || "未知迄站",
+                    endpoints: new Set([startPt, endPt].filter(Boolean)),
                     count: 1
                 });
             } else {
-                routeMap.get(routeName).count++;
+                const info = routeMap.get(routeName);
+                info.count++;
+                if(startPt) info.endpoints.add(startPt);
+                if(endPt) info.endpoints.add(endPt);
             }
         });
 
         if (routeMap.size === 0) {
-            routesContainer.innerHTML = `<div class="text-center text-gray-500 font-bold py-10">找不到符合「${escapeHTML(filterKeyword)}」的路線。</div>`;
+            routesContainer.innerHTML = `<div class="text-center text-gray-500 font-bold py-10 bg-[#1e1e24] rounded-xl border border-gray-800">找不到符合條件的路線。</div>`;
             return;
         }
 
         let html = "";
         routeMap.forEach((info, routeName) => {
-            // 自動從路線名稱提取純數字作為大標題 (例如 "123 主線" -> "123")
             const numberMatch = routeName.match(/\d+/);
             const displayNum = numberMatch ? numberMatch[0] : "📌";
+            
+            // 嘗試從 endpoints Set 中抓出兩端點代表
+            const pts = Array.from(info.endpoints);
+            const displayStart = pts[0] || "未知";
+            const displayEnd = pts[1] || pts[0] || "環線/未知";
 
             html += `
-            <div class="bg-[#1e1e24] rounded-2xl p-4.5 mb-4 shadow-lg border border-gray-800 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-purple-900 to-transparent opacity-20 rounded-bl-full pointer-events-none"></div>
+            <div class="bg-[#1e1e24] rounded-2xl p-4 mb-4 shadow-lg border border-gray-800 relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer btn-timetable" data-route="${escapeHTML(routeName)}">
+                <div class="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-purple-900 to-transparent opacity-20 rounded-bl-[40px] pointer-events-none"></div>
                 
                 <div class="flex items-start justify-between mb-2 z-10 relative">
                     <h2 class="text-3xl font-black text-purple-300 tracking-tighter">${escapeHTML(displayNum)}</h2>
                     <span class="bg-[#2a2a35] text-gray-400 text-xs px-2.5 py-1 rounded-md font-bold border border-gray-700">共 ${info.count} 班次</span>
                 </div>
                 
-                <div class="flex items-center text-sm font-bold text-gray-100 mb-1.5 z-10 relative">
-                    <span class="truncate max-w-[40%]">${escapeHTML(info.startPoint)}</span>
-                    <svg class="w-4 h-4 mx-2 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    <span class="truncate max-w-[40%] text-gray-300">${escapeHTML(info.endPoint)}</span>
+                <div class="flex items-center text-sm font-bold text-gray-100 mb-1 z-10 relative">
+                    <span class="truncate max-w-[42%]">${escapeHTML(displayStart)}</span>
+                    <svg class="w-4 h-4 mx-2 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    <span class="truncate max-w-[42%] text-gray-300">${escapeHTML(displayEnd)}</span>
                 </div>
-                <div class="text-xs text-gray-500 mb-4 z-10 relative">調度路線 : ${escapeHTML(routeName)}</div>
-                
-                <div class="flex gap-2 justify-end z-10 relative">
-                    <button class="btn-timetable px-5 py-2 rounded-xl bg-[#c4b5fd] text-gray-900 font-black text-sm hover:bg-purple-300 transition-colors shadow-[0_0_15px_rgba(196,181,253,0.3)]" 
-                            data-route="${escapeHTML(routeName)}" 
-                            data-direction="${escapeHTML(info.startPoint)} ➔ ${escapeHTML(info.endPoint)}">
-                        查看時刻表
-                    </button>
-                </div>
+                <div class="text-xs text-gray-500 z-10 relative">調度路線 : ${escapeHTML(routeName)}</div>
             </div>`;
         });
         routesContainer.innerHTML = html;
         bindTimetableButtons();
     }
 
-    // 🚀 核心邏輯 3：渲染特定路線的時刻表
+    // 🚀 優化 2：去回程智慧分流與下一班次高亮
     function renderTimetable(routeName) {
         const routeTrips = currentDayTrips.filter(t => t.route === routeName);
         
         if (routeTrips.length === 0) {
-            timetableContainer.innerHTML = `<div class="text-center text-gray-500 font-bold py-10">無排定班次。</div>`;
+            timetableContainer.innerHTML = `<div class="text-center text-gray-500 font-bold py-10 bg-[#1e1e24] rounded-xl">無排定班次。</div>`;
             return;
         }
 
-        let html = "";
+        // 按終點站 (方向) 分群
+        const directionMap = new Map();
         routeTrips.forEach(trip => {
-            const isAssigned = trip.assigned_vehicle && trip.assigned_vehicle !== "尚未指派";
-            const vPlate = isAssigned ? escapeHTML(trip.assigned_vehicle) : "無車輛";
-            const vClass = isAssigned ? "text-gray-200" : "text-red-400";
-            const dName = trip.assigned_driver && trip.assigned_driver !== "尚未指派" ? trip.assigned_driver : "未指派";
-            
-            // 狀態顏色區分
-            let statusIndicator = "bg-gray-600";
-            if (trip.status === "active") statusIndicator = "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
-            else if (trip.status === "done") statusIndicator = "bg-gray-800";
+            const dest = trip.end_point || "未知目的地";
+            if (!directionMap.has(dest)) directionMap.set(dest, []);
+            directionMap.get(dest).push(trip);
+        });
 
+        // 取得當前時間 (用於判斷下一班車)
+        const now = new Date();
+        const isToday = dateInput.value === today;
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+
+        let html = "";
+        directionMap.forEach((trips, destName) => {
             html += `
-            <div class="flex items-center justify-between bg-[#1e1e24] p-3 rounded-xl border border-gray-800 shadow-sm relative overflow-hidden">
-                <div class="absolute left-0 top-0 bottom-0 w-1 ${statusIndicator}"></div>
-                
-                <div class="flex items-center gap-4 pl-3">
-                    <div class="flex flex-col items-center">
-                        <div class="bg-[#2a2a35] text-purple-200 font-bold px-3 py-1.5 rounded-lg text-[15px] border border-gray-700 tracking-wider">${escapeHTML(trip.departure_time)}</div>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-bold text-sm ${vClass} font-mono tracking-wide">${vPlate}</span>
-                        <span class="text-[10px] text-gray-500 font-bold mt-0.5 truncate max-w-[100px]">${escapeHTML(trip.start_point)}</span>
-                    </div>
+            <div class="direction-section">
+                <div class="flex items-center mb-3 sticky top-[-1px] bg-[#121212] py-2 z-10">
+                    <span class="bg-gray-800 text-gray-300 text-[10px] font-bold px-2 py-0.5 rounded mr-2 border border-gray-700">方向</span>
+                    <h4 class="text-sm font-black text-purple-200">往 ${escapeHTML(destName)}</h4>
                 </div>
+                <div class="space-y-2.5">
+            `;
+
+            let nextBusFound = false;
+
+            trips.forEach(trip => {
+                const isAssigned = trip.assigned_vehicle && trip.assigned_vehicle !== "尚未指派";
+                const vPlate = isAssigned ? escapeHTML(trip.assigned_vehicle) : "無車輛";
+                const vClass = isAssigned ? "text-gray-100" : "text-red-400/80";
+                const dName = trip.assigned_driver && trip.assigned_driver !== "尚未指派" ? trip.assigned_driver : "未指派";
                 
-                <div class="flex items-center">
-                    <button class="btn-action bg-[#2a2a35] text-gray-300 border border-gray-700 hover:border-purple-400 hover:text-purple-300 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all" 
-                            data-vehicle="${vPlate}"
-                            data-driver="${escapeHTML(dName)}">
-                        <span class="text-lg leading-none mt-[-2px]">⋮</span> 操作
-                    </button>
-                </div>
-            </div>`;
+                let statusIndicator = "bg-gray-600";
+                if (trip.status === "active") statusIndicator = "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
+                else if (trip.status === "done") statusIndicator = "bg-[#1e1e24]"; // 變暗
+
+                // 判斷是否為「下一班車」高亮顯示
+                let isNextBus = false;
+                if (isToday && !nextBusFound && trip.departure_time && trip.status !== "done") {
+                    let [th, tm] = trip.departure_time.split(':').map(Number);
+                    if ((th * 60 + tm) >= currentMins) {
+                        isNextBus = true;
+                        nextBusFound = true;
+                        statusIndicator = "bg-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.8)]";
+                    }
+                }
+
+                const cardBg = isNextBus ? "bg-[#231d33] border-purple-500/50" : "bg-[#1e1e24] border-gray-800";
+                const timeColor = isNextBus ? "text-white bg-purple-600/80" : "text-purple-200 bg-[#2a2a35]";
+
+                html += `
+                <div class="flex items-center justify-between ${cardBg} p-3 rounded-xl border shadow-sm relative overflow-hidden" ${isNextBus ? 'id="nextBusTarget"' : ''}>
+                    <div class="absolute left-0 top-0 bottom-0 w-1 ${statusIndicator}"></div>
+                    
+                    <div class="flex items-center gap-4 pl-3">
+                        <div class="flex flex-col items-center">
+                            <div class="${timeColor} font-bold px-3 py-1.5 rounded-lg text-[15px] border border-gray-700/50 tracking-wider">${escapeHTML(trip.departure_time)}</div>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-sm ${vClass} font-mono tracking-wide">${vPlate}</span>
+                            <div class="flex items-center gap-1 mt-0.5">
+                                <span class="text-[10px] text-gray-500 font-bold truncate max-w-[100px]">${escapeHTML(trip.start_point)}</span>
+                                ${isNextBus ? '<span class="text-[9px] bg-purple-500/20 text-purple-300 px-1 rounded font-bold">即將發車</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center">
+                        <button class="btn-action bg-[#2a2a35] text-gray-300 border border-gray-700 hover:border-purple-400 hover:text-purple-300 px-3 py-2 rounded-xl text-xs font-bold flex items-center transition-all active:scale-95" 
+                                data-vehicle="${vPlate}"
+                                data-driver="${escapeHTML(dName)}">
+                            <span class="text-lg leading-none mt-[-2px] mr-1">⋮</span> 操作
+                        </button>
+                    </div>
+                </div>`;
+            });
+            html += `</div></div>`;
         });
         
         timetableContainer.innerHTML = html;
+        timetableDateDisplay.innerText = `營運日期: ${dateInput.value.replace(/-/g, '/')}`;
         bindActionButtons();
+
+        // 自動滾動到下一班車
+        setTimeout(() => {
+            const nextBusEl = document.getElementById('nextBusTarget');
+            if (nextBusEl) nextBusEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
     }
 
-    // 🎨 UI 互動綁定
+    // 事件綁定區
     function bindTimetableButtons() {
         document.querySelectorAll('.btn-timetable').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 currentSelectedRoute = e.currentTarget.dataset.route;
-                const directionText = e.currentTarget.dataset.direction;
-                
                 pageTitle.innerText = `${currentSelectedRoute}`;
-                timetableDirectionTitle.innerText = directionText;
                 
                 renderTimetable(currentSelectedRoute);
                 
@@ -333,7 +396,6 @@
         });
     }
 
-    // 返回按鈕
     btnBack.addEventListener('click', () => {
         currentSelectedRoute = null;
         viewRoutes.classList.remove('hidden');
@@ -342,17 +404,36 @@
         pageTitle.innerText = '路線總覽';
     });
 
-    // 搜尋功能即時過濾
+    // 🚀 優化 3：防抖搜尋 (Debounce)
+    let searchTimeout;
     searchInput.addEventListener('input', (e) => {
-        renderRoutesCard(e.target.value.trim());
+        const val = e.target.value;
+        btnClearSearch.classList.toggle('hidden', val === "");
+        
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            renderRoutesCard(val.trim());
+        }, 300); // 300ms 延遲，打字更順暢
     });
 
-    // 日期切換重新載入
-    dateInput.addEventListener('change', (e) => {
-        loadDispatchData(e.target.value);
+    btnClearSearch.addEventListener('click', () => {
+        searchInput.value = "";
+        btnClearSearch.classList.add('hidden');
+        renderRoutesCard("");
     });
 
-    // 🔘 Bottom Sheet 操作選單邏輯
+    dateInput.addEventListener('change', (e) => loadDispatchData(e.target.value));
+
+    // 🚀 優化 4：導覽列狀態聯動
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            // 實務上這裡會加上視圖切換的邏輯，目前先做視覺互動
+        });
+    });
+
+    // Bottom Sheet
     const actionSheet = document.getElementById('actionSheet');
     const overlay = document.getElementById('overlay');
     const actionSheetTitleSpan = document.querySelector('#actionSheetTitle span');
@@ -367,7 +448,6 @@
                 actionSheetTitleSpan.innerText = vehicle;
                 sheetDriverName.innerText = driver;
                 
-                // 若無派車，讓按鈕看起來變灰
                 if (vehicle === "無車輛") actionSheetTitleSpan.className = "text-red-400 font-mono tracking-wider";
                 else actionSheetTitleSpan.className = "text-purple-300 font-mono tracking-wider";
 
@@ -382,8 +462,10 @@
         overlay.classList.remove('open');
     }
     overlay.addEventListener('click', closeSheet);
+    
+    // 點擊 Bottom sheet 內的按鈕自動關閉 (增加體驗真實感)
+    document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', closeSheet));
 
-    // 啟動系統：載入今日資料
     loadDispatchData(dateInput.value);
 
   </script>
