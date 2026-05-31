@@ -128,7 +128,6 @@
             { val: "STB (待命)", class: "shift-STB" }
         ];
 
-        // 綁定全域方法，以便 onChange 可以觸發顏色變換
         window.getShiftClass = function(val) {
             const opt = shiftOptions.find(o => o.val === val);
             return opt ? opt.class : '';
@@ -138,12 +137,9 @@
         document.getElementById('week-picker').value = today;
         updateWeekTitle(today);
 
-        // 初始化
         async function init() {
             await fetchDrivers();
             await loadSchedule(currentWeekId);
-            // 加上 where("role", "==", "駕駛長") 條件
-            const qStr = query(collection(db, "Drivers"), where("status", "==", "active"), where("role", "==", "駕駛長"));
         }
         init();
 
@@ -171,7 +167,8 @@
 
         async function fetchDrivers() {
             try {
-                const qStr = query(collection(db, "Drivers"), where("status", "==", "active"));
+                // 💡 關鍵修復點：正確把過濾條件放在這裡，只撈取「駕駛長」
+                const qStr = query(collection(db, "Drivers"), where("status", "==", "active"), where("role", "==", "駕駛長"));
                 const snap = await getDocs(qStr);
                 currentDrivers = [];
                 snap.forEach(docSnap => {
@@ -225,7 +222,6 @@
             }
         }
 
-        // ========================== 按鈕功能 ========================== //
         document.getElementById('btn-auto').addEventListener('click', () => {
             if(!confirm("確定要執行「智慧動態輪班」嗎？")) return;
             const healthyPattern = ['S (單)', 'M (早)', 'AB (兩頭)', 'E (晚)', 'OFF (休)', 'STB (待命)', 'S (單)'];
@@ -320,6 +316,7 @@
             btn.disabled = false;
         });
 
+    // 💡 關鍵修復點：完美閉合大括號
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
