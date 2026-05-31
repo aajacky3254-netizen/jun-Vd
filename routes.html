@@ -108,20 +108,39 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-      authDomain: "jun-bus-dispatch.firebaseapp.com",
-      projectId: "jun-bus-dispatch",
-      storageBucket: "jun-bus-dispatch.firebasestorage.app",
-      messagingSenderId: "621725744717",
-      appId: "1:621725744717:web:64e663648d8c76b9bd6604",
-      measurementId: "G-10TKXKRPY9"
-    };
+    // --- 根據不同頁面設定權限 ---
+    // 例如：dispatch.html 用 ['SuperAdmin', 'StationManager', '調度員']
+    // 例如：vehicles.html 用 ['SuperAdmin', 'StationManager', '調度員', 'Employee']
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    checkAuthAndGetRole(allowedRoles).then((user) => {
+        // A. 顯示網頁內容
+        document.body.style.display = 'block'; // 確保 CSS 控制 body 預設隱藏
+
+        // B. 動態加入登出導覽列
+        const nav = document.querySelector('.navbar');
+        nav.innerHTML += `
+            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
+                <span>👤 ${user.name} (${user.role})</span>
+                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
+            </div>
+        `;
+        document.getElementById('btnLogout').addEventListener('click', logout);
+
+        // C. 初始化 Firebase
+        const firebaseConfig = {
+          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
+          authDomain: "jun-bus-dispatch.firebaseapp.com",
+          projectId: "jun-bus-dispatch",
+          storageBucket: "jun-bus-dispatch.firebasestorage.app",
+          messagingSenderId: "621725744717",
+          appId: "1:621725744717:web:64e663648d8c76b9bd6604"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
     const dbStatusEl = document.getElementById('db-status');
 
     // ==========================================
