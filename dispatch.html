@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>車輛調度系統 - 每日發車時刻表 (穩定連動版)</title>
+  <title>車চৈত調度系統 - 每日發車時刻表 (歷史載入版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
@@ -123,6 +123,16 @@
         取消
       </button>
       
+      <div class="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-1 shadow-sm" style="height: 42px; margin-left: 8px;">
+        <select id="copySourceRange" class="bg-transparent font-bold text-slate-600 outline-none px-2 text-sm border-r border-slate-300 mr-1 cursor-pointer">
+          <option value="1">前一日底稿</option>
+          <option value="7">上週同日底稿</option>
+        </select>
+        <button id="btnCopyHistory" class="bg-teal-500 hover:bg-teal-600 text-white px-3 h-full rounded text-sm font-bold transition shadow-sm">
+          📋 載入
+        </button>
+      </div>
+      
       <div style="flex-grow: 1;"></div> 
 
       <button id="btnClearAssign" class="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold" title="清除所有排定的駕駛與車輛" style="height: 42px;">
@@ -201,7 +211,7 @@
         let editingDocId = null; 
         let unsubscribeDispatch = null;
 
-        // 💡 綁定動態選單資料庫 (讓路線與站點可以 Autocomplete 自動完成)
+        // 連動資料庫建立下拉選單 (Autocomplete)
         const routesListEl = document.getElementById('routesList');
         onSnapshot(collection(db, "Routes"), (snap) => {
             routesListEl.innerHTML = '';
@@ -305,7 +315,6 @@
                     statusButtonHtml = `<button class="btn-status btn-done" disabled>已完成</button>`;
                   }
                   
-                  // 💡 處理時間顯示，若有到達時間則一併顯示
                   let timeDisplay = data.arrival_time 
                                     ? `${data.departure_time} <br><span style="font-size:12px; color:#64748b;">~ ${data.arrival_time}</span>` 
                                     : data.departure_time;
@@ -331,6 +340,7 @@
                   const newDriver = e.target.value;
                   const selectedOption = e.target.options[e.target.selectedIndex];
                   const newEmpId = selectedOption.dataset.empid || ""; 
+
                   if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
                     if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) { 
                         e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_driver; 
@@ -356,7 +366,6 @@
                   if (confirm("⚠️ 確定要刪除這筆紀錄嗎？")) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
                 }));
 
-                // 💡 將資料倒回控制台以進行編輯
                 document.querySelectorAll('.btn-edit-trip').forEach(btn => btn.addEventListener('click', (e) => {
                   document.getElementById('inputTime').value = e.target.dataset.time;
                   document.getElementById('inputEndTime').value = e.target.dataset.endtime;
@@ -439,6 +448,67 @@
 
         listenToDispatches(today);
         dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });
+
+        // ==========================================
+        // 💡 載入歷史車趟底稿功能
+        // ==========================================
+        document.getElementById('btnCopyHistory').addEventListener('click', async () => {
+            const currentDate = dateInput.value;
+            if (!currentDate) return;
+
+            const offsetDays = parseInt(document.getElementById('copySourceRange').value);
+            const sourceDate = new Date(currentDate);
+            sourceDate.setDate(sourceDate.getDate() - offsetDays);
+            const sourceDateStr = sourceDate.toISOString().split('T')[0];
+
+            const label = offsetDays === 1 ? "前一日" : "上週同日";
+
+            if (!confirm(`確定要將【${label}】(${sourceDateStr}) 的所有車趟複製到今日嗎？\n\n(注意：這將會批次新增車趟，為避免衝突，司機與車輛預設會清空為「尚未指派」)`)) {
+                return;
+            }
+
+            const btn = document.getElementById('btnCopyHistory');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "⏳ 載入中...";
+            btn.disabled = true;
+
+            try {
+                const q = query(dispatchesCol, where("date", "==", sourceDateStr));
+                const snap = await getDocs(q);
+
+                if (snap.empty) {
+                    alert(`⚠️ 找不到 ${sourceDateStr} (${label}) 的任何車趟紀錄！`);
+                } else {
+                    const batch = writeBatch(db);
+                    let count = 0;
+                    snap.forEach(docSnap => {
+                        const data = docSnap.data();
+                        const newDocRef = doc(dispatchesCol); // 自動產生新的 ID
+                        batch.set(newDocRef, {
+                            date: currentDate,
+                            departure_time: data.departure_time || "",
+                            arrival_time: data.arrival_time || "",
+                            route: data.route || "",
+                            start_point: data.start_point || "",
+                            end_point: data.end_point || "",
+                            assigned_driver: "尚未指派",
+                            assigned_empid: "",
+                            assigned_vehicle: "尚未指派",
+                            status: "pending"
+                        });
+                        count++;
+                    });
+                    await batch.commit();
+                    alert(`✅ 成功從 ${sourceDateStr} 複製了 ${count} 筆車趟！\n現在您可以點擊「✨ 智慧自動調度」來分配今日的人車了。`);
+                }
+            } catch (err) {
+                console.error("複製車趟失敗:", err);
+                alert("載入失敗，請檢查網路連線。");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
 
         document.getElementById('btnClearAssign').addEventListener('click', async () => {
             if(currentDayTrips.length === 0) return;
@@ -568,7 +638,6 @@
                             breakTime = 150; 
                         }
 
-                        // 💡 自動調度的休息時間計算 (若有設定到達時間，以到達時間推算)
                         if (trip.arrival_time) {
                             let [eh, em] = trip.arrival_time.split(':').map(Number);
                             em += 30; eh += Math.floor(em / 60); em = em % 60;
@@ -591,9 +660,9 @@
 
                 setTimeout(() => {
                     if (failCount > 0) {
-                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)`);
+                        alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟 (原因: 時段衝突、需遵守休息時間，或無順路車輛)\n※ 系統已嚴格遵守連貫性與休息法規，略過車趟請手動微調。`);
                     } else {
-                        alert(`✅ 智慧調度完成！成功綁定 ${successCount} 趟。`);
+                        alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟，已套用「站點連貫」與「彈性大中退」排班！`);
                     }
                     btn.innerHTML = "✨ 智慧自動調度";
                     btn.disabled = false;
