@@ -18,43 +18,28 @@
     .navbar a.nav-link:hover { color: white; }
     .navbar a.nav-link.active { border-bottom: 3px solid #3b82f6; color: #fff; font-weight: bold; }
 
-    /* 時間軸背景格線 (24小時切分) */
-    .timeline-grid { 
-        background-image: linear-gradient(to right, #334155 1px, transparent 1px); 
-        background-size: 4.1666% 100%; 
-    }
-    
-    /* 軌道與區塊 */
+    .timeline-grid { background-image: linear-gradient(to right, #334155 1px, transparent 1px); background-size: 4.1666% 100%; }
     .trip-track { border-bottom: 1px solid #1e293b; height: 75px; display: flex; align-items: center; position: relative; }
     .trip-track:hover { background-color: #1e293b; }
     
     .trip-block { 
         position: absolute; height: 52px; top: 11px; border-radius: 6px;
-        background-color: #14b8a6; /* The Bus 的青綠色 */
-        display: flex; flex-direction: column; justify-content: center; padding: 0 10px; color: #042f2e;
+        background-color: #14b8a6; display: flex; flex-direction: column; justify-content: center; padding: 0 10px; color: #042f2e;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); transition: all 0.2s; overflow: hidden; border: 1px solid #0d9488;
     }
-    .trip-block.assigned { background-color: #0d9488; color: #ccfbf1; } /* 已指派的顏色 */
+    .trip-block.assigned { background-color: #0d9488; color: #ccfbf1; } 
     .trip-block.drag-over { border: 2px dashed #facc15; transform: scale(1.02); filter: brightness(1.2); }
     
-    /* 資源卡片 */
     .resource-card { cursor: grab; transition: transform 0.1s, border-color 0.2s; user-select: none; }
     .resource-card:active { cursor: grabbing; transform: scale(0.96); opacity: 0.8; }
     .resource-card:hover { border-color: #3b82f6; }
     
-    /* 隱藏列印區域 */
     @media screen { #print-zone { display: none; } }
     @media print {
         body * { visibility: hidden; }
         #print-zone, #print-zone * { visibility: visible; }
         #print-zone { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
-        
-        .voucher-page { 
-            display: flex; flex-direction: column; width: 100%; 
-            height: 285mm; max-height: 285mm; overflow: hidden; 
-            page-break-after: always; page-break-inside: avoid;
-            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px;
-        }
+        .voucher-page { display: flex; flex-direction: column; width: 100%; height: 285mm; max-height: 285mm; overflow: hidden; page-break-after: always; page-break-inside: avoid; color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; }
         .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; }
         .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 4px 6px; text-align: center; } 
         .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
@@ -89,30 +74,31 @@
         <input type="time" id="inputEndTime" class="bg-transparent text-white py-1 outline-none" title="預計到達時間">
     </div>
 
-    <input type="text" id="inputRoute" placeholder="路線" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-16 outline-none">
-    <input type="text" id="inputStart" placeholder="起站" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-24 outline-none">
+    <input type="text" id="inputRoute" placeholder="路線" list="routeList" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-20 outline-none">
+    <datalist id="routeList"></datalist>
+
+    <input type="text" id="inputStart" placeholder="起站" list="stationList" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-32 outline-none">
     <span class="text-gray-500">➔</span>
-    <input type="text" id="inputEnd" placeholder="終站" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-24 outline-none">
+    <input type="text" id="inputEnd" placeholder="終站" list="stationList" class="bg-gray-800 border border-gray-600 text-white rounded px-2 py-1.5 w-32 outline-none">
+    <datalist id="stationList"></datalist>
     
-    <button id="addTripBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded font-bold transition">＋ 新增</button>
+    <button id="addTripBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded font-bold transition shadow-md">＋ 新增</button>
     <button id="cancelEditBtn" class="bg-gray-600 hover:bg-gray-500 text-white px-3 py-1.5 rounded font-bold transition hidden">取消</button>
     
     <div class="flex-grow"></div>
     
     <button id="btnClearAssign" class="bg-red-900/50 hover:bg-red-800 text-red-400 border border-red-800 px-3 py-1.5 rounded font-bold transition">一鍵清除</button>
     <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded font-bold transition shadow-[0_0_10px_rgba(79,70,229,0.5)]">✨ 智慧調度</button>
-    <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded font-bold transition">🖨️ 列印</button>
+    <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded font-bold transition shadow-md">🖨️ 列印</button>
   </div>
 
   <div class="flex flex-1 overflow-hidden relative">
-      
     <main class="w-3/4 flex flex-col bg-slate-900 relative">
         <div class="flex text-[10px] text-gray-400 border-b border-gray-700 py-1 pl-48 bg-slate-800 font-mono">
             <div class="flex-1 flex justify-between px-1">
                 <span>00</span><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span><span>06</span><span>07</span><span>08</span><span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span>23</span>
             </div>
         </div>
-
         <div class="flex-1 overflow-y-auto timeline-grid" id="timelineBody">
             <div class="flex items-center justify-center h-full text-gray-500 font-bold">載入中...</div>
         </div>
@@ -126,7 +112,6 @@
         <div id="poolDrivers" class="flex-1 overflow-y-auto p-3 space-y-2"></div>
         <div id="poolVehicles" class="flex-1 overflow-y-auto p-3 space-y-2 hidden"></div>
     </aside>
-
   </div>
 
   <div id="print-zone"></div>
@@ -157,7 +142,26 @@
         let currentAvailableVehicles = [];
         let currentDayTrips = [];
         let unsubscribeDispatch = null;
-        let editingDocId = null; // 儲存編輯狀態
+        let editingDocId = null;
+
+        // ==========================================
+        // 💡 新增：載入路線與站點提供 Autocomplete 下拉連動
+        // ==========================================
+        const routeListEl = document.getElementById('routeList');
+        onSnapshot(collection(db, "Routes"), (snap) => {
+            routeListEl.innerHTML = '';
+            snap.forEach(doc => {
+                routeListEl.innerHTML += `<option value="${doc.data().name}"></option>`;
+            });
+        });
+
+        const stationListEl = document.getElementById('stationList');
+        onSnapshot(collection(db, "Stations"), (snap) => {
+            stationListEl.innerHTML = '';
+            snap.forEach(doc => {
+                stationListEl.innerHTML += `<option value="${doc.data().name}"></option>`;
+            });
+        });
 
         // 頁籤切換邏輯
         const tabD = document.getElementById('tabDrivers');
@@ -176,7 +180,6 @@
             poolV.classList.remove('hidden'); poolD.classList.add('hidden');
         });
 
-        // 核心：時間與區塊計算
         function timeToMinutes(timeStr) {
             if(!timeStr) return 0;
             const [h, m] = timeStr.split(':').map(Number);
@@ -271,7 +274,6 @@
                 snapshot.forEach(docSnap => currentDayTrips.push({ id: docSnap.id, ...docSnap.data() }));
 
                 currentDayTrips.forEach(data => {
-                    // 計算區塊長度邏輯：若沒設定到達時間，預設抓發車時間+90分鐘
                     let arrTime = data.arrival_time;
                     if (!arrTime) {
                         let [h, m] = data.departure_time.split(':').map(Number);
@@ -281,7 +283,7 @@
 
                     const leftPercent = timeToPercent(data.departure_time);
                     let diffMinutes = timeToMinutes(arrTime) - timeToMinutes(data.departure_time);
-                    if (diffMinutes < 0) diffMinutes += 1440; // 跨夜處理
+                    if (diffMinutes < 0) diffMinutes += 1440; 
                     const widthPercent = (diffMinutes / 1440) * 100;
                     
                     const isAssigned = (data.assigned_driver !== "尚未指派" && data.assigned_vehicle !== "尚未指派");
@@ -317,7 +319,6 @@
 
                 bindDropZones();
                 
-                // 綁定編輯按鈕
                 document.querySelectorAll('.btn-edit').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         const tripId = e.currentTarget.dataset.id;
@@ -332,13 +333,12 @@
                             editingDocId = tripId;
                             const addBtn = document.getElementById('addTripBtn');
                             addBtn.innerText = "💾 儲存編輯";
-                            addBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded font-bold transition";
+                            addBtn.className = "bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded font-bold transition shadow-md";
                             document.getElementById('cancelEditBtn').classList.remove('hidden');
                         }
                     });
                 });
 
-                // 綁定刪除按鈕
                 document.querySelectorAll('.btn-delete').forEach(btn => {
                     btn.addEventListener('click', async (e) => {
                         if(confirm("確定刪除此車趟？")) await deleteDoc(doc(db, "daily_dispatches", e.currentTarget.dataset.id));
@@ -375,7 +375,6 @@
             });
         }
 
-        // 新增 / 編輯車趟
         const addBtn = document.getElementById('addTripBtn');
         const cancelBtn = document.getElementById('cancelEditBtn');
 
@@ -392,7 +391,7 @@
             const payload = {
                 date: date,
                 departure_time: time,
-                arrival_time: endTime, // 寫入資料庫
+                arrival_time: endTime,
                 route: route,
                 start_point: start,
                 end_point: end,
@@ -401,15 +400,24 @@
             try {
                 if (editingDocId) {
                     await updateDoc(doc(db, "daily_dispatches", editingDocId), payload);
-                    resetForm();
                 } else {
                     payload.assigned_driver = "尚未指派";
                     payload.assigned_empid = "";
                     payload.assigned_vehicle = "尚未指派";
                     payload.status = "pending";
                     await addDoc(dispatchesCol, payload);
-                    resetForm();
                 }
+
+                // ==========================================
+                // 💡 新增：將輸入的內容自動存入路線與站點資料庫
+                // ==========================================
+                await setDoc(doc(db, "Routes", route), { name: route, status: 'active' }, { merge: true });
+                await setDoc(doc(db, "Stations", start), { name: start, status: 'active' }, { merge: true });
+                if(end) {
+                    await setDoc(doc(db, "Stations", end), { name: end, status: 'active' }, { merge: true });
+                }
+
+                resetForm();
             } catch(e) { console.error(e); alert("儲存失敗！"); }
         });
 
@@ -423,14 +431,14 @@
             document.getElementById('inputStart').value = '';
             document.getElementById('inputEnd').value = '';
             addBtn.innerText = "＋ 新增";
-            addBtn.className = "bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded font-bold transition";
+            addBtn.className = "bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded font-bold transition shadow-md";
             cancelBtn.classList.add('hidden');
         }
 
         dateInput.addEventListener('change', e => listenToDispatches(e.target.value));
         listenToDispatches(dateInput.value);
 
-        // ===== 智慧調度功能 =====
+        // ===== 智慧調度與列印功能維持原樣 =====
         document.getElementById('btnClearAssign').addEventListener('click', async () => {
             if(currentDayTrips.length === 0) return;
             if (!confirm("確定要將今日所有的車趟還原為「尚未指派」嗎？")) return;
@@ -488,7 +496,6 @@
                         successCount++;
                         assignedUnit.tripsCount++;
                         
-                        // 計算到達與休息時間 (如果有輸入到達時間，以此為準加上 30 分鐘休息；沒有則算 90 分鐘)
                         if (trip.arrival_time) {
                             let [eh, em] = trip.arrival_time.split(':').map(Number);
                             em += 30; eh += Math.floor(em / 60); em %= 60; eh %= 24;
@@ -506,7 +513,6 @@
             btn.innerText = "✨ 智慧調度"; btn.disabled = false;
         });
 
-        // ===== 列印功能 =====
         document.getElementById('btnPrintAll').addEventListener('click', async () => {
             const printZone = document.getElementById('print-zone');
             printZone.innerHTML = ''; 
