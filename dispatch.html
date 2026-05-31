@@ -155,37 +155,22 @@
     import { getFirestore, collection, addDoc, setDoc, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; // 【權限模組引入】
 
-    // 只有這些職稱可以進入發車控制台
+    // 1. 先宣告權限只有這些職稱可以進入發車控制台
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
-    // 初始化時載入
-    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then((user) => {
-        // 顯示內容並加入登出按鈕
+    // 2. 啟動驗證大門 初始化時載入
+    checkAuthAndGetRole(allowedRoles).then((user) => {
+    // 顯示內容並加入登出按鈕
         document.getElementById('main-content').style.display = 'block';
-        const nav = document.getElementById('main-nav');
-        nav.innerHTML += `<button id="btnLogout" class="bg-red-500 text-white px-3 py-1 rounded ml-auto">登出</button>`;
+        // 加入登出按鈕
+        const nav = document.querySelector('.navbar');
+        nav.innerHTML += `
+            <div class="ml-auto flex items-center gap-4 text-white font-bold">
+                <span class="text-sm">👤 ${user.name}</span>
+                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">登出</button>
+            </div>
+        `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // 2. 初始化 Firebase
-        const firebaseConfig = { /* 填入你的設定 */ };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        
-        // 3. 實作多站點查詢邏輯
-        const dispatchesCol = collection(db, "daily_dispatches");
-        
-        async function loadTrips(date) {
-            let q;
-            // 如果是總公司管理員，拉取全部；否則只拉取該站點的
-            if (user.role === 'SuperAdmin') {
-                q = query(dispatchesCol, where("date", "==", date), orderBy("departure_time", "asc"));
-            } else {
-                q = query(dispatchesCol, where("date", "==", date), where("stationId", "==", user.stationId), orderBy("departure_time", "asc"));
-            }
-            
-            onSnapshot(q, (snapshot) => {
-                // ...執行原本的渲染表格邏輯...
-            });
-        }
         // ==========================================
         // 以下是你原本所有的 Firebase 與系統邏輯
         // ==========================================
@@ -200,7 +185,7 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        
+        // --- 4. 你的所有業務邏輯 (全部搬進這裡) ---
         const dispatchesCol = collection(db, "daily_dispatches");
         const fleetCol = collection(db, "Vehicles"); 
         const routesCol = collection(db, "Routes");
@@ -736,8 +721,12 @@
     });
     // 初始化載入
         loadTrips(new Date().toISOString().split('T')[0]);
+    // 最後執行初始化：
+        listenToDispatches(today);
         
-    }).catch(err => console.error(err));
+    }).catch(err => {
+        console.error("權限未通過，停止執行", err);
+    });
   </script>
 </body>
 </html>
