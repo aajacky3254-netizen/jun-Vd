@@ -159,10 +159,15 @@
 
     // 只有這些職稱可以進入發車控制台
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
-
-    // 【系統大門：驗證通過才執行以下所有程式碼】
-    checkAuthAndGetRole(allowedRoles).then((user) => {
-        
+    // 初始化時載入
+    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then((user) => {
+        // 總公司人員(SuperAdmin)看全部，各站人員只看自己站的
+        let q;
+        if (user.role === 'SuperAdmin') {
+            q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
+        } else {
+            q = query(dispatchesCol, where("date", "==", selectedDate), where("stationId", "==", user.stationId), orderBy("departure_time", "asc"));
+        }
         // 顯示登入者名稱與登出按鈕
         const nav = document.getElementById('main-nav');
         nav.innerHTML += `
@@ -172,6 +177,7 @@
             </div>
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
+    });
 
         // ==========================================
         // 以下是你原本所有的 Firebase 與系統邏輯
@@ -694,7 +700,14 @@
                             <tr><th style="width:16%; color:#000 !important;">組別/班次</th><th style="width:16%; color:#000 !important;">鍵入人員簽章</th><th style="width:16%; color:#000 !important;">調度員簽章</th><th style="width:20%; color:#000 !important;">站主管審核章</th><th style="width:16%; color:#000 !important;">收回張數</th><th style="width:16%; color:#000 !important;">票值合計</th></tr>
                             <tr style="height: 35px;">
                                 <td class="font-bold text-lg" style="color:#000 !important;"></td><td></td><td></td>
-                                <td style="position: relative;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">站長處兆偉(一)</div></td>
+                                <td style="position: relative;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+        調度員 邱政明
+    </div></td><td style="position: relative;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+        站長 辛資貴
+    </div>
+</td>
                                 <td></td><td></td>
                             </tr>
                         </table>
