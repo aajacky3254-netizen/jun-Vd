@@ -155,13 +155,15 @@
     import { getFirestore, collection, addDoc, setDoc, query, where, orderBy, onSnapshot, doc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    // --- 1. 權限檢查 ---
-    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then((user) => {
+    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
+
+    // 1. 一切邏輯必須在 then() 之後執行
+    checkAuthAndGetRole(allowedRoles).then((user) => {
         
-        // 顯示頁面
+        // 顯示介面
         document.getElementById('main-content').style.display = 'block';
 
-        // 登出按鈕
+        // 登出按鈕邏輯
         const nav = document.querySelector('.navbar');
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white font-bold px-4">
@@ -171,7 +173,7 @@
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // --- 2. 初始化 Firebase (只初始化一次) ---
+        // 2. 初始化 Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
           authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -184,7 +186,47 @@
         const db = getFirestore(app);
         
         const dispatchesCol = collection(db, "daily_dispatches");
-        // ... (這裡請貼上你原本的 loadAvailableDrivers, loadAvailableVehicles 等函數) ...
+        async function loadAvailableDrivers(selectedDate) {
+          const { weekId, dayKey } = getWeekInfo(selectedDate);
+          currentAvailableDrivers = []; 
+          try {
+            const docRef = doc(db, "weekly_schedules", weekId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists() && (docSnap.data().roster || docSnap.data().roater)) {
+              const roster = docSnap.data().roster || docSnap.data().roater;
+              for (let driverId in roster) {
+                const shift = roster[driverId][dayKey];
+                if (shift && shift !== "OFF" && shift !== "OFF (休)") {
+                  currentAvailableDrivers.push({ empId: driverId, name: roster[driverId].name, shift: shift });
+                }
+              }
+            }
+          } catch (e) { console.error("載入駕駛失敗:", e); }
+        }
+
+        async function loadAvailableVehicles() {
+          currentAvailableVehicles = [];
+          try {
+            const snapshot = await getDocs(fleetCol);
+            snapshot.forEach((doc) => {
+              const v = doc.data();
+              if (v.status === 'ready') { currentAvailableVehicles.push({ plate: v.plate_number || doc.id, model: v.model }); }
+            });
+          } catch (e) { console.error("載入車輛失敗:", e); }
+        }
+
+        function getWeekInfo(dateStr) {
+          const d = new Date(dateStr);
+          const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+          const target = new Date(d.valueOf());
+          const dayNr = (d.getDay() + 6) % 7;
+          target.setDate(target.getDate() - dayNr + 3);
+          const firstThursday = target.valueOf();
+          target.setMonth(0, 1);
+          if (target.getDay() !== 4) { target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7); }
+          const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
+          return { weekId: `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };
+        }
 
         // --- 3. 修正後的監聽邏輯 ---
         async function listenToDispatches(selectedDate) {
@@ -192,14 +234,13 @@
             await loadAvailableVehicles(); 
 
             let q;
-            // 這裡修正了 user.stationId 過濾邏輯
             if (user.role === 'SuperAdmin') {
                 q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
             } else {
                 q = query(dispatchesCol, where("date", "==", selectedDate), where("stationId", "==", user.stationId), orderBy("departure_time", "asc"));
             }
 
-          onSnapshot(q, (snapshot) => {
+            onSnapshot(q, (snapshot) => {
             tbody.innerHTML = ''; 
             currentDayTrips = []; 
 
