@@ -158,6 +158,7 @@
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
+        
         document.getElementById('main-content').style.display = 'block';
 
         const nav = document.querySelector('.navbar');
@@ -180,14 +181,14 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
-        // --- 修正：宣告所有缺少的全域變數 ---
+        // 💡 修正：補上所有遺漏的關鍵變數宣告
         const dispatchesCol = collection(db, "daily_dispatches");
         const fleetCol = collection(db, "Vehicles");
         const tbody = document.getElementById('dispatchBody');
         const dateInput = document.getElementById('inputDate');
         
         const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
+        dateInput.value = today; // 預設顯示今天
 
         let currentAvailableDrivers = [];
         let currentAvailableVehicles = [];
@@ -236,17 +237,12 @@
           return { weekId: `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };
         }
 
+        // 💡 修正：重新整理大括號，確保 onSnapshot 正確執行
         async function listenToDispatches(selectedDate) {
             await loadAvailableDrivers(selectedDate);
             await loadAvailableVehicles(); 
 
-            let qStr;
-            if (user.role === 'SuperAdmin') {
-                qStr = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
-            } else {
-                // 如果沒有站點機制，建議先統一使用 SuperAdmin 的 query，避免調度員看不到資料
-                qStr = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
-            }
+            let qStr = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
 
             onSnapshot(qStr, (snapshot) => {
                 tbody.innerHTML = ''; 
@@ -269,9 +265,7 @@
                   });
 
                   let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;
-                  currentAvailableVehicles.forEach(v => { 
-                      vehicleOptions += `<option value="${v.plate}" ${data.assigned_vehicle === v.plate ? 'selected' : ''}>${v.plate} (${v.model})</option>`; 
-                  });
+                  currentAvailableVehicles.forEach(v => { vehicleOptions += `<option value="${v.plate}" ${data.assigned_vehicle === v.plate ? 'selected' : ''}>${v.plate} (${v.model})</option>`; });
 
                   let rowClass = '';
                   let statusButtonHtml = '';
@@ -306,22 +300,11 @@
                   const newDriver = e.target.value;
                   const selectedOption = e.target.options[e.target.selectedIndex];
                   const newEmpId = selectedOption.dataset.empid || ""; 
-
-                  if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
-                    if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) { 
-                        e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_driver; 
-                        return; 
-                    }
-                  }
                   await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_driver: newDriver, assigned_empid: newEmpId });
                 }));
 
                 document.querySelectorAll('.vehicle-select').forEach(el => el.addEventListener('change', async (e) => {
-                  const newVeh = e.target.value;
-                  if (newVeh !== "尚未指派" && currentDayTrips.find(t => t.assigned_vehicle === newVeh && t.id !== e.target.dataset.id && (t.status === 'pending' || t.status === 'active'))) {
-                    if (!confirm(`⚠️ 警告！車輛【${newVeh}】已排定其他任務，確定要強制指派嗎？`)) { e.target.value = currentDayTrips.find(t => t.id === e.target.dataset.id).assigned_vehicle; return; }
-                  }
-                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_vehicle: newVeh });
+                  await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), { assigned_vehicle: e.target.value });
                 }));
 
                 document.querySelectorAll('.status-toggle').forEach(btn => btn.addEventListener('click', async (e) => {
@@ -339,7 +322,6 @@
                   document.getElementById('inputEnd').value = e.target.dataset.end;
                   editingDocId = e.target.dataset.id;
                   document.getElementById('addTripBtn').innerHTML = "💾 儲存修改"; 
-                  document.getElementById('addTripBtn').className = "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }));
             });
@@ -347,20 +329,19 @@
 
         const mainAddBtn = document.getElementById('addTripBtn');
         mainAddBtn.onclick = async () => {
-          const date = dateInput.value; // 修正錯誤調用
+          const date = dateInput.value;
           const time = document.getElementById('inputTime').value;
           const route = document.getElementById('inputRoute').value.trim();
           const start = document.getElementById('inputStart').value.trim();
           const end = document.getElementById('inputEnd').value.trim();
 
           if (!time || !route || !start || !end) { alert("請填寫完整資訊！"); return; }  
-          
+
           try {
             if (editingDocId) {
               await updateDoc(doc(db, "daily_dispatches", editingDocId), { departure_time: time, route: route, start_point: start, end_point: end });
               editingDocId = null; 
               mainAddBtn.innerHTML = "＋ 新增車趟"; 
-              mainAddBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
             } else {
               await addDoc(dispatchesCol, { date, departure_time: time, route, start_point: start, end_point: end, assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending" });
             }
@@ -376,7 +357,7 @@
           } catch (err) { console.error(err); }
         };
 
-      // 事件監聽 (更換日期)
+        // 綁定所有按鈕事件與切換日期
         dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });
 
         document.getElementById('btnClearAssign').addEventListener('click', async () => {
@@ -706,15 +687,10 @@
             setTimeout(() => { window.print(); }, 300);
         });
 
-    // === 權限驗證失敗的 Catch ===
-    }).catch((err) => {
-        console.error("驗證失敗或未登入", err);
-    });
-    // 初始化載入
-        loadTrips(new Date().toISOString().split('T')[0]);
-    // 最後執行初始化：
+    // 💡 修正：確保最後有正確呼叫載入函數
         listenToDispatches(today);
-  }).catch((err) => {
+
+    }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
 </script>
