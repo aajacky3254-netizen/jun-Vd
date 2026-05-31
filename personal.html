@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ibusAPP - 個人班表與簽到</title>
+    <title>🚌 愛巴士交通客運 | 智慧車輛調度系統 - 個人班表</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; display: none; overscroll-behavior-y: contain; }
@@ -72,16 +72,6 @@
             <button id="btnResign" class="bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-bold shadow hidden">重新簽名</button>
         </div>
         
-        <div class="relative">
-            <canvas id="sig-canvas"></canvas>
-            <div id="sigPlaceholder" class="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-2xl pointer-events-none">
-                請在此處手寫簽名
-            </div>
-        </div>
-
-        <button id="btnSaveSig" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg mt-4 shadow-lg text-lg transition">
-            💾 儲存簽名並回報
-        </button>
     </div>
 
     <script type="module">
