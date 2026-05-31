@@ -66,55 +66,97 @@
             <p class="text-gray-500 text-sm">駕駛長專用通道：檢視您個人本週的排班狀況與明日發車時間。</p>
             <span class="mt-4 text-xs font-bold text-teal-600 bg-teal-50 px-3 py-1 rounded-full">駕駛長專用</span>
         </a>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="moduleCards">
+        <a href="repairs.html" id="card-repairs" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
+            <div class="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-red-600 transition-colors">🛠️</div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">車輛報修系統</h3>
+            <p class="text-gray-500 text-sm">駕駛員線上回報車況，維修班即時接單檢修。</p>
+            <span class="mt-4 text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full">全員開放</span>
+        </a>
+    </div>
+
+    <div id="fairnessDashboard" class="mt-12 bg-white rounded-xl shadow-md border border-gray-200 p-8 hidden">
+        <div class="flex items-center justify-between border-b pb-4 mb-6">
+            <div>
+                <h3 class="text-2xl font-bold text-gray-800 flex items-center gap-2">⚖️ 勞務均衡分析儀表板</h3>
+                <p class="text-gray-500 text-sm mt-1">以正直的態度處事，輔助站長以公平的心態待人。即時監控派車勞務，避免過度集中。</p>
+            </div>
+            <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">本週派車統計</span>
+        </div>
+        <div id="dashboardContent" class="space-y-4">
+            <div class="text-center text-gray-400 py-4">數據運算中...</div>
+        </div>
     </div>
   </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-      authDomain: "jun-bus-dispatch.firebaseapp.com",
-      projectId: "jun-bus-dispatch",
-      storageBucket: "jun-bus-dispatch.firebasestorage.app",
-      messagingSenderId: "621725744717",
-      appId: "1:621725744717:web:64e663648d8c76b9bd6604"
-    };
-    const app = initializeApp(firebaseConfig);
+    const app = initializeApp({
+      apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI", authDomain: "jun-bus-dispatch.firebaseapp.com", projectId: "jun-bus-dispatch"
+    });
     const db = getFirestore(app);
 
-    // 驗證登入 (不限特定角色，因為首頁要負責分流)
-    checkAuthAndGetRole([]).then((user) => {
+    checkAuthAndGetRole([]).then(async (user) => {
         document.body.style.display = 'block'; 
         document.getElementById('welcomeMsg').innerText = `您好，${user.name}！`;
         
-        const nav = document.getElementById('main-nav');
-        nav.innerHTML += `
+        document.getElementById('main-nav').innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold">
-                <span class="bg-slate-700 px-4 py-1.5 rounded-full shadow-inner border border-slate-600">👤 ${user.name} (${user.role})</span>
+                <span class="bg-slate-700 px-4 py-1.5 rounded-full shadow-inner">👤 ${user.name} (${user.role})</span>
                 <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-4 py-1.5 rounded-lg transition shadow-md">登出系統</button>
             </div>
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        const role = user.role;
-        if (role === '駕駛長') {
-            document.getElementById('card-dispatch').classList.add('disabled-card');
-            document.getElementById('card-schedule').classList.add('disabled-card');
-            document.getElementById('card-drivers').classList.add('disabled-card');
-            document.getElementById('card-routes').classList.add('disabled-card');
-        } else if (role === '調度員') {
-            document.getElementById('card-drivers').classList.add('disabled-card');
-            document.getElementById('card-routes').classList.add('disabled-card');
-            document.getElementById('card-personal').classList.add('disabled-card');
-        } else if (role === 'StationManager' || role === 'SuperAdmin') {
-            document.getElementById('card-personal').classList.add('disabled-card'); 
+        // 智慧 UI 分流
+        const r = user.role;
+        const hide = (id) => { const el = document.getElementById(id); if(el) el.classList.add('disabled-card'); };
+
+        if (r === '駕駛長') {
+            hide('card-dispatch'); hide('card-schedule'); hide('card-drivers'); hide('card-routes');
+        } else if (r === '調度員') {
+            hide('card-drivers'); hide('card-routes'); hide('card-personal');
+        } else if (r === '維修人員') {
+            hide('card-dispatch'); hide('card-schedule'); hide('card-drivers'); hide('card-routes'); hide('card-personal');
+        } else { // StationManager, SuperAdmin
+            hide('card-personal'); 
+            document.getElementById('fairnessDashboard').classList.remove('hidden'); // 管理員才看得到儀表板
+            generateFairnessDashboard();
         }
-    }).catch((err) => {
-        console.error("未登入，已退回登入頁面", err);
+
+        async function generateFairnessDashboard() {
+            try {
+                const snap = await getDocs(collection(db, "daily_dispatches"));
+                let driverCounts = {};
+                snap.forEach(doc => {
+                    const d = doc.data().assigned_driver;
+                    if(d && d !== "尚未指派") driverCounts[d] = (driverCounts[d] || 0) + 1;
+                });
+                
+                let html = '';
+                const maxTrips = Math.max(...Object.values(driverCounts), 1);
+                
+                for(let [driver, count] of Object.entries(driverCounts)) {
+                    let percent = (count / maxTrips) * 100;
+                    // 勞度過高亮紅色警告
+                    let barColor = count >= 10 ? 'bg-red-500' : 'bg-emerald-500';
+                    let alertIcon = count >= 10 ? '⚠️ 勞務偏重' : '';
+                    
+                    html += `
+                    <div class="flex items-center gap-4">
+                        <div class="w-32 text-right font-bold text-gray-700">${driver}</div>
+                        <div class="flex-grow bg-gray-100 rounded-full h-4 overflow-hidden">
+                            <div class="${barColor} h-4 rounded-full transition-all duration-1000" style="width: ${percent}%"></div>
+                        </div>
+                        <div class="w-24 font-bold text-gray-600">${count} 趟 <span class="text-red-500 text-xs">${alertIcon}</span></div>
+                    </div>`;
+                }
+                document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center">尚無派車資料</div>';
+            } catch (e) { console.error(e); }
+        }
     });
   </script>
-</body>
-</html>
+    
