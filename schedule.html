@@ -142,6 +142,8 @@
         async function init() {
             await fetchDrivers();
             await loadSchedule(currentWeekId);
+            // 加上 where("role", "==", "駕駛長") 條件
+            const qStr = query(collection(db, "Drivers"), where("status", "==", "active"), where("role", "==", "駕駛長"));
         }
         init();
 
