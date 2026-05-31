@@ -6,34 +6,27 @@
   <title>車輛調度系統 - 路線與站點管理</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
     h2 { color: #1e293b; margin: 20px 0; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
-    
-    /* 系統導覽列樣式 */
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 22px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
     .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
-
     .content-area { padding: 0 20px; max-width: 1400px; margin: 0 auto; }
-    
     table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
     th, td { border-bottom: 1px solid #e2e8f0; padding: 12px 16px; transition: background-color 0.2s; }
     th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; position: sticky; top: 0; z-index: 10;}
     tr:hover { background-color: #f8fafc; }
-    
     .input-field { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none; background-color: #f8fafc; width: 100%;}
     .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background-color: #fff;}
-    
-    /* 讓表格區域可滾動 */
     .table-container { max-height: 65vh; overflow-y: auto; border-radius: 8px; border: 1px solid #e2e8f0; }
   </style>
 </head>
 <body>
 
   <nav class="navbar">
-    <a href="#" class="navbar-brand">🚌 智慧車輛調度系統</a>
+    <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
     <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
     <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
     <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
@@ -46,32 +39,21 @@
       <h2>🗺️ 營運路線與公車站點管理</h2>
       <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300 shadow-sm">連線中...</span>
     </div>
-
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        
       <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex flex-col">
         <h3 class="text-xl font-bold text-gray-800 mb-4 border-b border-gray-100 pb-3 flex items-center">
             <span class="mr-2">🛣️</span> 營運路線設定
         </h3>
-        
         <div class="flex gap-3 mb-4">
             <input type="text" id="inpNewRoute" class="input-field" placeholder="輸入新路線名稱 (例: Line 100)">
             <button id="btnAddRoute" class="bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold whitespace-nowrap">
                 ＋ 新增路線
             </button>
         </div>
-
         <div class="table-container flex-grow">
             <table>
-                <thead>
-                    <tr>
-                        <th style="width: 70%;">路線名稱 / 代碼</th>
-                        <th style="width: 30%; text-align: center;">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="routesBody">
-                    <tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">載入中...</td></tr>
-                </tbody>
+                <thead><tr><th style="width: 70%;">路線名稱 / 代碼</th><th style="width: 30%; text-align: center;">操作</th></tr></thead>
+                <tbody id="routesBody"><tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">載入中...</td></tr></tbody>
             </table>
         </div>
       </div>
@@ -80,47 +62,33 @@
         <h3 class="text-xl font-bold text-gray-800 mb-4 border-b border-gray-100 pb-3 flex items-center">
             <span class="mr-2">🚏</span> 公車站點設定
         </h3>
-        
         <div class="flex gap-3 mb-4">
             <input type="text" id="inpNewStation" class="input-field" placeholder="輸入新站點名稱 (例: 臺北車站)">
             <button id="btnAddStation" class="bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold whitespace-nowrap">
                 ＋ 新增站點
             </button>
         </div>
-
         <div class="table-container flex-grow">
             <table>
-                <thead>
-                    <tr>
-                        <th style="width: 70%;">公車站點名稱</th>
-                        <th style="width: 30%; text-align: center;">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="stationsBody">
-                    <tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">載入中...</td></tr>
-                </tbody>
+                <thead><tr><th style="width: 70%;">公車站點名稱</th><th style="width: 30%; text-align: center;">操作</th></tr></thead>
+                <tbody id="stationsBody"><tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">載入中...</td></tr></tbody>
             </table>
         </div>
       </div>
-
     </div>
   </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    // 💡 修正：補齊缺少的 Firestore 函式
     import { getFirestore, collection, query, orderBy, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
-    // --- 根據不同頁面設定權限 ---
-    // 例如：dispatch.html 用 ['SuperAdmin', 'StationManager', '調度員']
-    // 例如：vehicles.html 用 ['SuperAdmin', 'StationManager', '調度員', 'Employee']
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
-        // A. 顯示網頁內容
-        document.body.style.display = 'block'; // 確保 CSS 控制 body 預設隱藏
+        document.body.style.display = 'block'; 
 
-        // B. 動態加入登出導覽列
         const nav = document.querySelector('.navbar');
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
@@ -130,7 +98,6 @@
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // C. 初始化 Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
           authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -141,112 +108,92 @@
         };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-    const dbStatusEl = document.getElementById('db-status');
+        const dbStatusEl = document.getElementById('db-status');
 
-    // ==========================================
-    // 1. 路線管理 (Routes) 雙向連線與渲染
-    // ==========================================
-    const routesCol = collection(db, "Routes");
-    onSnapshot(query(routesCol, orderBy("name", "asc")), (snapshot) => {
-        const tbody = document.getElementById('routesBody');
-        tbody.innerHTML = '';
-
-        if (snapshot.empty) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">目前沒有路線資料。</td></tr>';
-        } else {
-            snapshot.forEach(docSnap => {
-                const tr = document.createElement('tr');
-                const routeName = docSnap.data().name;
-                tr.innerHTML = `
-                    <td style="font-weight: 700; color: #334155; font-size: 16px;">${routeName}</td>
-                    <td style="text-align: center;">
-                        <button class="btn-delete-route bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${docSnap.id}">刪除</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            // 綁定刪除按鈕
-            document.querySelectorAll('.btn-delete-route').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const id = e.target.dataset.id;
-                    if(confirm(`確定要刪除路線「${id}」嗎？\n(注意：這將會讓發車控制台無法再選到此路線)`)) {
-                        await deleteDoc(doc(db, "Routes", id));
-                    }
+        const routesCol = collection(db, "Routes");
+        onSnapshot(query(routesCol, orderBy("name", "asc")), (snapshot) => {
+            const tbody = document.getElementById('routesBody');
+            tbody.innerHTML = '';
+            if (snapshot.empty) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">目前沒有路線資料。</td></tr>';
+            } else {
+                snapshot.forEach(docSnap => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight: 700; color: #334155; font-size: 16px;">${docSnap.data().name}</td>
+                        <td style="text-align: center;">
+                            <button class="btn-delete-route bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${docSnap.id}">刪除</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
                 });
-            });
-        }
-        updateDbStatus(true);
-    }, (err) => { console.error(err); updateDbStatus(false); });
-
-    // 新增路線
-    document.getElementById('btnAddRoute').addEventListener('click', async () => {
-        const inputEl = document.getElementById('inpNewRoute');
-        const val = inputEl.value.trim();
-        if(!val) return alert("請輸入路線名稱！");
-        
-        try {
-            await setDoc(doc(db, "Routes", val), { name: val, status: 'active' });
-            inputEl.value = '';
-        } catch(e) { console.error(e); alert("新增失敗"); }
-    });
-
-    // ==========================================
-    // 2. 站點管理 (Stations) 雙向連線與渲染
-    // ==========================================
-    const stationsCol = collection(db, "Stations");
-    onSnapshot(query(stationsCol, orderBy("name", "asc")), (snapshot) => {
-        const tbody = document.getElementById('stationsBody');
-        tbody.innerHTML = '';
-
-        if (snapshot.empty) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">目前沒有站點資料。</td></tr>';
-        } else {
-            snapshot.forEach(docSnap => {
-                const tr = document.createElement('tr');
-                const stationName = docSnap.data().name;
-                tr.innerHTML = `
-                    <td style="font-weight: 700; color: #334155; font-size: 16px;">${stationName}</td>
-                    <td style="text-align: center;">
-                        <button class="btn-delete-station bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${docSnap.id}">刪除</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            // 綁定刪除按鈕
-            document.querySelectorAll('.btn-delete-station').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const id = e.target.dataset.id;
-                    if(confirm(`確定要刪除站點「${id}」嗎？`)) {
-                        await deleteDoc(doc(db, "Stations", id));
-                    }
+                document.querySelectorAll('.btn-delete-route').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const id = e.target.dataset.id;
+                        if(confirm(`確定要刪除路線「${id}」嗎？\n(注意：這將會讓發車控制台無法再選到此路線)`)) await deleteDoc(doc(db, "Routes", id));
+                    });
                 });
-            });
-        }
-    }, (err) => console.error(err));
+            }
+            updateDbStatus(true);
+        }, (err) => { console.error(err); updateDbStatus(false); });
 
-    // 新增站點
-    document.getElementById('btnAddStation').addEventListener('click', async () => {
-        const inputEl = document.getElementById('inpNewStation');
-        const val = inputEl.value.trim();
-        if(!val) return alert("請輸入站點名稱！");
-        
-        try {
-            await setDoc(doc(db, "Stations", val), { name: val, status: 'active' });
-            inputEl.value = '';
-        } catch(e) { console.error(e); alert("新增失敗"); }
-    });
+        document.getElementById('btnAddRoute').addEventListener('click', async () => {
+            const inputEl = document.getElementById('inpNewRoute');
+            const val = inputEl.value.trim();
+            if(!val) return alert("請輸入路線名稱！");
+            try {
+                await setDoc(doc(db, "Routes", val), { name: val, status: 'active' });
+                inputEl.value = '';
+            } catch(e) { console.error(e); alert("新增失敗"); }
+        });
 
-    function updateDbStatus(isSuccess) {
-        if (isSuccess) {
-            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300 shadow-sm";
-            dbStatusEl.innerText = "資料庫已連線";
-        } else {
-            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300 shadow-sm";
-            dbStatusEl.innerText = "連線失敗";
+        const stationsCol = collection(db, "Stations");
+        onSnapshot(query(stationsCol, orderBy("name", "asc")), (snapshot) => {
+            const tbody = document.getElementById('stationsBody');
+            tbody.innerHTML = '';
+            if (snapshot.empty) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-center py-6 text-gray-500 font-bold">目前沒有站點資料。</td></tr>';
+            } else {
+                snapshot.forEach(docSnap => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight: 700; color: #334155; font-size: 16px;">${docSnap.data().name}</td>
+                        <td style="text-align: center;">
+                            <button class="btn-delete-station bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${docSnap.id}">刪除</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                document.querySelectorAll('.btn-delete-station').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const id = e.target.dataset.id;
+                        if(confirm(`確定要刪除站點「${id}」嗎？`)) await deleteDoc(doc(db, "Stations", id));
+                    });
+                });
+            }
+        }, (err) => console.error(err));
+
+        document.getElementById('btnAddStation').addEventListener('click', async () => {
+            const inputEl = document.getElementById('inpNewStation');
+            const val = inputEl.value.trim();
+            if(!val) return alert("請輸入站點名稱！");
+            try {
+                await setDoc(doc(db, "Stations", val), { name: val, status: 'active' });
+                inputEl.value = '';
+            } catch(e) { console.error(e); alert("新增失敗"); }
+        });
+
+        function updateDbStatus(isSuccess) {
+            if (isSuccess) {
+                dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300 shadow-sm";
+                dbStatusEl.innerText = "資料庫已連線";
+            } else {
+                dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300 shadow-sm";
+                dbStatusEl.innerText = "連線失敗";
+            }
         }
-    }
+    // 💡 修正：閉合括號
+    }).catch(err => console.error(err));
   </script>
 </body>
 </html>
