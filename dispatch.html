@@ -57,21 +57,28 @@
         #print-zone, #print-zone * { visibility: visible; }
         #print-zone { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
         
+        /* 💡 優化重點：將高度從 285mm 改為 142mm，讓一張 A4 可以印兩份憑單 */
         .voucher-page { 
             display: flex; flex-direction: column; width: 100%; 
-            height: 285mm; max-height: 285mm; overflow: hidden; 
-            page-break-after: always; page-break-inside: avoid;
-            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px;
+            height: 142mm; max-height: 142mm; overflow: hidden; 
+            page-break-inside: avoid; /* 避免單張憑單被切斷 */
+            /* page-break-after: always; (移除此行，允許兩張並排) */
+            border-bottom: 1px dashed #94a3b8; /* 新增裁切虛線 */
+            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; margin-bottom: 5px;
         }
+        /* 隱藏最後一張的裁切線 */
+        .voucher-page:nth-child(even) { border-bottom: none; page-break-after: always; }
+
         .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; }
-        .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 4px 6px; text-align: center; } 
+        .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 3px 4px; text-align: center; } 
         .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
         .text-left { text-align: left !important; padding-left: 8px !important; }
         .font-bold { font-weight: bold !important; }
         .red-text { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; }
+        
         .trips-section { flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 2px;}
         .trips-table-wrapper { flex-grow: 1; }
-        .trips-table { height: 100%; margin-bottom: 0;}
+        .trips-table { height: auto; margin-bottom: 0;} /* 讓表格高度自然延伸，不要強制撐開 */
     }
   </style>
 </head>
@@ -832,7 +839,7 @@
             }
 
             const printDate = inputDateVal.replace(/-/g, '/');
-            const blankCheckbox = `<span style="font-size:16px; color:#000 !important; font-weight:bold;">□</span>`;
+            const blankCheckbox = `<span style="font-size:14px; color:#000 !important; font-weight:bold;">□</span>`;
 
             driverKeys.forEach(name => {
                 const assign = scheduleByDriver[name];
@@ -844,67 +851,68 @@
                 assign.trips.forEach((t, idx) => {
                     let currentHour = parseInt(t.depTime.split(':')[0]);
                     
+                    // 中退休息判斷 (相隔超過4小時)
                     if (lastHour !== -1 && !isNaN(currentHour) && !isNaN(lastHour) && (currentHour - lastHour >= 4)) {
-                        tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:8px; color:#475569 !important; font-size:16px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;
+                        tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:4px; color:#475569 !important; font-size:12px; padding: 2px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;
                     }
                     lastHour = currentHour;
                     
                     const arrStr = t.arrTime ? `~ ${escapeHTML(t.arrTime)}` : '';
 
-                    // 💡 優化：移除 LED 並讓版面更專業整齊
                     tripsRowsHtml += `
                         <tr>
-                            <td class="font-bold" style="color:#000 !important; font-size:14px;">${idx + 1}</td>
-                            <td class="font-bold text-left" style="color:#000 !important; font-size:14px;">
-                                <span style="color:#0369a1; border: 1px solid #bae6fd; padding: 2px 6px; border-radius: 4px; display:inline-block; margin-bottom:4px;">${escapeHTML(t.route)}</span><br>
+                            <td class="font-bold" style="color:#000 !important; font-size:12px;">${idx + 1}</td>
+                            <td class="font-bold text-left" style="color:#000 !important; font-size:12px; line-height:1.2;">
+                                <span style="color:#0369a1; border: 1px solid #bae6fd; padding: 1px 4px; border-radius: 4px; display:inline-block; margin-bottom:2px;">${escapeHTML(t.route)}</span><br>
                                 ${escapeHTML(t.startStation)}
                             </td>
-                            <td style="font-family: monospace; color:#000 !important; font-weight:bold; font-size:15px;">${escapeHTML(t.depTime)} <br><span style="font-size:12px; font-weight:normal; color:#64748b;">${arrStr}</span></td>
+                            <td style="font-family: monospace; color:#000 !important; font-weight:bold; font-size:13px;">${escapeHTML(t.depTime)} <br><span style="font-size:10px; font-weight:normal; color:#64748b;">${arrStr}</span></td>
                             <td></td><td></td>
-                            <td class="font-bold text-left" style="color:#000 !important; font-size:14px;">${escapeHTML(t.arrStation)}</td>
+                            <td class="font-bold text-left" style="color:#000 !important; font-size:12px;">${escapeHTML(t.arrStation)}</td>
                             <td></td><td></td>
                             <td></td>
                         </tr>
                     `;
                 });
 
-                let emptyRowsLimit = Math.max(assign.trips.length + 3, 6); 
+                // 💡 動態空白行：依照現有趟數，只往下補 1 到 2 行，不再留一大堆空白
+                let emptyRowsLimit = Math.max(assign.trips.length + 1, 3); 
                 for(let i = assign.trips.length; i < emptyRowsLimit; i++) {
-                    tripsRowsHtml += `<tr><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                    tripsRowsHtml += `<tr style="height: 28px;"><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
                 }
 
                 const voucherHtml = `
                 <div class="voucher-page" style="color:#000 !important;">
                     <div>
-                        <div style="text-align: center; margin-bottom: 6px;">
-                            <h1 style="font-size: 24px; font-weight: bold; display: inline-block; padding: 0 16px; letter-spacing: 2px; margin: 0; color:#000 !important;">愛巴士交通客運 駛車憑單(行車日報表)</h1>
+                        <div style="text-align: center; margin-bottom: 4px;">
+                            <h1 style="font-size: 20px; font-weight: bold; display: inline-block; padding: 0 16px; letter-spacing: 1px; margin: 0; color:#000 !important;">愛巴士交通客運 駛車憑單(行車日報表)</h1>
                         </div>
-                        <table class="voucher-table" style="color:#000 !important;">
+                        <table class="voucher-table" style="color:#000 !important; margin-bottom: 2px;">
                             <tr>
                                 <th style="width:12%; color:#000 !important;">駕駛姓名</th><td style="width:18%; color:#000 !important;" class="font-bold">${escapeHTML(assign.driver)}</td>
-                                <th style="width:12%; color:#000 !important;">員工編號</th><td style="width:14%; color:#000 !important; font-family:monospace; font-weight:bold; font-size:14px;">${escapeHTML(assign.empId)}</td>
+                                <th style="width:12%; color:#000 !important;">員工編號</th><td style="width:14%; color:#000 !important; font-family:monospace; font-weight:bold; font-size:12px;">${escapeHTML(assign.empId)}</td>
                                 <th style="width:12%; color:#000 !important;">車　　號</th><td style="width:18%; color:#000 !important;" class="font-bold">${escapeHTML(assign.vehicle)}</td>
                                 <th style="width:14%; color:#000 !important;">日　　期</th>
                             </tr>
                             <tr>
                                 <th style="color:#000 !important;">路線班別</th>
-                                <td class="font-bold" style="color:#000 !important; font-size:16px;">${escapeHTML(assign.shiftType)}</td>
-                                <td colspan="4" class="text-left" style="font-size:12px; color:#000 !important;">行車系統時間： □ 正確　□ 不正確</td>
-                                <td style="font-family:monospace; font-size:14px; color:#000 !important; font-weight:bold;">${escapeHTML(printDate)}</td>
+                                <td class="font-bold" style="color:#000 !important; font-size:14px;">${escapeHTML(assign.shiftType)}</td>
+                                <td colspan="4" class="text-left" style="font-size:11px; color:#000 !important;">行車系統時間： □ 正確　□ 不正確</td>
+                                <td style="font-family:monospace; font-size:12px; color:#000 !important; font-weight:bold;">${escapeHTML(printDate)}</td>
                             </tr>
                         </table>
-                        <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                        <div style="display: flex; gap: 4px; margin-bottom: 2px;">
                             <div style="flex: 1;">
                                 <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
-                                    <tr><th style="width:20%; color:#000 !important;">駕照檢驗</th><td style="width:30%; color:#000 !important;" class="text-left">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="width:20%; color:#000 !important;">體溫檢測</th><td style="width:30%; color:#000 !important;" class="text-left">${blankCheckbox} 合格 ( ＿＿ 度 )</td></tr>
-                                    <tr><th style="color:#000 !important;">行照檢驗</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important;">酒精檢測</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格 ( 值：＿＿ )</td></tr>
-                                    <tr><th style="color:#000 !important;">教育訓練證明</th><td class="text-left" style="color:#000 !important;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important;">血壓檢測</th><td class="text-left" style="color:#000 !important;">高 ＿＿ / 低 ＿＿</td></tr>
+                                    <tr><th style="width:20%; color:#000 !important; font-size:10px;">駕照檢驗</th><td style="width:30%; color:#000 !important; font-size:10px;" class="text-left">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="width:20%; color:#000 !important; font-size:10px;">體溫檢測</th><td style="width:30%; color:#000 !important; font-size:10px;" class="text-left">${blankCheckbox} 合格(＿＿度)</td></tr>
+                                    <tr><th style="color:#000 !important; font-size:10px;">行照檢驗</th><td class="text-left" style="color:#000 !important; font-size:10px;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important; font-size:10px;">酒精檢測</th><td class="text-left" style="color:#000 !important; font-size:10px;">${blankCheckbox} 合格(值:＿＿)</td></tr>
+                                    <tr><th style="color:#000 !important; font-size:10px;">教育訓練</th><td class="text-left" style="color:#000 !important; font-size:10px;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important; font-size:10px;">血壓檢測</th><td class="text-left" style="color:#000 !important; font-size:10px;">高 ＿＿ / 低 ＿＿</td></tr>
                                 </table>
-                                <div style="border: 2px solid #000; border-top: none; text-align: center; padding: 2px; font-weight: bold; font-size: 13px;" class="red-text">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</div>
+                                <div style="border: 2px solid #000; border-top: none; text-align: center; padding: 1px; font-weight: bold; font-size: 11px;" class="red-text">※ 未通過酒測及血壓超標者，嚴禁出車！</div>
                             </div>
-                            <div style="width: 140px; border: 2px solid #000; padding: 4px; font-weight: bold; font-size: 13px; display: flex; flex-direction: column; justify-content: space-around; color:#000 !important;">
-                                <div style="color:#000 !important;">出車前里程數：<br><div style="text-align:right; color:#000 !important; margin-top:10px;">公里</div></div>
-                                <div style="color:#000 !important;">返場接續里程數：<br><div style="text-align:right; color:#000 !important; margin-top:10px;">公里</div></div>
+                            <div style="width: 130px; border: 2px solid #000; padding: 2px; font-weight: bold; font-size: 11px; display: flex; flex-direction: column; justify-content: space-around; color:#000 !important;">
+                                <div style="color:#000 !important;">出車前里程：<br><div style="text-align:right; color:#000 !important; margin-top:4px;">公里</div></div>
+                                <div style="color:#000 !important;">返場接續里程：<br><div style="text-align:right; color:#000 !important; margin-top:4px;">公里</div></div>
                             </div>
                         </div>
                     </div>
@@ -914,10 +922,10 @@
                             <table class="voucher-table trips-table" style="margin-bottom:0; color:#000 !important;">
                                 <thead>
                                     <tr>
-                                        <th style="width:6%; color:#000 !important;">班次</th><th style="width:18%; color:#000 !important;">出發站/端點</th><th style="width:10%; color:#000 !important;">排定時間</th>
-                                        <th style="width:10%; font-size:10px; color:#000 !important;">出發/管制時間<br>(實際發車)</th><th style="width:8%; color:#000 !important;">站務簽章</th>
-                                        <th style="width:18%; color:#000 !important;">到達站</th><th style="width:10%; font-size:10px; color:#000 !important;">到達時間<br>(實際到站)</th>
-                                        <th style="width:8%; color:#000 !important;">站務簽章</th><th style="width:12%; color:#000 !important;">備註</th>
+                                        <th style="width:6%; color:#000 !important; font-size:10px;">班次</th><th style="width:18%; color:#000 !important; font-size:10px;">出發站/端點</th><th style="width:10%; color:#000 !important; font-size:10px;">排定時間</th>
+                                        <th style="width:10%; font-size:9px; color:#000 !important;">出發/管制時間<br>(實際發車)</th><th style="width:8%; color:#000 !important; font-size:10px;">站務簽章</th>
+                                        <th style="width:18%; color:#000 !important; font-size:10px;">到達站</th><th style="width:10%; font-size:9px; color:#000 !important;">到達時間<br>(實際到站)</th>
+                                        <th style="width:8%; color:#000 !important; font-size:10px;">站務簽章</th><th style="width:12%; color:#000 !important; font-size:10px;">備註</th>
                                     </tr>
                                 </thead>
                                 <tbody>${tripsRowsHtml}</tbody>
@@ -925,44 +933,44 @@
                         </div>
                     </div>
 
-                    <div style="margin-top: 4px;">
-                        <table class="voucher-table" style="margin-bottom: 4px; color:#000 !important;">
-                            <tr style="height: 25px;"><th style="width: 33.33%; color:#000 !important;">補票紀錄</th><th style="width: 33.33%; color:#000 !important;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%; color:#000 !important;">趟次中拋錨、肇事情形</th></tr>
-                            <tr style="height: 45px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 2px; left: 8px; font-size: 11px; text-align: left; color:#000 !important;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
+                    <div style="margin-top: 2px;">
+                        <table class="voucher-table" style="margin-bottom: 2px; color:#000 !important;">
+                            <tr style="height: 20px;"><th style="width: 33.33%; color:#000 !important; font-size:10px;">補票紀錄</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">趟次中拋錨、肇事情形</th></tr>
+                            <tr style="height: 35px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 2px; left: 8px; font-size: 10px; text-align: left; color:#000 !important;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
                         </table>
 
-                        <div style="border: 2px solid #000; padding: 4px 12px; margin-bottom: 4px; color:#000 !important;">
-                            <h3 style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 4px; letter-spacing: 2px; margin-top:0; color:#000 !important;">路口轉彎停看行、禮讓行人優先行</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; font-size: 11px; font-weight: bold; color:#000 !important;">
+                        <div style="border: 2px solid #000; padding: 2px 8px; margin-bottom: 2px; color:#000 !important;">
+                            <h3 style="text-align: center; font-size: 12px; font-weight: bold; margin-bottom: 2px; letter-spacing: 1px; margin-top:0; color:#000 !important;">路口轉彎停看行、禮讓行人優先行</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px; font-size: 10px; font-weight: bold; color:#000 !important;">
                                 <p style="margin:0; color:#000 !important;">1. 慢慢開、不急、不趕、路口減速。</p><p style="margin:0; color:#000 !important;">2. 遠離機車，遠離危險。</p>
-                                <p style="margin:0; color:#000 !important;">3. 開關車門時務必廣播提醒乘客才可起步。</p><p style="margin:0; color:#000 !important;">4. 行車中嚴禁使用手機及平板。</p>
-                                <p style="margin:0; color:#000 !important;">5. 「離開駕駛座拉好手剎車」。</p><p style="margin:0; color:#000 !important;">6. 候車亭服務燈亮起一定暫停確認。</p>
+                                <p style="margin:0; color:#000 !important;">3. 開關車門時務必廣播提醒乘客。</p><p style="margin:0; color:#000 !important;">4. 行車中嚴禁使用手機及平板。</p>
+                                <p style="margin:0; color:#000 !important;">5. 離開駕駛座拉好手剎車。</p><p style="margin:0; color:#000 !important;">6. 候車亭服務燈亮起一定暫停確認。</p>
                             </div>
-                            <div style="margin-top: 4px; display: flex; justify-content: flex-end; align-items: center; font-size: 12px; font-weight: bold; color:#000 !important;">
-                                <span style="margin-right: 8px; color:#000 !important;">駕駛員確認簽名：</span><span style="display: inline-block; width: 150px; border-bottom: 1px solid #000; height: 16px;"></span>
+                            <div style="margin-top: 2px; display: flex; justify-content: flex-end; align-items: center; font-size: 11px; font-weight: bold; color:#000 !important;">
+                                <span style="margin-right: 8px; color:#000 !important;">駕駛員確認簽名：</span><span style="display: inline-block; width: 120px; border-bottom: 1px solid #000; height: 12px;"></span>
                             </div>
                         </div>
 
                         <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
-                            <tr><th style="width:16%; color:#000 !important;">組別/班次</th><th style="width:16%; color:#000 !important;">鍵入人員簽章</th><th style="width:16%; color:#000 !important;">調度員簽章</th><th style="width:20%; color:#000 !important;">站主管審核章</th><th style="width:16%; color:#000 !important;">收回張數</th><th style="width:16%; color:#000 !important;">票值合計</th></tr>
-                            <tr style="height: 35px;">
-                                <td class="font-bold text-lg" style="color:#000 !important;"></td><td></td>
+                            <tr><th style="width:16%; color:#000 !important; font-size:10px;">組別/班次</th><th style="width:16%; color:#000 !important; font-size:10px;">鍵入人員簽章</th><th style="width:16%; color:#000 !important; font-size:10px;">調度員簽章</th><th style="width:20%; color:#000 !important; font-size:10px;">站主管審核章</th><th style="width:16%; color:#000 !important; font-size:10px;">收回張數</th><th style="width:16%; color:#000 !important; font-size:10px;">票值合計</th></tr>
+                            <tr style="height: 25px;">
+                                <td class="font-bold" style="color:#000 !important;"></td><td></td>
                                 <td style="position: relative;">
-                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 1px dashed #ef4444; color: #ef4444 !important; padding: 1px 2px; font-weight: bold; font-size: 9px; white-space: nowrap;">
                                         調度員 邱政明
                                     </div>
                                 </td>
                                 <td style="position: relative;">
-                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 2px dashed #ef4444; color: #ef4444 !important; padding: 2px 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">
+                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 1px dashed #ef4444; color: #ef4444 !important; padding: 1px 2px; font-weight: bold; font-size: 9px; white-space: nowrap;">
                                         站長 辛資貴
                                     </div>
                                 </td>
                                 <td></td><td></td>
                             </tr>
                         </table>
-                        <div style="font-size: 9px; line-height: 1.2; margin-top: 2px; color:#000 !important;">
+                        <div style="font-size: 8px; line-height: 1.1; margin-top: 1px; color:#000 !important;">
                             <p style="margin:0; color:#000 !important;">註1: 偏線督導執行 SOP 標準作業程序相關規定。</p>
-                            <p style="margin:0; color:#000 !important;">註2: 行車中不得撥打或持握式行動電話及無線電，如因接聽電話須使用免持聽筒。另過趟次中，探聽電信以三通為限，每通電話不得超過一分鐘。</p>
+                            <p style="margin:0; color:#000 !important;">註2: 行車中嚴禁撥打或持握式行動電話，過趟次中探聽電信以三通為限，每通不超過一分鐘。</p>
                         </div>
                     </div>
                 </div>`;
