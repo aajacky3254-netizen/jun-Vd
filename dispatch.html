@@ -80,6 +80,16 @@
         .trips-table-wrapper { flex-grow: 1; }
         .trips-table { height: auto; margin-bottom: 0;} /* 讓表格高度自然延伸，不要強制撐開 */
     }
+            /* 📱 手機版表格轉換為卡片式設計 */
+        @media screen and (max-width: 768px) {
+          table, thead, tbody, th, td, tr { display: block; }
+          thead tr { display: none; /* 手機版隱藏傳統表頭 */ }
+          tr { background: white; margin-bottom: 1rem; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; padding: 12px; }
+          td { border: none; border-bottom: 1px solid #f1f5f9; position: relative; padding: 12px 10px 12px 40%; text-align: right; min-height: 45px; display: flex; justify-content: flex-end; align-items: center;}
+          td:last-child { border-bottom: none; justify-content: center; padding: 15px 10px 5px; }
+          /* 利用 data-label 產生手機版的前綴標題 */
+          td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
+        }
   </style>
 </head>
 <body>
