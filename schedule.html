@@ -252,6 +252,7 @@ window.addEventListener('beforeunload', (e) => {
                     }
                 });
             });
+            isDirty = true;
             alert("✅ 動態輪班已套用至畫面！確認無誤後請務必點擊「儲存」。");
         });
 
@@ -279,6 +280,7 @@ window.addEventListener('beforeunload', (e) => {
                             }
                         });
                     });
+                    isDirty = true;
                     alert(`✅ 已載入上週 (${prevWeekId}) 班表！`);
                 } else {
                     alert(`⚠️ 雲端找不到上週 (${prevWeekId}) 紀錄！`);
