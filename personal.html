@@ -13,20 +13,22 @@
     
     /* 導覽列狀態 */
     .nav-btn { transition: color 0.2s; }
-    .nav-btn.active { color: #059669; } /* 翡翠綠 */
+    .nav-btn.active { color: #f97316; } /* 品牌橘色 */
     
     /* 滑動確認按鈕模擬 */
     .slide-confirm { background: #e5e7eb; border-radius: 9999px; position: relative; height: 44px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; transition: background 0.3s;}
-    .slide-confirm.confirmed { background: #10b981; color: white;}
+    .slide-confirm.confirmed { background: #f97316; color: white;} /* 品牌橘色 */
     .slide-text { z-index: 10; font-weight: bold; font-size: 14px; transition: color 0.3s;}
     
     .course-card { transition: transform 0.2s; cursor: pointer; }
     .course-card:active { transform: scale(0.98); }
   </style>
 </head>
-<body class="h-screen flex flex-col">
+<body class="bg-gray-200 flex justify-center h-screen">
 
-  <header class="flex items-center justify-between px-5 py-4 bg-white shadow-sm z-10 sticky top-0">
+<div class="w-full max-w-md bg-gray-50 h-full flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-300">
+
+  <header class="flex items-center justify-between px-5 py-4 bg-white shadow-sm z-10 sticky top-0 shrink-0 border-b border-gray-100">
     <div class="flex items-center gap-2">
       <div class="bg-gray-800 text-white font-bold text-xs px-2 py-1 rounded flex items-center gap-1">
           <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="logo" class="h-3.5 object-contain">
@@ -34,14 +36,14 @@
       </div>
       <h1 class="text-lg font-bold text-gray-800"><span id="displayEmpId">000</span> <span id="displayName">載入中</span></h1>
     </div>
-    <button id="btnLogout" class="text-sm font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100">登出</button>
+    <button id="btnLogout" class="text-sm font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors">登出</button>
   </header>
 
   <main id="viewSchedule" class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24">
     <div class="bg-gray-800 text-white text-center py-2 rounded-t-xl font-bold text-sm mx-2 mt-2">
       本日作業 : <span id="todayDateDisplay">載入中</span>
     </div>
-    <div class="bg-white rounded-b-xl shadow-md p-4 mx-2 mb-6 border-t-4 border-emerald-500">
+    <div class="bg-white rounded-b-xl shadow-md p-4 mx-2 mb-6 border-t-4 border-orange-500">
       
       <div id="scheduleContainer" class="space-y-4">
         <div class="text-center text-gray-400 py-6 font-bold text-sm">載入班表中...</div>
@@ -57,12 +59,12 @@
       <form id="leaveForm" class="space-y-4">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">請假日期 (必填)</label>
-          <input type="date" id="leaveDate" required class="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-lg px-3 py-2.5 outline-none focus:border-emerald-500 font-bold">
+          <input type="date" id="leaveDate" required class="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-lg px-3 py-2.5 outline-none focus:border-orange-500 font-bold transition-colors">
         </div>
         
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">假別 (必填)</label>
-          <select id="leaveType" required class="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-lg px-3 py-2.5 outline-none focus:border-emerald-500 font-bold">
+          <select id="leaveType" required class="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-lg px-3 py-2.5 outline-none focus:border-orange-500 font-bold transition-colors">
             <option value="特休">🌟 特休假</option>
             <option value="排休">📅 例行排休</option>
             <option value="事假">📝 事假</option>
@@ -72,10 +74,10 @@
 
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase mb-1">事由說明</label>
-          <textarea id="leaveReason" rows="3" class="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 text-sm" placeholder="請簡述請假事由..."></textarea>
+          <textarea id="leaveReason" rows="3" class="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-lg px-3 py-2 outline-none focus:border-orange-500 text-sm transition-colors" placeholder="請簡述請假事由..."></textarea>
         </div>
 
-        <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors active:scale-[0.98]">
+        <button type="submit" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl shadow-md transition-colors active:scale-[0.98]">
           送出排休申請
         </button>
       </form>
@@ -95,21 +97,21 @@
       </div>
       <div class="text-right">
         <div class="text-xs text-gray-500 font-bold">本月完課率</div>
-        <div class="text-lg font-black text-emerald-600">33%</div>
+        <div class="text-lg font-black text-orange-600">33%</div>
       </div>
     </div>
 
     <div class="space-y-4">
       <div class="course-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex">
-        <div class="w-2 bg-emerald-500"></div>
+        <div class="w-2 bg-orange-500"></div>
         <div class="p-4 flex-1">
           <div class="flex justify-between items-start mb-1">
             <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded">服務態度</span>
-            <span class="text-emerald-500 text-xs font-bold flex items-center gap-1">✓ 已完課</span>
+            <span class="text-orange-500 text-xs font-bold flex items-center gap-1">✓ 已完課</span>
           </div>
           <h3 class="font-bold text-gray-800 text-base mb-1">應對乘客與核心價值引導</h3>
           <p class="text-xs text-gray-500 mb-3">學習如何以同理心應對客訴，提升服務品質。</p>
-          <div class="w-full bg-gray-100 rounded-full h-1.5"><div class="bg-emerald-500 h-1.5 rounded-full" style="width: 100%"></div></div>
+          <div class="w-full bg-gray-100 rounded-full h-1.5"><div class="bg-orange-500 h-1.5 rounded-full" style="width: 100%"></div></div>
         </div>
       </div>
 
@@ -141,7 +143,7 @@
     </div>
   </main>
 
-  <nav class="bg-white border-t border-gray-200 flex justify-around py-2 pb-safe fixed bottom-0 w-full z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+  <nav class="bg-white border-t border-gray-200 flex justify-around py-2 pb-safe absolute bottom-0 w-full z-20 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] shrink-0">
     <button class="nav-btn active flex flex-col items-center p-2 text-gray-400" data-target="viewSchedule">
       <svg class="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
       <span class="text-[10px] font-bold tracking-wider">今日班表</span>
@@ -156,7 +158,7 @@
     </button>
   </nav>
 
-  <script type="module">
+</div> <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
@@ -178,7 +180,6 @@
         document.getElementById('displayEmpId').innerText = escapeHTML(user.empId);
         document.getElementById('displayName').innerText = escapeHTML(user.name);
         
-        // 💡 修改點 1：修正時區問題，使用 Local Time 確保早班駕駛不會看到昨天的日期
         const now = new Date();
         const yyyy = now.getFullYear();
         const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -214,7 +215,6 @@
     function loadMySchedule(dateStr) {
         const container = document.getElementById('scheduleContainer');
         
-        // 注意：這裡如果你原本有 orderBy("departure_time", "asc") 報錯，可以將 orderBy 拔掉，在前端排序
         const q = query(collection(db, "daily_dispatches"), 
             where("date", "==", dateStr),
             where("assigned_empid", "==", currentUser.empId)
@@ -226,7 +226,6 @@
                 return;
             }
 
-            // 前端手動排序發車時間
             let trips = [];
             snapshot.forEach(docSnap => trips.push({ id: docSnap.id, ...docSnap.data() }));
             trips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
@@ -238,7 +237,7 @@
                 
                 html += `
                 <div class="flex bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
-                  <div class="w-16 bg-emerald-500 text-white flex flex-col items-center justify-center font-bold text-lg p-2 shadow-inner">
+                  <div class="w-16 bg-orange-500 text-white flex flex-col items-center justify-center font-bold text-lg p-2 shadow-inner">
                     <span class="text-xs font-normal mb-1">路線</span>
                     ${escapeHTML(data.route).replace(/\D/g, '') || data.route}
                   </div>
@@ -270,7 +269,7 @@
         });
     }
 
-    // --- 排休系統邏輯 ---
+    // --- 排休系統邏輯 (包含連點防護) ---
     const leaveForm = document.getElementById('leaveForm');
     leaveForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -280,7 +279,6 @@
 
         if (!lDate) return alert('請選擇日期');
 
-        // 💡 修改點 2：加入防連點機制
         const submitBtn = leaveForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerText;
         submitBtn.innerText = "⏳ 傳送中...";
@@ -303,14 +301,13 @@
             console.error(error);
             alert("送出失敗");
         } finally {
-            // 傳送完畢解除按鈕鎖定
             submitBtn.innerText = originalText;
             submitBtn.disabled = false;
             submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
     });
 
-    // 💡 修改點 3：載入歷史排休紀錄 (拔除 orderBy 避免複合索引報錯，改前端排序)
+    // --- 載入歷史排休紀錄 (前端安全排序) ---
     function loadLeaveHistory() {
         const q = query(collection(db, "leave_requests"), 
             where("empId", "==", currentUser.empId)
@@ -320,7 +317,6 @@
             const container = document.getElementById('leaveHistoryContainer');
             if (snapshot.empty) return container.innerHTML = '<div class="text-center text-gray-400 py-4 text-sm">無歷史紀錄</div>';
 
-            // 將結果放進 Array，在前端做日期排序 (新到舊)
             let requests = [];
             snapshot.forEach(docSnap => requests.push({ id: docSnap.id, ...docSnap.data() }));
             
@@ -332,8 +328,8 @@
 
             let html = "";
             requests.forEach(data => {
-                let statusColor = "bg-amber-100 text-amber-700"; // 審核中
-                if (data.status === "已核准") statusColor = "bg-emerald-100 text-emerald-700";
+                let statusColor = "bg-amber-100 text-amber-700"; 
+                if (data.status === "已核准") statusColor = "bg-orange-100 text-orange-700 border border-orange-200";
                 if (data.status === "退回") statusColor = "bg-red-100 text-red-700";
 
                 html += `
