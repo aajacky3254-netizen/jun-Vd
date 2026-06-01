@@ -167,14 +167,7 @@
                     tbody.appendChild(tr);
                 });
 
-                // 綁定動態生成的按鈕事件 (只有擁有權限的人才能觸發)
-                if (canManage) {
-                    document.querySelectorAll('.quick-issue').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const inp = document.getElementById('inpIssue');
-        inp.value = inp.value ? `${inp.value}、${btn.innerText}` : btn.innerText;
-    });
-});
+                
                            
 
                     document.querySelectorAll('.btn-delete').forEach(btn => {
@@ -195,7 +188,14 @@
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
             dbStatusEl.innerText = "連線失敗";
         });
-
+// 綁定動態生成的按鈕事件 (只有擁有權限的人才能觸發)
+                if (canManage) {
+                    document.querySelectorAll('.quick-issue').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const inp = document.getElementById('inpIssue');
+        inp.value = inp.value ? `${inp.value}、${btn.innerText}` : btn.innerText;
+    });
+});
         // 提交報修單 (任何人皆可執行)
         document.getElementById('btnSubmit').addEventListener('click', async () => {
             const plate = document.getElementById('inpPlate').value.trim();
