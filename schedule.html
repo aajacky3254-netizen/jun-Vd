@@ -114,7 +114,11 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const dbStatusEl = document.getElementById('db-status');
-
+let isDirty = false;
+document.getElementById('roster-table').addEventListener('change', () => { isDirty = true; });
+window.addEventListener('beforeunload', (e) => {
+    if (isDirty) { e.preventDefault(); e.returnValue = '您有未儲存的班表變更，確定要離開嗎？'; }
+});
         let currentDrivers = [];
         let currentWeekId = "";
         const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -314,8 +318,9 @@
             btn.innerText = "⏳ 儲存中...";
             btn.disabled = true;
             try {
-                await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
-                alert("✅ 班表已成功儲存並同步！");
+    await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
+    isDirty = false; // 💡 加上這行，存檔後清除警告狀態
+    alert("✅ 班表已成功儲存並同步！");
                 await loadSchedule(currentWeekId);
             } catch (err) {
                 console.error("存檔錯誤:", err);
@@ -328,20 +333,7 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
-       let isDirty = false;
-// 監聽表格內任何變動
-document.getElementById('roster-table').addEventListener('change', () => { isDirty = true; });
-
-// 離開網頁前警告
-window.addEventListener('beforeunload', (e) => {
-    if (isDirty) {
-        e.preventDefault();
-        e.returnValue = '您有未儲存的班表變更，確定要離開嗎？';
-    }
-});
-
-// 在 btn-save 儲存成功後 (alert("✅ 班表已成功儲存並同步！") 之後) 加上：
-isDirty = false;
+       
 </script>
 </body>
 </html>
