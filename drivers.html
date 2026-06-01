@@ -231,43 +231,6 @@
                     };
                     milestoneText = ` <span class="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-bold ml-1" title="擴大徵才專案進度">🎯 ${milestoneMap[driver.empMilestone]}</span>`;
                 }
-                
-
-                tr.innerHTML = `
-                    <td class="font-mono font-bold text-gray-600">${data.date ? data.date.replace(/-/g, '/') : '無'}</td>
-                    <td class="font-bold text-gray-800">${escapeHTML(data.empId)} ${escapeHTML(data.name)}</td>
-                    <td class="font-bold text-purple-600">${escapeHTML(data.type)}</td>
-                    <td class="text-gray-600 text-sm">${escapeHTML(data.reason) || '無事由'}</td>
-                    <td>${statusHtml}</td>
-                    <td style="text-align: center;">${actionBtns}</td>
-                `;
-                leaveBody.appendChild(tr);
-            });
-
-            // 綁定「核准」按鈕事件
-            document.querySelectorAll('.btn-approve').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    if (confirm("確定要【核准】此排休申請嗎？\n核准後，該員當日將無法被調度員排班。")) {
-                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), {
-                            status: "已核准",
-                            reviewedBy: user.name // 紀錄是誰批准的
-                        });
-                    }
-                });
-            });
-
-            // 綁定「退回」按鈕事件
-            document.querySelectorAll('.btn-reject').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    if (confirm("確定要【退回】此申請嗎？")) {
-                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), {
-                            status: "退回",
-                            reviewedBy: user.name
-                        });
-                    }
-                });
-            });
-        });
 
                 tr.innerHTML = `
                     <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${driver.id}</td>
@@ -291,8 +254,8 @@
                 tbody.appendChild(tr);
             });
 
-            // 綁定編輯點擊事件
-            document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', (e) => {
+          // 2. 綁定編輯點擊事件
+          document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', (e) => {
                 const btnData = e.target.dataset;
                 document.getElementById('inpEmpId').value = btnData.id;
                 document.getElementById('inpEmpId').disabled = true; 
