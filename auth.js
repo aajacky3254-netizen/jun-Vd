@@ -30,7 +30,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
         } catch (error) {
             // 防禦性設計：如果 userStr 格式損毀 (非 JSON 格式)，就清除並重導
             console.error("Session 資料解析失敗:", error);
-            sessionStorage.removeItem('busSystemUser');
+            localStorage.removeItem('busSystemUser');
             window.location.href = 'login.html';
             return reject("登入資料損毀");
         }
