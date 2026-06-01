@@ -275,6 +275,7 @@
     const startPress = (e) => {
         // 防止手機長按選取文字或跳出選單
         e.preventDefault(); 
+        clearInterval(progressInterval);
         progress = 0;
         text.innerText = "確認中...";
         progressInterval = setInterval(() => {
