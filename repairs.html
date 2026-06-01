@@ -84,9 +84,9 @@
   </div>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js'; 
+    import { db } from './firebase-init.js';
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { checkAuthAndGetRole } from './auth.js';
 
     // 💡 傳入空陣列 []，代表「只要有登入的人」都可以進來這個網頁
     checkAuthAndGetRole([]).then((user) => {
@@ -108,16 +108,7 @@
             if (navVehicles) navVehicles.style.display = 'none';
         }
 
-        const firebaseConfig = {
-          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-          authDomain: "jun-bus-dispatch.firebaseapp.com",
-          projectId: "jun-bus-dispatch",
-          storageBucket: "jun-bus-dispatch.firebasestorage.app",
-          messagingSenderId: "621725744717",
-          appId: "1:621725744717:web:64e663648d8c76b9bd6604"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        
         const repairsCol = collection(db, "Repairs");
         const dbStatusEl = document.getElementById('db-status');
 
