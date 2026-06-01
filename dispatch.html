@@ -53,9 +53,9 @@
 
     @media print {
         @page { margin: 5mm; size: A4 portrait; }
-        body * { visibility: hidden; }
-        #print-zone, #print-zone * { visibility: visible; }
-        #print-zone { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
+        /* 正確隱藏非列印區域，避免 position: absolute 導致多頁重疊或格式消失 */
+        #main-nav, #main-content > h2, .content-area { display: none !important; }
+        #print-zone { width: 100%; display: block !important; position: relative; }
         
         /* 💡 徹底解決壓扁問題：使用 min-height 代替固定 height，並禁止元件縮水 */
         .voucher-page { 
@@ -92,7 +92,7 @@
       /* 利用 data-label 產生手機版的前綴標題 */
       td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
     }
-    th { 
+    #dispatchTable th { 
   background-color: #1e293b; color: #f8fafc; font-weight: 600; 
   letter-spacing: 1px; position: sticky; top: 0; z-index: 10; 
 }
