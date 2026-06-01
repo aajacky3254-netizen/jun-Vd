@@ -1,0 +1,21 @@
+{
+  "name": "🚌 愛巴士交通客運 | 智慧車輛調度與個人作業台",
+  "short_name": "🚌 愛巴士交通客運 差勤",
+  "description": "🚌 愛巴士交通客運 - 駕駛長個人作業與調度系統",
+  "start_url": "./personal.html",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#1f2937",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3204/3204364.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3204/3204364.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
