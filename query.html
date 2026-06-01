@@ -127,7 +127,6 @@
 </div> <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole } from './auth.js'; 
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
@@ -158,11 +157,19 @@
     const today = new Date().toISOString().split('T')[0];
     dateInput.value = today;
 
-    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員', '駕駛長']).then((user) => {
-        userBadge.innerText = `👤 ${escapeHTML(user.name)}`;
-    }).catch(() => {
+    // 💡 修正 1：移除會強制導向的 checkAuthAndGetRole，自行判斷登入狀態，以確保「訪客模式」能夠正常運作
+    const userStr = localStorage.getItem('busSystemUser');
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            if (user && user.name) userBadge.innerText = `👤 ${escapeHTML(user.name)}`;
+            else userBadge.innerText = "訪客模式";
+        } catch (e) {
+            userBadge.innerText = "訪客模式";
+        }
+    } else {
         userBadge.innerText = "訪客模式";
-    });
+    }
 
     let unsubscribe = null;
 
@@ -420,6 +427,15 @@
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             e.currentTarget.classList.add('active');
+            
+            // 💡 修正 2：增加底部導覽列切換回「路線總覽」的邏輯
+            if (e.currentTarget.dataset.target === 'routes') {
+                currentSelectedRoute = null;
+                viewRoutes.classList.remove('hidden');
+                viewTimetable.classList.add('hidden');
+                btnBack.classList.add('hidden');
+                pageTitle.innerHTML = `<img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="logo" class="h-5 object-contain bg-white/90 rounded px-1">路線總覽`;
+            }
         });
     });
 
