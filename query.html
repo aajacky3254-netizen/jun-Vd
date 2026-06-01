@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>愛巴士交通客運 | 智慧行動查詢</title>
+  <title>豐東客運 | 智慧行動查詢</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="manifest" href="manifest.json">
   <style>
-    body { background-color: #121212; color: #e5e7eb; font-family: "微軟正黑體", sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background-color: #000; color: #e5e7eb; font-family: "微軟正黑體", sans-serif; -webkit-tap-highlight-color: transparent; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     
@@ -19,20 +19,24 @@
     .loader { border-top-color: #c4b5fd; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
     @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     
-    /* 導覽列 Active 狀態過渡 */
     .nav-btn { transition: color 0.2s ease-in-out; }
-    .nav-btn.active { color: #c084fc; } /* text-purple-400 */
+    .nav-btn.active { color: #c084fc; } 
     .nav-btn.active span:first-child { transform: scale(1.1); transition: transform 0.2s; }
   </style>
 </head>
-<body class="h-screen flex flex-col">
+<body class="flex justify-center h-screen">
 
-  <header class="flex items-center justify-between px-4 py-3 bg-[#1e1e24] shadow-md z-10 sticky top-0 border-b border-gray-800">
+<div class="w-full max-w-md bg-[#121212] h-full flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800">
+
+  <header class="flex items-center justify-between px-4 py-3 bg-[#1e1e24] shadow-md z-10 sticky top-0 border-b border-gray-800 shrink-0">
     <div class="flex items-center gap-3">
       <button id="btnBack" class="hidden text-gray-400 hover:text-white p-1 transition-transform active:scale-90">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
       </button>
-      <h1 id="pageTitle" class="text-lg font-bold text-gray-100 tracking-wide">路線總覽</h1>
+      <h1 id="pageTitle" class="text-lg font-bold text-gray-100 tracking-wide flex items-center gap-2">
+          <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="logo" class="h-5 object-contain bg-white/90 rounded px-1">
+          路線總覽
+      </h1>
     </div>
     <div class="text-xs font-medium bg-gray-800 px-2 py-1 rounded text-gray-300" id="userBadge">連線中...</div>
   </header>
@@ -77,7 +81,7 @@
       </div>
   </main>
 
-  <nav id="bottomNav" class="bg-[#1e1e24] border-t border-gray-800 flex justify-around py-2 pb-safe fixed bottom-0 w-full z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.2)]">
+  <nav id="bottomNav" class="bg-[#1e1e24] border-t border-gray-800 flex justify-around py-2 pb-safe absolute bottom-0 w-full z-10 shadow-[0_-4px_10px_rgba(0,0,0,0.5)] shrink-0">
     <button class="nav-btn flex flex-col items-center p-2 text-gray-500 hover:text-gray-300" data-target="info">
       <span class="text-xl mb-0.5">ℹ️</span><span class="text-[10px] font-bold tracking-wider">資訊</span>
     </button>
@@ -92,8 +96,8 @@
     </button>
   </nav>
 
-  <div id="overlay" class="overlay fixed inset-0 bg-black bg-opacity-70 z-40 backdrop-blur-[2px]"></div>
-  <div id="actionSheet" class="bottom-sheet fixed bottom-0 left-0 w-full bg-[#1e1e24] rounded-t-3xl z-50 p-6 pb-8 shadow-2xl border-t border-gray-700">
+  <div id="overlay" class="overlay absolute inset-0 bg-black bg-opacity-70 z-40 backdrop-blur-[2px]"></div>
+  <div id="actionSheet" class="bottom-sheet absolute bottom-0 left-0 w-full bg-[#1e1e24] rounded-t-3xl z-50 p-6 pb-8 shadow-2xl border-t border-gray-700">
     <div class="w-12 h-1.5 bg-gray-600 rounded-full mx-auto mb-5"></div>
     
     <div class="flex justify-between items-center mb-6">
@@ -120,7 +124,7 @@
     </div>
   </div>
 
-  <script type="module">
+</div> <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole } from './auth.js'; 
@@ -151,7 +155,6 @@
     const userBadge = document.getElementById('userBadge');
     const timetableDateDisplay = document.getElementById('timetableDateDisplay');
 
-    // 設定今日預設
     const today = new Date().toISOString().split('T')[0];
     dateInput.value = today;
 
@@ -196,7 +199,6 @@
         });
     }
 
-    // 🚀 優化 1：支援 Regex 與防抖的過濾邏輯
     function renderRoutesCard(filterKeyword = "") {
         if (currentDayTrips.length === 0) {
             routesContainer.innerHTML = `<div class="p-8 text-center text-gray-500 font-bold text-sm bg-[#1e1e24] rounded-xl border border-gray-800 shadow-inner">🗓️ 此日期尚未建立任何發車時刻表。</div>`;
@@ -206,7 +208,6 @@
         const routeMap = new Map();
         let regexPattern = null;
 
-        // 嘗試建立 Regex，若使用者輸入非法 Regex 則降級為一般字串比對
         if (filterKeyword) {
             try { regexPattern = new RegExp(filterKeyword, 'i'); } 
             catch (e) { regexPattern = null; }
@@ -218,7 +219,6 @@
             const startPt = trip.start_point || "";
             const endPt = trip.end_point || "";
             
-            // 執行比對邏輯
             if (filterKeyword) {
                 let isMatch = false;
                 if (regexPattern) {
@@ -231,7 +231,6 @@
             }
 
             if (!routeMap.has(routeName)) {
-                // 收集起迄站的 Set 以支援雙向顯示
                 routeMap.set(routeName, {
                     name: routeName,
                     endpoints: new Set([startPt, endPt].filter(Boolean)),
@@ -255,7 +254,6 @@
             const numberMatch = routeName.match(/\d+/);
             const displayNum = numberMatch ? numberMatch[0] : "📌";
             
-            // 嘗試從 endpoints Set 中抓出兩端點代表
             const pts = Array.from(info.endpoints);
             const displayStart = pts[0] || "未知";
             const displayEnd = pts[1] || pts[0] || "環線/未知";
@@ -281,7 +279,6 @@
         bindTimetableButtons();
     }
 
-    // 🚀 優化 2：去回程智慧分流與下一班次高亮
     function renderTimetable(routeName) {
         const routeTrips = currentDayTrips.filter(t => t.route === routeName);
         
@@ -290,7 +287,6 @@
             return;
         }
 
-        // 按終點站 (方向) 分群
         const directionMap = new Map();
         routeTrips.forEach(trip => {
             const dest = trip.end_point || "未知目的地";
@@ -298,7 +294,6 @@
             directionMap.get(dest).push(trip);
         });
 
-        // 取得當前時間 (用於判斷下一班車)
         const now = new Date();
         const isToday = dateInput.value === today;
         const currentMins = now.getHours() * 60 + now.getMinutes();
@@ -324,9 +319,8 @@
                 
                 let statusIndicator = "bg-gray-600";
                 if (trip.status === "active") statusIndicator = "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
-                else if (trip.status === "done") statusIndicator = "bg-[#1e1e24]"; // 變暗
+                else if (trip.status === "done") statusIndicator = "bg-[#1e1e24]"; 
 
-                // 判斷是否為「下一班車」高亮顯示
                 let isNextBus = false;
                 if (isToday && !nextBusFound && trip.departure_time && trip.status !== "done") {
                     let [th, tm] = trip.departure_time.split(':').map(Number);
@@ -373,19 +367,17 @@
         timetableDateDisplay.innerText = `營運日期: ${dateInput.value.replace(/-/g, '/')}`;
         bindActionButtons();
 
-        // 自動滾動到下一班車
         setTimeout(() => {
             const nextBusEl = document.getElementById('nextBusTarget');
             if (nextBusEl) nextBusEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
     }
 
-    // 事件綁定區
     function bindTimetableButtons() {
         document.querySelectorAll('.btn-timetable').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 currentSelectedRoute = e.currentTarget.dataset.route;
-                pageTitle.innerText = `${currentSelectedRoute}`;
+                pageTitle.innerHTML = `<img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="logo" class="h-5 object-contain bg-white/90 rounded px-1">${currentSelectedRoute}`;
                 
                 renderTimetable(currentSelectedRoute);
                 
@@ -402,10 +394,9 @@
         viewRoutes.classList.remove('hidden');
         viewTimetable.classList.add('hidden');
         btnBack.classList.add('hidden');
-        pageTitle.innerText = '路線總覽';
+        pageTitle.innerHTML = `<img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="logo" class="h-5 object-contain bg-white/90 rounded px-1">路線總覽`;
     });
 
-    // 🚀 優化 3：防抖搜尋 (Debounce)
     let searchTimeout;
     searchInput.addEventListener('input', (e) => {
         const val = e.target.value;
@@ -414,7 +405,7 @@
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             renderRoutesCard(val.trim());
-        }, 300); // 300ms 延遲，打字更順暢
+        }, 300);
     });
 
     btnClearSearch.addEventListener('click', () => {
@@ -425,16 +416,13 @@
 
     dateInput.addEventListener('change', (e) => loadDispatchData(e.target.value));
 
-    // 🚀 優化 4：導覽列狀態聯動
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             e.currentTarget.classList.add('active');
-            // 實務上這裡會加上視圖切換的邏輯，目前先做視覺互動
         });
     });
 
-    // Bottom Sheet
     const actionSheet = document.getElementById('actionSheet');
     const overlay = document.getElementById('overlay');
     const actionSheetTitleSpan = document.querySelector('#actionSheetTitle span');
@@ -463,8 +451,6 @@
         overlay.classList.remove('open');
     }
     overlay.addEventListener('click', closeSheet);
-    
-    // 點擊 Bottom sheet 內的按鈕自動關閉 (增加體驗真實感)
     document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', closeSheet));
 
     loadDispatchData(dateInput.value);
