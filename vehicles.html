@@ -90,7 +90,12 @@
         </button>
       </div>
     </div>
-
+<div class="flex gap-2 mb-4" id="vehicleFilters">
+  <button class="filter-btn active bg-gray-800 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-sm" data-filter="all">全車隊</button>
+  <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="ready">🟢 正常營運</button>
+  <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="maintenance">🟡 定保中</button>
+  <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="breakdown">🔴 故障維修</button>
+</div>
     <table>
       <thead>
         <tr>
