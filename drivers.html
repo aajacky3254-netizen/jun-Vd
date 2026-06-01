@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>車輛調度系統 - 人事管理系統 (權限防護版)</title>
+  <title>豐東交通客運 - 人事管理系統</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
-    h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
+    h2 { color: #1e293b; margin: 20px 0; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
     
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
-    .navbar-brand { color: #facc15; font-size: 22px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
     .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
 
-    .content-area { padding: 0 20px; max-width: 1200px; margin: 0 auto;}
+    .content-area { padding: 0 20px; max-width: 1400px; margin: 0 auto;}
     
     .control-panel {
       background: #fff; padding: 24px; border-radius: 12px; 
@@ -42,7 +42,10 @@
 <body>
 
   <nav class="navbar" id="main-nav">
-    <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
+    <a href="index.html" class="navbar-brand flex items-center">
+      <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
+      豐東交通客運 | 智慧車輛調度系統
+    </a>
     <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
     <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
     <a href="drivers.html" class="nav-link active">👨‍✈️ 人事管理系統</a>
@@ -51,7 +54,7 @@
 
   <div class="content-area">
     <div class="flex justify-between items-center mt-6 mb-2">
-      <h2>👨‍✈️ 駕駛長人事管理</h2>
+      <h2>👨‍✈️ 駕駛長與內勤人事管理系統</h2>
       <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
     </div>
 
@@ -61,7 +64,7 @@
         <input type="text" id="inpEmpId" placeholder="例如: 001" required>
       </div>
       <div class="input-group" style="width: 200px;">
-        <label>駕駛姓名</label>
+        <label>內外勤姓名</label>
         <input type="text" id="inpName" placeholder="輸入姓名" required>
       </div>
       <div class="input-group" style="width: 140px;">
@@ -71,8 +74,6 @@
           <option value="inactive">離職/留停</option>
         </select>
       </div>
-      
-      <!-- 💡 將原本的駕照類型替換為場站 -->
       <div class="input-group" style="width: 140px;">
         <label>所屬場站</label>
         <select id="inpStation">
@@ -82,42 +83,21 @@
           <option value="高鐵站">高鐵站</option>
         </select>
       </div>
-      
-      <div class="input-group" style="width: 160px;">
-        <label>系統職稱權限</label>
+      <div class="input-group" style="width: 180px;">
+        <label>系統登入權限</label>
         <select id="inpRole">
-          <option value="駕駛長">駕駛長 (僅檢視)</option>
-          <option value="調度員">調度員 (可排班)</option>
-          <option value="維修人員">維修保養班</option>
+          <option value="駕駛長">駕駛長 (僅檢視個人工作台)</option>
+          <option value="調度員">調度員 (可排週班表與每日調度)</option>
+          <option value="維修人員">維修保養班 (可接單修車)</option>
           <option value="StationManager">站長 (最高權限)</option>
         </select>
       </div>
-      
-      <button id="btnSaveDriver" class="bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto" style="height: 44px;">
-        💾 儲存駕駛資料
-      </button>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 15%;">員工編號</th>
-          <th style="width: 25%;">駕駛姓名</th>
-          <th style="width: 15%;">所屬場站</th>
-          <th style="width: 15%;">系統職權</th>
-          <th style="width: 15%;">在職狀態</th>
-          <th style="width: 15%; text-align: center;">操作</th>
-        </tr>
-      </thead>
-      <tbody id="driverBody">
-        <tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">載入中...</td></tr>
-      </tbody>
-    </table>
-  
-<div class="control-panel mt-6">
-      <div class="input-group" style="width: 160px;">
-        <label>員工職稱</label>
-        <select id="empRole" class="font-bold text-gray-700 border-emerald-400">
+    <div class="control-panel">
+      <div class="input-group" style="width: 180px;">
+        <label>實際編制職稱</label>
+        <select id="empRole" class="font-bold text-gray-700">
           <option value="駕駛長">🚌 駕駛長</option>
           <option value="站務員">🎫 站務員</option>
           <option value="站長">🏢 站長</option>
@@ -127,19 +107,41 @@
         </select>
       </div>
 
- <div class="input-group flex-grow" id="milestoneGroup">
-        <label class="text-purple-600">🎯 擴大徵才里程碑階段</label>
-        <select id="empMilestone" class="font-bold text-purple-700 bg-purple-50">
-          <option value="none">無適用專案</option>
-          <option value="training">1️⃣ 受訓中 (未滿月)</option>
-          <option value="month_1">2️⃣ 穩定就業滿 1 個月 (可請領第一階段)</option>
-          <option value="month_3">3️⃣ 穩定就業滿 3 個月 (可請領第二階段)</option>
-          <option value="month_5">4️⃣ 穩定就業滿 5 個月 (可請領留任獎金)</option>
-          <option value="completed">✅ 方案全數結案</option>
+      <div class="input-group flex-grow" id="milestoneGroup">
+        <label class="text-purple-600 font-bold">🎯 大客車駕駛擴大徵才補助里程碑階段</label>
+        <select id="empMilestone" class="font-bold text-purple-700 bg-purple-50 border-purple-300">
+          <option value="none">無適用專案 (一般在職員工 / 內勤)</option>
+          <option value="training">1️⃣ 受訓中 (未滿月新進人員)</option>
+          <option value="month_1">2️⃣ 穩定就業滿 1 個月 (可請領第一階段生活津貼)</option>
+          <option value="month_3">3️⃣ 穩定就業滿 3 個月 (可請領第二階段就業獎勵)</option>
+          <option value="month_5">4️⃣ 穩定就業滿 5 個月 (可請領留任獎金階段)</option>
+          <option value="completed">✅ 方案補助全數結案</option>
         </select>
       </div>
+      
+      <button id="btnSaveDriver" class="bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold whitespace-nowrap" style="height: 44px;">
+        💾 儲存人員資料
+      </button>
     </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 12%;">員工編號</th>
+          <th style="width: 18%;">員工姓名</th>
+          <th style="width: 13%;">所屬場站</th>
+          <th style="width: 22%;">實際職稱 / 專案進度</th>
+          <th style="width: 13%;">系統權限</th>
+          <th style="width: 12%;">在職狀態</th>
+          <th style="width: 10%; text-align: center;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="driverBody">
+        <tr><td colspan="7" class="text-center py-8 text-gray-500 font-bold">載入中...</td></tr>
+      </tbody>
+    </table>
   </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -174,6 +176,17 @@
 
         let currentDrivers = [];
 
+        // 監聽職稱連動顯示
+        document.getElementById('empRole').addEventListener('change', (e) => {
+            const milestoneGroup = document.getElementById('milestoneGroup');
+            if (e.target.value === '駕駛長') {
+                milestoneGroup.style.display = 'flex';
+            } else {
+                milestoneGroup.style.display = 'none';
+                document.getElementById('empMilestone').value = 'none';
+            }
+        });
+
         onSnapshot(driversCol, (snapshot) => {
             currentDrivers = [];
             snapshot.forEach(doc => {
@@ -196,7 +209,7 @@
             tbody.innerHTML = '';
 
             if(currentDrivers.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">目前沒有任何駕駛資料。</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500 font-bold">目前沒有任何員工資料。</td></tr>';
                 return;
             }
 
@@ -207,20 +220,42 @@
                     ? `<span class="status-badge status-active">● 在職中</span>` 
                     : `<span class="status-badge status-inactive">休假 / 離職</span>`;
 
+                // 專案進度標籤語法化
+                let milestoneText = "";
+                if ((driver.empRole === '駕駛長' || !driver.empRole) && driver.empMilestone && driver.empMilestone !== 'none') {
+                    const milestoneMap = {
+                        'training': '受訓中',
+                        'month_1': '就業滿1M',
+                        'month_3': '就業滿3M',
+                        'month_5': '就業滿5M',
+                        'completed': '結案'
+                    };
+                    milestoneText = ` <span class="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-bold ml-1" title="擴大徵才專案進度">🎯 ${milestoneMap[driver.empMilestone]}</span>`;
+                }
+
                 tr.innerHTML = `
                     <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${driver.id}</td>
                     <td style="font-weight: bold; color: #0f172a; font-size: 16px;">${driver.name}</td>
                     <td style="color: #475569; font-weight: 600;">${driver.station || '未指定'}</td>
+                    <td style="color: #047857; font-weight: 600; font-size: 15px;">${driver.empRole || '駕駛長'}${milestoneText}</td>
                     <td style="color: #3b82f6; font-weight: 600;">${driver.role || '駕駛長'}</td>
                     <td>${statusHtml}</td>
                     <td style="text-align: center;">
-                        <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${driver.id}" data-name="${driver.name}" data-status="${driver.status}" data-station="${driver.station}" data-role="${driver.role}">編輯</button>
+                        <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" 
+                                data-id="${driver.id}" 
+                                data-name="${driver.name}" 
+                                data-status="${driver.status}" 
+                                data-station="${driver.station}" 
+                                data-role="${driver.role}"
+                                data-emprole="${driver.empRole || '駕駛長'}"
+                                data-empmilestone="${driver.empMilestone || 'none'}">編輯</button>
                         <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${driver.id}">刪除</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
 
+            // 綁定編輯點擊事件
             document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', (e) => {
                 const btnData = e.target.dataset;
                 document.getElementById('inpEmpId').value = btnData.id;
@@ -231,12 +266,26 @@
                 document.getElementById('inpStation').value = btnData.station || '東海站';
                 document.getElementById('inpRole').value = btnData.role || '駕駛長';
                 
-                document.getElementById('btnSaveDriver').innerHTML = "💾 更新駕駛資料";
+                // 讀取並填入新欄位資料
+                const loadedEmpRole = btnData.emprole;
+                document.getElementById('empRole').value = loadedEmpRole;
+                document.getElementById('empMilestone').value = btnData.empmilestone;
+                
+                // 控制里程碑顯示邏輯
+                const milestoneGroup = document.getElementById('milestoneGroup');
+                if (loadedEmpRole === '駕駛長') {
+                    milestoneGroup.style.display = 'flex';
+                } else {
+                    milestoneGroup.style.display = 'none';
+                }
+                
+                document.getElementById('btnSaveDriver').innerHTML = "💾 更新人員資料";
                 document.getElementById('btnSaveDriver').className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }));
 
+            // 綁定刪除點擊事件
             document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', async (e) => {
-                if(confirm(`⚠️ 警告！刪除駕駛員將無法復原，確定要刪除編號 ${e.target.dataset.id} 嗎？`)) {
+                if(confirm(`⚠️ 警告！刪除員工將無法復原，確定要刪除編號 ${e.target.dataset.id} 嗎？`)) {
                     try {
                         await deleteDoc(doc(db, "Drivers", e.target.dataset.id));
                     } catch (err) {
@@ -247,12 +296,15 @@
             }));
         }
 
+        // 儲存或更新員工資料
         document.getElementById('btnSaveDriver').addEventListener('click', async () => {
             const empId = document.getElementById('inpEmpId').value.trim();
             const name = document.getElementById('inpName').value.trim();
             const status = document.getElementById('inpStatus').value;
             const station = document.getElementById('inpStation').value;
             const role = document.getElementById('inpRole').value;
+            const empRole = document.getElementById('empRole').value;
+            const empMilestone = document.getElementById('empMilestone').value;
 
             if(!empId || !name) { alert("請填寫員工編號與姓名！"); return; }
 
@@ -262,34 +314,44 @@
                 btn.innerHTML = "⏳ 儲存中...";
                 btn.disabled = true;
 
+                // 建置寫入資料庫的完整物件 Payload
                 const driverData = {
                     name: name,
                     status: status,
                     station: station,
-                    role: role 
+                    role: role,
+                    empRole: empRole,
+                    empMilestone: empMilestone
                 };
 
-                const docSnap = await getDoc(doc(db, "Drivers", empId));
+                const docRef = doc(db, "Drivers", empId);
+                const docSnap = await getDoc(docRef);
                 if (!docSnap.exists() || !docSnap.data().password) {
-                    driverData.password = "123";
+                    driverData.password = "123"; // 新建帳號之預設密碼
                 }
 
-                await setDoc(doc(db, "Drivers", empId), driverData, { merge: true });
+                await setDoc(docRef, driverData, { merge: true });
 
+                // 清空表單並重設為初始狀態
                 document.getElementById('inpEmpId').value = '';
                 document.getElementById('inpEmpId').disabled = false;
                 document.getElementById('inpEmpId').style.backgroundColor = '#f8fafc';
                 document.getElementById('inpName').value = '';
                 document.getElementById('inpStatus').value = 'active';
+                document.getElementById('empRole').value = '駕駛長';
+                document.getElementById('empMilestone').value = 'none';
+                document.getElementById('milestoneGroup').style.display = 'flex';
                 
                 if (!docSnap.exists()) {
-                    alert(`✅ 帳號建立成功！\n員工編號: ${empId}\n預設密碼: 123\n所屬場站: ${station}\n系統權限: ${role}`);
+                    alert(`✅ 員工帳號建立成功！\n員工編號: ${empId}\n預設登入密碼: 123\n所屬場站: ${station}\n編制職稱: ${empRole}`);
+                } else {
+                    alert(`✅ 員工資料已成功更新！`);
                 }
             } catch (err) {
                 console.error("寫入失敗:", err);
                 alert("儲存失敗，請檢查網路狀態。");
             } finally {
-                btn.innerHTML = "💾 儲存駕駛資料";
+                btn.innerHTML = "💾 儲存人員資料";
                 btn.disabled = false;
                 btn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }
@@ -298,16 +360,6 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
-    // 當選擇非駕駛長時，隱藏里程碑
-document.getElementById('empRole').addEventListener('change', (e) => {
-    const milestoneGroup = document.getElementById('milestoneGroup');
-    if (e.target.value === '駕駛長') {
-        milestoneGroup.style.display = 'flex';
-    } else {
-        milestoneGroup.style.display = 'none';
-        document.getElementById('empMilestone').value = 'none';
-    }
-});
   </script>
 </body>
 </html>
