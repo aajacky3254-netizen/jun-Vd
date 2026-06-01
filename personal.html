@@ -29,10 +29,10 @@
   <header class="flex items-center justify-between px-5 py-4 bg-white shadow-sm z-10 sticky top-0">
     <div class="flex items-center gap-2">
       <div class="bg-gray-800 text-white font-bold text-xs px-2 py-1 rounded flex items-center gap-1">
-    <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="logo" class="h-3.5 object-contain">
-    豐東客運
-</div>
-      <h1 class="text-lg font-bold text-gray-800"><span id="displayEmpId">000</span> <span id="displayName">辛資貴</span></h1>
+          <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="logo" class="h-3.5 object-contain">
+          豐東客運
+      </div>
+      <h1 class="text-lg font-bold text-gray-800"><span id="displayEmpId">000</span> <span id="displayName">載入中</span></h1>
     </div>
     <button id="btnLogout" class="text-sm font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100">登出</button>
   </header>
@@ -158,7 +158,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
@@ -172,25 +172,23 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 取得當前使用者資訊
     let currentUser = null;
     checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員', '駕駛長']).then((user) => {
         currentUser = user;
         document.getElementById('displayEmpId').innerText = escapeHTML(user.empId);
         document.getElementById('displayName').innerText = escapeHTML(user.name);
         
-        // 設定今天日期
-        // 取得設備本地時間的 YYYY-MM-DD，避免早班司機遇到時區誤差
+        // 💡 修改點 1：修正時區問題，使用 Local Time 確保早班駕駛不會看到昨天的日期
         const now = new Date();
         const yyyy = now.getFullYear();
         const mm = String(now.getMonth() + 1).padStart(2, '0');
         const dd = String(now.getDate()).padStart(2, '0');
         const today = `${yyyy}-${mm}-${dd}`;
+        
         const dateStr = today.replace(/-/g, '/');
         const days = ['日', '一', '二', '三', '四', '五', '六'];
-        document.getElementById('todayDateDisplay').innerText = `${dateStr} (${days[new Date().getDay()]})`;
+        document.getElementById('todayDateDisplay').innerText = `${dateStr} (${days[now.getDay()]})`;
 
-        // 載入班表與請假紀錄
         loadMySchedule(today);
         loadLeaveHistory();
     });
@@ -200,29 +198,26 @@
     // --- 視圖切換邏輯 ---
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // 切換按鈕狀態
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             e.currentTarget.classList.add('active');
             
-            // 隱藏所有視圖
             document.getElementById('viewSchedule').classList.add('hidden');
             document.getElementById('viewLeave').classList.add('hidden');
             document.getElementById('viewTraining').classList.add('hidden');
             
-            // 顯示目標視圖
             const targetId = e.currentTarget.dataset.target;
             document.getElementById(targetId).classList.remove('hidden');
         });
     });
 
-    // --- 載入個人班表 (卡片化設計) ---
+    // --- 載入個人班表 ---
     function loadMySchedule(dateStr) {
         const container = document.getElementById('scheduleContainer');
         
+        // 注意：這裡如果你原本有 orderBy("departure_time", "asc") 報錯，可以將 orderBy 拔掉，在前端排序
         const q = query(collection(db, "daily_dispatches"), 
             where("date", "==", dateStr),
-            where("assigned_empid", "==", currentUser.empId),
-            orderBy("departure_time", "asc")
+            where("assigned_empid", "==", currentUser.empId)
         );
 
         onSnapshot(q, (snapshot) => {
@@ -231,13 +226,16 @@
                 return;
             }
 
+            // 前端手動排序發車時間
+            let trips = [];
+            snapshot.forEach(docSnap => trips.push({ id: docSnap.id, ...docSnap.data() }));
+            trips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
+
             let html = "";
-            snapshot.forEach(docSnap => {
-                const data = docSnap.data();
-                const tripId = docSnap.id;
+            trips.forEach(data => {
+                const tripId = data.id;
                 const isAck = data.driver_acknowledged === true;
                 
-                // 參考圖的卡片設計 (左邊綠色路線區，右邊資訊區)
                 html += `
                 <div class="flex bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
                   <div class="w-16 bg-emerald-500 text-white flex flex-col items-center justify-center font-bold text-lg p-2 shadow-inner">
@@ -261,7 +259,6 @@
             });
             container.innerHTML = html;
 
-            // 綁定確認事件
             document.querySelectorAll('.ack-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const tripId = e.currentTarget.dataset.id;
@@ -283,12 +280,12 @@
 
         if (!lDate) return alert('請選擇日期');
 
-        // 👇 新增：鎖定按鈕防連點
+        // 💡 修改點 2：加入防連點機制
         const submitBtn = leaveForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerText;
         submitBtn.innerText = "⏳ 傳送中...";
         submitBtn.disabled = true;
-        submitBtn.classList.add('opacity-50', 'cursor-not-allowed'); // 增加 Tailwind 視覺提示
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
         try {
             await addDoc(collection(db, "leave_requests"), {
@@ -304,29 +301,37 @@
             leaveForm.reset();
         } catch (error) {
             console.error(error);
-            alert("送出失敗，請檢查網路！");
+            alert("送出失敗");
         } finally {
-            // 👇 新增：解除按鈕鎖定
+            // 傳送完畢解除按鈕鎖定
             submitBtn.innerText = originalText;
             submitBtn.disabled = false;
             submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
     });
 
-    // 載入歷史排休紀錄
+    // 💡 修改點 3：載入歷史排休紀錄 (拔除 orderBy 避免複合索引報錯，改前端排序)
     function loadLeaveHistory() {
         const q = query(collection(db, "leave_requests"), 
-            where("empId", "==", currentUser.empId),
-            orderBy("date", "desc")
+            where("empId", "==", currentUser.empId)
         );
 
         onSnapshot(q, (snapshot) => {
             const container = document.getElementById('leaveHistoryContainer');
             if (snapshot.empty) return container.innerHTML = '<div class="text-center text-gray-400 py-4 text-sm">無歷史紀錄</div>';
 
+            // 將結果放進 Array，在前端做日期排序 (新到舊)
+            let requests = [];
+            snapshot.forEach(docSnap => requests.push({ id: docSnap.id, ...docSnap.data() }));
+            
+            requests.sort((a, b) => {
+                const dateA = a.date || "";
+                const dateB = b.date || "";
+                return dateB.localeCompare(dateA);
+            });
+
             let html = "";
-            snapshot.forEach(docSnap => {
-                const data = docSnap.data();
+            requests.forEach(data => {
                 let statusColor = "bg-amber-100 text-amber-700"; // 審核中
                 if (data.status === "已核准") statusColor = "bg-emerald-100 text-emerald-700";
                 if (data.status === "退回") statusColor = "bg-red-100 text-red-700";
@@ -334,7 +339,7 @@
                 html += `
                 <div class="bg-white p-3 rounded-lg border border-gray-100 flex justify-between items-center shadow-sm">
                     <div>
-                        <div class="font-bold text-gray-800 text-sm mb-1">${data.date.replace(/-/g, '/')} <span class="text-xs text-gray-500 font-normal ml-2">${escapeHTML(data.type)}</span></div>
+                        <div class="font-bold text-gray-800 text-sm mb-1">${data.date ? data.date.replace(/-/g, '/') : '未知日期'} <span class="text-xs text-gray-500 font-normal ml-2">${escapeHTML(data.type)}</span></div>
                         <div class="text-xs text-gray-400 truncate max-w-[200px]">${escapeHTML(data.reason) || '無事由'}</div>
                     </div>
                     <span class="text-[10px] font-bold px-2.5 py-1 rounded-full ${statusColor}">${escapeHTML(data.status)}</span>
@@ -343,6 +348,7 @@
             container.innerHTML = html;
         });
     }
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
