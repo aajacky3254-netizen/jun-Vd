@@ -39,6 +39,16 @@
   </div>
 
   <script type="module">
+    document.getElementById('togglePwd').addEventListener('click', function() {
+    const pwdInput = document.getElementById('password');
+    if (pwdInput.type === 'password') {
+        pwdInput.type = 'text';
+        this.innerText = '🙈';
+    } else {
+        pwdInput.type = 'password';
+        this.innerText = '👁️';
+    }
+});
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
