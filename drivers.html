@@ -145,6 +145,40 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, deleteDoc, query, orderBy, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
+    import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+// 初始化一個隱藏的「第二連線」專門用來建帳號，這樣才不會把站長自己登出
+const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+const secondaryAuth = getAuth(secondaryApp);
+
+document.getElementById('btnSaveDriver').addEventListener('click', async () => {
+    const empId = document.getElementById('inpEmpId').value.trim();
+    const name = document.getElementById('inpName').value.trim();
+    // ... 取出其他資料 ...
+
+    try {
+        // 1. 檢查這個員工是否是新建立的 (假設資料庫找不到就是新的)
+        const docRef = doc(db, "Drivers", empId);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+            // 2. 如果是新員工，在 Auth 裡面幫他建帳號！
+            const virtualEmail = `${empId}@fengdong.com`;
+            const defaultPassword = "123"; // 預設密碼 123
+            
+            // 在背景建立帳號
+            await createUserWithEmailAndPassword(secondaryAuth, virtualEmail, defaultPassword);
+            await signOut(secondaryAuth); // 建完馬上登出這個背景連線
+        }
+
+        // 3. 繼續把他的姓名、職稱存進 Firestore (您原本的寫法)
+        await setDoc(docRef, { name, role: '駕駛長' /* ... */ }, { merge: true });
+        
+        alert(`建立成功！帳號：${empId}，預設密碼：123`);
+    } catch (error) {
+        console.error("建立失敗", error);
+    }
+});
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
