@@ -1,7 +1,7 @@
 // auth.js
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
-        const userStr = sessionStorage.getItem('busSystemUser');
+        const userStr = localStorage.getItem('busSystemUser'); 
         
         if (!userStr) {
             window.location.href = 'login.html';
@@ -13,7 +13,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
 
             // 確保資料格式正確，避免 role 不存在導致的錯誤
             if (!user || !user.role) {
-                sessionStorage.removeItem('busSystemUser');
+                localStorage.removeItem('busSystemUser');
                 window.location.href = 'login.html';
                 return reject("登入資料異常，請重新登入");
             }
@@ -39,7 +39,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
 
 export function logout() {
     if(confirm("確定要登出系統嗎？")) {
-        sessionStorage.removeItem('busSystemUser');
+        localStorage.removeItem('busSystemUser');
         window.location.href = 'login.html';
     }
 }
