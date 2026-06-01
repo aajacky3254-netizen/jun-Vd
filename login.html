@@ -40,69 +40,30 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-// 引入 auth 模組
 import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    
-document.getElementById('togglePwd').addEventListener('click', function() {
-    const pwdInput = document.getElementById('password');
-    pwdInput.type = pwdInput.type === 'password' ? 'text' : 'password';
-    this.innerText = pwdInput.type === 'password' ? '👁️' : '🙈';
-});
-
-const firebaseConfig = {
-    apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-    authDomain: "jun-bus-dispatch.firebaseapp.com",
-    projectId: "jun-bus-dispatch",
-    // ... 其他屬性
-};
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app); // 初始化 Auth
+const auth = getAuth(app);
 
 document.getElementById('btnLogin').addEventListener('click', async () => {
+    // 1. 員工依然只輸入 001 跟 123
     const empId = document.getElementById('empId').value.trim();
     const password = document.getElementById('password').value.trim();
-    const errorMsg = document.getElementById('errorMsg');
-    const btn = document.getElementById('btnLogin');
     
-    if(!empId || !password) {
-        errorMsg.innerText = "請輸入員工編號與密碼！";
-        errorMsg.classList.remove('hidden');
-        return;
-    }
+    if(!empId || !password) return;
 
     try {
-        btn.innerText = '身分驗證中...';
-        btn.disabled = true;
-        errorMsg.classList.add('hidden');
-
-        // 上帝帳號直接放行邏輯可以保留，但在正式環境建議建立一個真實的 admin 帳號
-        if(empId === "admin" && password === "admin123") {
-            // 注意：上帝帳號還是會被新的 auth.js 擋住，因為它沒有真的登入 Firebase Auth
-            // 建議在 Firebase Console 建立一個 admin@fengdong.com 帳號，並將資料寫入 Firestore
-        }
-
-        // 把員工編號轉換為 Firebase 需要的虛擬 Email 格式
+        // 2. 程式在背後自動幫他加上虛擬網域 (員工完全無感)
         const virtualEmail = `${empId}@fengdong.com`;
 
-        // 呼叫 Firebase 官方登入 API
+        // 3. 丟給 Firebase 安全驗證
         await signInWithEmailAndPassword(auth, virtualEmail, password);
         
-        // 登入成功後，Firebase 會在背景自動記錄 Token (存在 IndexedDB 中，高度加密且防篡改)
-        // 直接跳轉，auth.js 會接手驗證
+        // 4. 登入成功，跳轉首頁
         window.location.href = 'index.html'; 
-
+        
     } catch (error) {
-        console.error(error);
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-            errorMsg.innerText = "員工編號或密碼錯誤！";
-        } else {
-            errorMsg.innerText = "連線失敗，請檢查網路狀態或聯絡系統管理員。";
-        }
-        errorMsg.classList.remove('hidden');
-    } finally {
-        btn.innerText = '登入系統';
-        btn.disabled = false;
+        alert("員工編號或密碼錯誤！");
     }
 });
   </script>
