@@ -453,21 +453,49 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
                 const selectedOption = target.options[target.selectedIndex];
                 const newEmpId = selectedOption.dataset.empid || "";
 
-                if (newDriver !== "尚未指派" && currentDayTrips.find(t => t.assigned_driver === newDriver && t.id !== tripId && (t.status === 'pending' || t.status === 'active'))) {
-                  if (!confirm(`⚠️ 警告！【${newDriver}】已排定其他任務，確定要強制指派嗎？`)) {
-                      target.value = currentDayTrips.find(t => t.id === tripId).assigned_driver;
-                      return;
-                  }
+                const currentTrip = currentDayTrips.find(t => t.id === tripId);
+
+                if (newDriver !== "尚未指派") {
+                    const start1 = timeToMins(currentTrip.departure_time);
+                    const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
+                    
+                    const hasConflict = currentDayTrips.some(t => {
+                        if (t.id === tripId || t.assigned_driver !== newDriver || t.status === 'done') return false;
+                        const start2 = timeToMins(t.departure_time);
+                        const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                        return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
+                    });
+
+                    if (hasConflict) {
+                        if (!confirm(`⚠️ 警告！【${newDriver}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) {
+                            target.value = currentTrip.assigned_driver;
+                            return;
+                        }
+                    }
                 }
                 await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: newDriver, assigned_empid: newEmpId });
             } 
             else if (target.classList.contains('vehicle-select')) {
                 const newVeh = target.value;
-                if (newVeh !== "尚未指派" && currentDayTrips.find(t => t.assigned_vehicle === newVeh && t.id !== tripId && (t.status === 'pending' || t.status === 'active'))) {
-                  if (!confirm(`⚠️ 警告！車輛【${newVeh}】已排定其他任務，確定要強制指派嗎？`)) { 
-                      target.value = currentDayTrips.find(t => t.id === tripId).assigned_vehicle; 
-                      return; 
-                  }
+                const currentTrip = currentDayTrips.find(t => t.id === tripId);
+
+                if (newVeh !== "尚未指派") {
+                    const start1 = timeToMins(currentTrip.departure_time);
+                    const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
+                    
+                    const hasConflict = currentDayTrips.some(t => {
+                        if (t.id === tripId || t.assigned_vehicle !== newVeh || t.status === 'done') return false;
+                        const start2 = timeToMins(t.departure_time);
+                        const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                        return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
+                    });
+
+                    if (hasConflict) {
+                        if (!confirm(`⚠️ 警告！車輛【${newVeh}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) { 
+                            target.value = currentTrip.assigned_vehicle; 
+                            return; 
+                        }
+                    }
                 }
                 await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: newVeh });
             }
