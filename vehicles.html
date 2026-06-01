@@ -267,6 +267,34 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        // 切換按鈕樣式
+        document.querySelectorAll('.filter-btn').forEach(b => {
+            b.classList.remove('active', 'bg-gray-800', 'text-white');
+            b.classList.add('bg-white', 'text-gray-600');
+        });
+        e.target.classList.remove('bg-white', 'text-gray-600');
+        e.target.classList.add('active', 'bg-gray-800', 'text-white');
+        
+        // 執行表格過濾
+        const filterVal = e.target.getAttribute('data-filter');
+        document.querySelectorAll('#vehiclesBody tr').forEach(tr => {
+            // 如果是空資料提示行，不要隱藏
+            if (tr.children.length === 1) return;
+            
+            const isMaintenance = tr.classList.contains('status-maintenance');
+            const isBreakdown = tr.classList.contains('status-breakdown');
+            const isReady = !isMaintenance && !isBreakdown;
+
+            if (filterVal === 'all') tr.style.display = '';
+            else if (filterVal === 'ready' && isReady) tr.style.display = '';
+            else if (filterVal === 'maintenance' && isMaintenance) tr.style.display = '';
+            else if (filterVal === 'breakdown' && isBreakdown) tr.style.display = '';
+            else tr.style.display = 'none';
+        });
+    });
+});
   </script>
 </body>
 </html>
