@@ -186,6 +186,11 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
 import { db } from './firebase-init.js';
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { checkAuthAndGetRole } from './auth.js';
+  checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then((user) => {
+    document.getElementById('main-content').style.display = 'block';
+
+    // 🌟 呼叫 Navbar 渲染，並告訴它現在是 dispatch (發車) 頁面，要標示亮起
+    renderNavbar(user, 'dispatch');
     const escapeHTML = (str) => {
         return str ? String(str).replace(/[&<>'"]/g, 
             tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])
