@@ -75,3 +75,47 @@ export function logout() {
         });
     }
 }
+// 新增於 auth.js 檔案底部
+export function renderNavbar(user, activePageId) {
+    const nav = document.getElementById('main-nav');
+    if (!nav) return;
+
+    // 定義所有可能的選單項目與其可見權限
+    const menuItems = [
+        { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
+        { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
+        { id: 'drivers', name: '👨‍✈️ 人事管理', href: 'drivers.html', roles: ['SuperAdmin', 'StationManager'] },
+        { id: 'leaves', name: '📅 差假簽核', href: 'leaves.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
+        { id: 'vehicles', name: '🚍 車輛資訊', href: 'vehicles.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
+        { id: 'repairs', name: '🛠️ 報修系統', href: 'repairs.html', roles: ['SuperAdmin', 'StationManager', '調度員', '維修人員'] },
+        { id: 'routes', name: '🗺️ 路線管理', href: 'routes.html', roles: ['SuperAdmin', 'StationManager'] }
+    ];
+
+    let html = `
+        <a href="index.html" class="navbar-brand flex items-center">
+            <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
+            豐東交通客運
+        </a>
+    `;
+
+    // 根據權限過濾並生成選單
+    menuItems.forEach(item => {
+        if (item.roles.includes(user.role)) {
+            const isActive = activePageId === item.id ? 'active' : '';
+            html += `<a href="${item.href}" class="nav-link ${isActive}">${item.name}</a>`;
+        }
+    });
+
+    // 加入右側使用者資訊與登出按鈕
+    html += `
+        <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
+            <span>👤 ${user.name} (${user.role})</span>
+            <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
+        </div>
+    `;
+
+    nav.innerHTML = html;
+    
+    // 綁定登出按鈕事件 (這裡直接呼叫 auth.js 裡的 logout 函數)
+    document.getElementById('btnLogout').addEventListener('click', logout);
+}
