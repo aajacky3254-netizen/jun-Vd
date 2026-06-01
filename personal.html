@@ -172,9 +172,9 @@
   </nav>
 
 </div> <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js'; 
+    import { db } from './firebase-init.js';
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { checkAuthAndGetRole } from './auth.js';
 import { getAuth, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 document.getElementById('btnChangePassword').addEventListener('click', async () => {
