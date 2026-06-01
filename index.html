@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 營運管理入口網</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; display: none; }
     .navbar { background-color: #1e293b; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
@@ -51,7 +50,7 @@
 
         <a href="drivers.html" id="card-drivers" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-purple-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-purple-600 transition-colors">👨‍✈️</div>
-            <h3 class="text-xl font-bold text-gray-800 mb-2">駕駛長人事管理</h3>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">人事管理系統</h3>
             <p class="text-gray-500 text-sm">維護員工基本資料、駕照狀態、在職狀態與系統登入權限發放。</p>
             <span class="mt-4 text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">站長 / 總公司專用</span>
         </a>
@@ -99,18 +98,6 @@
         </div>
     </div>
 
-    <div id="chartSection" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 hidden">
-        <div class="bg-white p-5 rounded-xl shadow-md border border-gray-100">
-            <h3 class="text-lg font-bold text-gray-700 mb-4">📈 本日各路線發車負載量</h3>
-            <canvas id="routeLoadChart" height="200"></canvas>
-        </div>
-
-        <div class="bg-white p-5 rounded-xl shadow-md border border-gray-100">
-            <h3 class="text-lg font-bold text-gray-700 mb-4">⚖️ 駕駛長工時/趟數勞逸指標 (前 5 名高壓)</h3>
-            <canvas id="driverWorkloadChart" height="200"></canvas>
-        </div>
-    </div>
-
   </div>
 
   <script type="module">
@@ -150,13 +137,11 @@
             // 站長 (StationManager) 或 SuperAdmin 權限
             hide('card-personal'); 
             
-            // 顯示儀表板與圖表區塊
+            // 顯示儀表板
             document.getElementById('fairnessDashboard').classList.remove('hidden'); 
-            document.getElementById('chartSection').classList.remove('hidden'); 
             
-            // 執行數據計算與圖表繪製 (確保畫面已顯示才繪製)
+            // 執行數據計算 (確保畫面已顯示才繪製)
             await generateFairnessDashboard();
-            renderCharts();
         }
 
         // 勞務統計計算
@@ -188,45 +173,6 @@
                 }
                 document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center text-gray-500 font-bold py-4">目前尚無派車資料。</div>';
             } catch (e) { console.error(e); }
-        }
-
-        // 圖表繪製函數
-        function renderCharts() {
-            // 路線負載圓餅圖
-            const routeCtx = document.getElementById('routeLoadChart');
-            if (routeCtx) {
-                new Chart(routeCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['100線', '300線', '123線', '200線'],
-                        datasets: [{
-                            data: [12, 19, 8, 15], 
-                            backgroundColor: ['#c084fc', '#60a5fa', '#34d399', '#fbbf24']
-                        }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false }
-                });
-            }
-
-            // 駕駛勞逸長條圖
-            const driverCtx = document.getElementById('driverWorkloadChart');
-            if (driverCtx) {
-                new Chart(driverCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['辛資貴', 'Jasmin Cohen', 'Tom Ionescu', 'Fabio Kaya'],
-                        datasets: [{
-                            label: '本週排定總趟數',
-                            data: [28, 26, 22, 21], 
-                            backgroundColor: '#f43f5e' 
-                        }]
-                    },
-                    options: { 
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true } }
-                    }
-                });
-            }
         }
 
     }).catch((err) => {
