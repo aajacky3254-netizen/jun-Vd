@@ -25,7 +25,13 @@
     .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
     .input-group input { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none; background-color: #f8fafc;}
     .input-group input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background-color: #fff;}
-
+<div class="flex gap-2 mt-2 flex-wrap">
+  <button type="button" class="quick-issue bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-md border border-blue-200 font-bold transition">冷氣不冷</button>
+  <button type="button" class="quick-issue bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-md border border-blue-200 font-bold transition">車門防夾異常</button>
+  <button type="button" class="quick-issue bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-md border border-blue-200 font-bold transition">引擎異音</button>
+  <button type="button" class="quick-issue bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-md border border-blue-200 font-bold transition">方向燈不亮</button>
+</div>
+    
     table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
     th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; transition: background-color 0.2s; }
     th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
@@ -163,20 +169,13 @@
 
                 // 綁定動態生成的按鈕事件 (只有擁有權限的人才能觸發)
                 if (canManage) {
-                    document.querySelectorAll('.btn-resolve').forEach(btn => {
-                        btn.addEventListener('click', async (e) => {
-                            const id = e.target.getAttribute('data-id');
-                            const plate = e.target.getAttribute('data-plate');
-                            if (confirm('確定將此車輛標記為「已完修」嗎？\n系統將自動把車輛狀態改回「正常營運」。')) {
-                                await updateDoc(doc(db, "Repairs", id), { status: 'resolved' });
-                                try {
-                                    await updateDoc(doc(db, "Vehicles", plate), { status: 'ready' });
-                                } catch (err) {
-                                    console.warn("車輛庫無此車牌，無法自動切換狀態");
-                                }
-                            }
-                        });
-                    });
+                    document.querySelectorAll('.quick-issue').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const inp = document.getElementById('inpIssue');
+        inp.value = inp.value ? `${inp.value}、${btn.innerText}` : btn.innerText;
+    });
+});
+                           
 
                     document.querySelectorAll('.btn-delete').forEach(btn => {
                         btn.addEventListener('click', async (e) => {
