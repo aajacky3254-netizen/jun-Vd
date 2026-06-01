@@ -39,7 +39,10 @@
   </div>
 
   <script type="module">
-    document.getElementById('togglePwd').addEventListener('click', function() {
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    
+document.getElementById('togglePwd').addEventListener('click', function() {
     const pwdInput = document.getElementById('password');
     if (pwdInput.type === 'password') {
         pwdInput.type = 'text';
@@ -49,9 +52,6 @@
         this.innerText = '👁️';
     }
 });
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
     const firebaseConfig = {
       apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
       authDomain: "jun-bus-dispatch.firebaseapp.com",
