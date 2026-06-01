@@ -60,13 +60,13 @@
         /* 💡 徹底解決壓扁問題：使用 min-height 代替固定 height，並禁止元件縮水 */
         .voucher-page { 
             display: flex; flex-direction: column; width: 100%; 
-            min-height: 136mm; /* 確保至少有半頁高度，若內容過多會自然延伸跳頁，絕不壓扁 */
+            min-height: 250mm; /* 讓憑單有足夠的空間向下伸展 */
             page-break-inside: avoid; 
-            border-bottom: 1px dashed #94a3b8; 
-            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; margin-bottom: 5px;
+            page-break-after: always; /* 💡 關鍵：強制每一張印完後跳下一頁 */
+            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; margin-bottom: 0;
         }
         .voucher-page > * {
-            flex-shrink: 0 !important; /* 💡 絕對禁止任何區塊被擠壓變形 */
+            flex-shrink: 0 !important; /* 絕對禁止任何區塊被擠壓變形 */
         }
         .voucher-page:nth-child(even) { border-bottom: none; page-break-after: always; }
 
