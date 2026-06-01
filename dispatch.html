@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>車輛調度系統 - 每日發車時刻表</title>
+  <title>豐東交通客運 - 每日發車時刻表</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
     h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
     
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
-    .navbar-brand { color: #facc15; font-size: 22px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
     .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
@@ -57,45 +57,50 @@
         #print-zone, #print-zone * { visibility: visible; }
         #print-zone { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
         
-        /* 💡 優化重點：將高度從 285mm 改為 142mm，讓一張 A4 可以印兩份憑單 */
+        /* 💡 徹底解決壓扁問題：使用 min-height 代替固定 height，並禁止元件縮水 */
         .voucher-page { 
             display: flex; flex-direction: column; width: 100%; 
-            height: 142mm; max-height: 142mm; overflow: hidden; 
-            page-break-inside: avoid; /* 避免單張憑單被切斷 */
-            /* page-break-after: always; (移除此行，允許兩張並排) */
-            border-bottom: 1px dashed #94a3b8; /* 新增裁切虛線 */
+            min-height: 136mm; /* 確保至少有半頁高度，若內容過多會自然延伸跳頁，絕不壓扁 */
+            page-break-inside: avoid; 
+            border-bottom: 1px dashed #94a3b8; 
             color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; margin-bottom: 5px;
         }
-        /* 隱藏最後一張的裁切線 */
+        .voucher-page > * {
+            flex-shrink: 0 !important; /* 💡 絕對禁止任何區塊被擠壓變形 */
+        }
         .voucher-page:nth-child(even) { border-bottom: none; page-break-after: always; }
 
-        .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; }
+        .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; flex-shrink: 0;}
         .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 3px 4px; text-align: center; } 
         .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
         .text-left { text-align: left !important; padding-left: 8px !important; }
         .font-bold { font-weight: bold !important; }
         .red-text { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; }
         
-        .trips-section { flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 2px;}
+        .trips-section { flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 2px; flex-shrink: 0;}
         .trips-table-wrapper { flex-grow: 1; }
-        .trips-table { height: auto; margin-bottom: 0;} /* 讓表格高度自然延伸，不要強制撐開 */
+        .trips-table { height: auto; margin-bottom: 0;} 
     }
-            /* 📱 手機版表格轉換為卡片式設計 */
-        @media screen and (max-width: 768px) {
-          table, thead, tbody, th, td, tr { display: block; }
-          thead tr { display: none; /* 手機版隱藏傳統表頭 */ }
-          tr { background: white; margin-bottom: 1rem; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; padding: 12px; }
-          td { border: none; border-bottom: 1px solid #f1f5f9; position: relative; padding: 12px 10px 12px 40%; text-align: right; min-height: 45px; display: flex; justify-content: flex-end; align-items: center;}
-          td:last-child { border-bottom: none; justify-content: center; padding: 15px 10px 5px; }
-          /* 利用 data-label 產生手機版的前綴標題 */
-          td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
-        }
+    
+    /* 📱 手機版表格轉換為卡片式設計 */
+    @media screen and (max-width: 768px) {
+      table, thead, tbody, th, td, tr { display: block; }
+      thead tr { display: none; /* 手機版隱藏傳統表頭 */ }
+      tr { background: white; margin-bottom: 1rem; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; padding: 12px; }
+      td { border: none; border-bottom: 1px solid #f1f5f9; position: relative; padding: 12px 10px 12px 40%; text-align: right; min-height: 45px; display: flex; justify-content: flex-end; align-items: center;}
+      td:last-child { border-bottom: none; justify-content: center; padding: 15px 10px 5px; }
+      /* 利用 data-label 產生手機版的前綴標題 */
+      td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
+    }
   </style>
 </head>
 <body>
 
   <nav class="navbar" id="main-nav">
-    <a href="index.html" class="navbar-brand">🚌 智慧車輛調度系統</a>
+    <a href="index.html" class="navbar-brand">
+        <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
+        豐東交通客運 | 智慧車輛調度系統
+    </a>
     <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
     <a href="dispatch.html" class="nav-link active">🚦 每日發車控制台</a>
     <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
@@ -195,7 +200,6 @@
         ) : '';
     };
 
-    // 時間轉分鐘，方便計算工時與緩衝
     const timeToMins = (t) => {
         if(!t) return 0;
         let [h, m] = t.split(':').map(Number);
@@ -611,14 +615,11 @@
             return;
         }
 
-        // 🔰 規則 8：新手標籤初始化 (假設人事資料有 isRookie，若無則預設為 false)
-        // 這裡可以根據系統實際資料庫擴充，目前先建立防呆屬性
         let fleet = [];
         let availableVehs = [...currentAvailableVehicles];
         function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
 
         currentAvailableDrivers.forEach(d => {
-            // 過濾掉休假
             if (d.shift && (d.shift.includes("休") || d.shift === "OFF")) return;
             
             fleet.push({ 
@@ -630,10 +631,10 @@
                 lastRoute: "", 
                 priority: d.shift.includes("待命") ? 2 : 1, 
                 tripsCount: 0,
-                hasLunch: false,   // 🍽️ 規則 5：追蹤大休
-                hasDinner: false,  // 🍽️ 規則 5：追蹤大休
-                isRookie: d.experience === '新手' || false, // 🔰 規則 8
-                hardRouteCount: 0  // ⚖️ 規則 6：勞逸積分追蹤
+                hasLunch: false,   
+                hasDinner: false,  
+                isRookie: d.experience === '新手' || false, 
+                hardRouteCount: 0  
             });
         });
 
@@ -654,9 +655,7 @@
             let depMins = timeToMins(depTime);
             let hour = parseInt(depTime.split(':')[0]);
             
-            // 預估本趟結束時間 (加上尖峰加權)
             let rawEstEnd = trip.arrival_time ? timeToMins(trip.arrival_time) : depMins + 90;
-            // 🚦 規則 7：尖峰時段行車時間動態延長 (假設預設車程乘上 1.2 倍)
             if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
                 if (!trip.arrival_time) rawEstEnd = depMins + (90 * 1.2); 
             }
@@ -666,64 +665,52 @@
                 let availMins = timeToMins(unit.availableTime);
                 let s = unit.shift || "";
 
-                // 💼 規則 2：隱形工時 (前後各加 30 分，總共 60 分鐘)
-                // 12 小時 = 720 分鐘。扣除前後備車 60 分鐘，純開車極限為 660 分鐘 (11 小時)
                 if (unit.firstTripTime) {
                     let firstMins = timeToMins(unit.firstTripTime);
                     let checkEndMins = estEndMins;
-                    if (checkEndMins < firstMins) checkEndMins += 24 * 60; // 跨日處理
+                    if (checkEndMins < firstMins) checkEndMins += 24 * 60; 
                     if ((checkEndMins - firstMins) > 660) return false; 
                 }
 
-                // 🚗 空間移動緩衝：若需要跨站接車，可用時間需加上 30 分鐘防呆
                 let travelBuffer = (unit.lastStation && unit.lastStation !== trip.start_point) ? 30 : 0;
                 if ((availMins + travelBuffer) > depMins) return false;
                 
-                // 🔰 規則 8：新手保護 (不排複雜的兩頭班)
                 if (unit.isRookie && (s.includes("頭") || s.includes("AB"))) return false;
 
-                // 🕒 規則 1 & 班別嚴格鎖定
                 if (s.includes("早")) {
-                    if (depMins < 300 || estEndMins > 840) return false; // 05:00 - 14:00
+                    if (depMins < 300 || estEndMins > 840) return false; 
                 } else if (s.includes("晚")) {
-                    if (depMins < 900 || estEndMins > 1440) return false; // 15:00 - 24:00
+                    if (depMins < 900 || estEndMins > 1440) return false; 
                 } else if (s.includes("頭") || s.includes("AB")) {
-                    let isMorningPeak = (depMins >= 300 && estEndMins <= 540);  // 05:00 - 09:00
-                    let isEveningPeak = (depMins >= 960 && estEndMins <= 1200); // 16:00 - 20:00 (放寬至20:00)
+                    let isMorningPeak = (depMins >= 300 && estEndMins <= 540);  
+                    let isEveningPeak = (depMins >= 960 && estEndMins <= 1200); 
                     if (!isMorningPeak && !isEveningPeak) return false;
                 }
                 
-                // 🛌 規則 3：七休一與 10 小時跨日休息 
-                // (註：這裡預留擴充接口，未來若從 Firebase 讀取 unit.yesterdayEndTime 即可啟動此防呆)
                 if (unit.yesterdayEndTime) {
                     let restGap = (depMins + 24 * 60) - timeToMins(unit.yesterdayEndTime);
-                    if (restGap < 600) return false; // 休息小於 10 小時 (600分鐘) 剔除
+                    if (restGap < 600) return false; 
                 }
 
                 return true;
             });
 
             if (candidates.length > 0) {
-                // ⚖️ 規則 6：勞逸均衡積分評估
                 candidates.forEach(c => {
                     c.score = 0;
                     if (c.priority === 1) c.score += 100;
                     
-                    // 優先排順趟，極度排斥空車調度
                     if (c.lastStation === trip.start_point) c.score += 500;
                     else c.score -= 200;
                     
                     if (c.lastRoute === trip.route) c.score += 50;
 
-                    // 公平原則：趟數多的人扣分，讓趟數少的人優先接單
                     c.score -= (c.tripsCount * 30);
-                    // 若這是一條「硬線」(可根據路線關鍵字判斷，此處為概念展示)，增加壓力積分
                     if (trip.route.includes("火車站") || trip.route.includes("百貨")) {
                         c.score -= (c.hardRouteCount * 40); 
                     }
                 });
 
-                // 取最高分者
                 candidates.sort((a, b) => b.score - a.score);
                 let assignedUnit = candidates[0];
 
@@ -740,18 +727,15 @@
                     batch = writeBatch(db);
                 }
 
-                // 📝 狀態更新與緩衝計算
                 if (!assignedUnit.firstTripTime) assignedUnit.firstTripTime = depTime;
                 assignedUnit.tripsCount++;
                 assignedUnit.lastStation = trip.end_point;
                 assignedUnit.lastRoute = trip.route;
                 if (trip.route.includes("火車站") || trip.route.includes("百貨")) assignedUnit.hardRouteCount++;
 
-                // 🚽 規則 4：基本端點休息緩衝 (最少 15 分鐘)
                 let breakTime = 15;
-                if (assignedUnit.isRookie) breakTime += 15; // 新手再多 15 分鐘冷靜期
+                if (assignedUnit.isRookie) breakTime += 15; 
 
-                // 🍽️ 規則 5：完整用餐大休 (45~60分鐘)
                 if (hour >= 11 && hour <= 13 && !assignedUnit.hasLunch) {
                     breakTime = Math.max(breakTime, 60);
                     assignedUnit.hasLunch = true;
@@ -760,7 +744,6 @@
                     assignedUnit.hasDinner = true;
                 }
 
-                // 結算下一趟的 availableTime
                 let nextAvailMins = estEndMins + breakTime;
                 let h = Math.floor(nextAvailMins / 60);
                 let m = nextAvailMins % 60;
@@ -861,7 +844,6 @@
                 assign.trips.forEach((t, idx) => {
                     let currentHour = parseInt(t.depTime.split(':')[0]);
                     
-                    // 中退休息判斷 (相隔超過4小時)
                     if (lastHour !== -1 && !isNaN(currentHour) && !isNaN(lastHour) && (currentHour - lastHour >= 4)) {
                         tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:4px; color:#475569 !important; font-size:12px; padding: 2px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;
                     }
@@ -885,10 +867,10 @@
                     `;
                 });
 
-                // 💡 動態空白行：依照現有趟數，只往下補 1 到 2 行，不再留一大堆空白
+                // 💡 動態空白行：依照現有趟數，只往下補 1 到 2 行
                 let emptyRowsLimit = Math.max(assign.trips.length + 1, 3); 
                 for(let i = assign.trips.length; i < emptyRowsLimit; i++) {
-                    tripsRowsHtml += `<tr style="height: 28px;"><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                    tripsRowsHtml += `<tr style="height: 24px;"><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
                 }
 
                 const voucherHtml = `
@@ -945,8 +927,8 @@
 
                     <div style="margin-top: 2px;">
                         <table class="voucher-table" style="margin-bottom: 2px; color:#000 !important;">
-                            <tr style="height: 20px;"><th style="width: 33.33%; color:#000 !important; font-size:10px;">補票紀錄</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">趟次中拋錨、肇事情形</th></tr>
-                            <tr style="height: 35px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 2px; left: 8px; font-size: 10px; text-align: left; color:#000 !important;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
+                            <tr style="height: 18px;"><th style="width: 33.33%; color:#000 !important; font-size:10px;">補票紀錄</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">趟次中拋錨、肇事情形</th></tr>
+                            <tr style="height: 28px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 2px; left: 8px; font-size: 10px; text-align: left; color:#000 !important;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
                         </table>
 
                         <div style="border: 2px solid #000; padding: 2px 8px; margin-bottom: 2px; color:#000 !important;">
@@ -963,7 +945,7 @@
 
                         <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
                             <tr><th style="width:16%; color:#000 !important; font-size:10px;">組別/班次</th><th style="width:16%; color:#000 !important; font-size:10px;">鍵入人員簽章</th><th style="width:16%; color:#000 !important; font-size:10px;">調度員簽章</th><th style="width:20%; color:#000 !important; font-size:10px;">站主管審核章</th><th style="width:16%; color:#000 !important; font-size:10px;">收回張數</th><th style="width:16%; color:#000 !important; font-size:10px;">票值合計</th></tr>
-                            <tr style="height: 25px;">
+                            <tr style="height: 22px;">
                                 <td class="font-bold" style="color:#000 !important;"></td><td></td>
                                 <td style="position: relative;">
                                     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 1px dashed #ef4444; color: #ef4444 !important; padding: 1px 2px; font-weight: bold; font-size: 9px; white-space: nowrap;">
