@@ -22,6 +22,13 @@
     
     .course-card { transition: transform 0.2s; cursor: pointer; }
     .course-card:active { transform: scale(0.98); }
+    .ack-btn { position: relative; }
+.slide-progress {
+    position: absolute; left: 0; top: 0; bottom: 0; 
+    background: rgba(249, 115, 22, 0.2); /* 橘色半透明 */
+    width: 0%; transition: width 0.1s linear; pointer-events: none;
+}
+.ack-btn:active { transform: scale(0.98); }
   </style>
 </head>
 <body class="bg-gray-200 flex justify-center h-screen">
@@ -251,18 +258,61 @@
                     </div>
                     
                     <div class="slide-confirm ${isAck ? 'confirmed' : 'ack-btn'}" data-id="${tripId}">
-                        <span class="slide-text">${isAck ? '✓ 班表已確認' : '點擊確認班表'}</span>
+    <div class="slide-progress"></div> <span class="slide-text">${isAck ? '✓ 班表已確認' : '長按 1 秒確認班表'}</span> </div>
                     </div>
                   </div>
                 </div>`;
             });
             container.innerHTML = html;
 
-            document.querySelectorAll('.ack-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const tripId = e.currentTarget.dataset.id;
-                    if(confirm("確定確認此車趟嗎？")) {
-                        await updateDoc(doc(db, "daily_dispatches", tripId), { driver_acknowledged: true });
+            ddocument.querySelectorAll('.ack-btn').forEach(btn => {
+    let pressTimer;
+    let progress = 0;
+    let progressInterval;
+    const bar = btn.querySelector('.slide-progress');
+    const text = btn.querySelector('.slide-text');
+
+    const startPress = (e) => {
+        // 防止手機長按選取文字或跳出選單
+        e.preventDefault(); 
+        progress = 0;
+        text.innerText = "確認中...";
+        progressInterval = setInterval(() => {
+            progress += 10; // 每 100ms 增加 10%，1秒填滿
+            bar.style.width = progress + '%';
+            if (progress >= 100) {
+                clearInterval(progressInterval);
+                executeConfirm(btn.dataset.id, btn);
+            }
+        }, 100);
+    };
+
+    const endPress = () => {
+        clearInterval(progressInterval);
+        if (progress < 100) {
+            bar.style.width = '0%';
+            text.innerText = "長按 1 秒確認班表";
+        }
+    };
+
+    async function executeConfirm(tripId, element) {
+        element.classList.remove('ack-btn');
+        element.classList.add('confirmed');
+        element.querySelector('.slide-text').innerText = "✓ 班表已確認";
+        // 移除所有長按監聽
+        element.replaceWith(element.cloneNode(true)); 
+        await updateDoc(doc(db, "daily_dispatches", tripId), { driver_acknowledged: true });
+    }
+
+    // 支援手機觸控與電腦滑鼠
+    btn.addEventListener('touchstart', startPress);
+    btn.addEventListener('touchend', endPress);
+    btn.addEventListener('mousedown', startPress);
+    btn.addEventListener('mouseup', endPress);
+    btn.addEventListener('mouseleave', endPress);
+    // 防止選單干擾
+    btn.addEventListener('contextmenu', (e) => e.preventDefault()); 
+});
                     }
                 });
             });
