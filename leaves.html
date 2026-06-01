@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>豐東交通客運 - 差假簽核管理</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
+    h2 { color: #1e293b; margin: 20px 0; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; }
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
+    .navbar a.nav-link:hover { background-color: #374151; color: white; }
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+    .content-area { padding: 0 20px; max-width: 1200px; margin: 0 auto;}
+    table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
+    th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; transition: background-color 0.2s; }
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
+    tr:hover { background-color: #f8fafc; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar" id="main-nav">
+    <a href="index.html" class="navbar-brand flex items-center">
+      <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
+      豐東交通客運 | 智慧車輛調度系統
+    </a>
+    <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
+    <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
+    <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
+    <a href="leaves.html" class="nav-link active">📅 差假簽核管理</a>
+  </nav>
+
+  <div class="content-area">
+    <div class="flex justify-between items-center mt-6 mb-4">
+      <h2>📅 駕駛員排休與請假簽核區</h2>
+      <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 12%;">申請日期</th>
+          <th style="width: 15%;">申請人</th>
+          <th style="width: 12%;">假別</th>
+          <th style="width: 25%;">請假事由</th>
+          <th style="width: 16%;">目前狀態</th>
+          <th style="width: 20%; text-align: center;">簽核操作</th>
+        </tr>
+      </thead>
+      <tbody id="leaveRequestsBody">
+        <tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">載入請假單中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js'; 
+
+    const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
+
+    // 只有站長與調度員可以進入簽核頁面
+    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then((user) => {
+        document.body.style.display = 'block'; 
+
+        const nav = document.getElementById('main-nav');
+        nav.innerHTML += `
+            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
+                <span>👤 ${escapeHTML(user.name)} (${escapeHTML(user.role)})</span>
+                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
+            </div>
+        `;
+        document.getElementById('btnLogout').addEventListener('click', logout);
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
+          authDomain: "jun-bus-dispatch.firebaseapp.com",
+          projectId: "jun-bus-dispatch",
+          storageBucket: "jun-bus-dispatch.firebasestorage.app"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const dbStatusEl = document.getElementById('db-status');
+
+        const leaveRequestsCol = collection(db, "leave_requests");
+        
+        onSnapshot(query(leaveRequestsCol, orderBy("date", "desc")), (snapshot) => {
+            const leaveBody = document.getElementById('leaveRequestsBody');
+            leaveBody.innerHTML = '';
+
+            if (snapshot.empty) {
+                leaveBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">目前無任何請假申請。</td></tr>';
+                dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+                dbStatusEl.innerText = "資料庫已連線";
+                return;
+            }
+
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                const leaveId = docSnap.id;
+                const tr = document.createElement('tr');
+
+                let statusHtml = '';
+                let actionBtns = '-';
+
+                if (data.status === '審核中') {
+                    statusHtml = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-300">待簽核</span>';
+                    actionBtns = `
+                        <button class="btn-approve bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors shadow-sm" data-id="${leaveId}">核准</button>
+                        <button class="btn-reject bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${leaveId}">退回</button>
+                    `;
+                } else if (data.status === '已核准') {
+                    statusHtml = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-300">已核准</span><div class="text-[10px] text-gray-400 mt-1">核准人: ${escapeHTML(data.reviewedBy || '')}</div>`;
+                } else {
+                    statusHtml = `<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold border border-red-300">已退回</span><div class="text-[10px] text-gray-400 mt-1">退回人: ${escapeHTML(data.reviewedBy || '')}</div>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="font-mono font-bold text-gray-600">${data.date ? data.date.replace(/-/g, '/') : '無'}</td>
+                    <td class="font-bold text-gray-800">${escapeHTML(data.empId)} ${escapeHTML(data.name)}</td>
+                    <td class="font-bold text-purple-600">${escapeHTML(data.type)}</td>
+                    <td class="text-gray-600 text-sm">${escapeHTML(data.reason) || '無事由'}</td>
+                    <td>${statusHtml}</td>
+                    <td style="text-align: center;">${actionBtns}</td>
+                `;
+                leaveBody.appendChild(tr);
+            });
+
+            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+            dbStatusEl.innerText = "資料庫已連線";
+
+            // 綁定核准與退回按鈕
+            document.querySelectorAll('.btn-approve').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm("確定要【核准】此排休申請嗎？\n核准後，該員當日將無法被調度員排班。")) {
+                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), { status: "已核准", reviewedBy: user.name });
+                    }
+                });
+            });
+
+            document.querySelectorAll('.btn-reject').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm("確定要【退回】此申請嗎？")) {
+                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), { status: "退回", reviewedBy: user.name });
+                    }
+                });
+            });
+        }, (err) => {
+            console.error(err);
+            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
+            dbStatusEl.innerText = "連線失敗";
+        });
+
+    }).catch((err) => {
+        console.error("權限不足或未登入", err);
+    });
+  </script>
+</body>
+</html>
