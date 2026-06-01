@@ -113,9 +113,9 @@
   </div>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js'; 
+    import { db } from './firebase-init.js';
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { checkAuthAndGetRole } from './auth.js';
 
     const escapeHTML = (str) => {
         return str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
@@ -140,14 +140,6 @@
             document.querySelectorAll('.admin-action-col').forEach(el => el.style.display = 'none');
         }
 
-        const firebaseConfig = {
-          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-          authDomain: "jun-bus-dispatch.firebaseapp.com",
-          projectId: "jun-bus-dispatch",
-          storageBucket: "jun-bus-dispatch.firebasestorage.app"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const vehiclesCol = collection(db, "Vehicles");
         const dbStatusEl = document.getElementById('db-status');
 
