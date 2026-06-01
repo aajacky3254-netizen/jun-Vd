@@ -141,10 +141,32 @@
       </tbody>
     </table>
   </div>
-
+<div class="mt-12 mb-6">
+      <div class="flex items-center justify-between mb-4 border-b pb-2">
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2 m-0">
+          📝 駕駛員排休與請假簽核區
+        </h2>
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 12%;">申請日期</th>
+            <th style="width: 15%;">申請人</th>
+            <th style="width: 12%;">假別</th>
+            <th style="width: 25%;">請假事由</th>
+            <th style="width: 16%;">目前狀態</th>
+            <th style="width: 20%; text-align: center;">簽核操作</th>
+          </tr>
+        </thead>
+        <tbody id="leaveRequestsBody">
+          <tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">載入請假單中...</td></tr>
+        </tbody>
+      </table>
+    </div>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, deleteDoc, query, orderBy, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js'; 
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
@@ -232,6 +254,78 @@
                     };
                     milestoneText = ` <span class="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-bold ml-1" title="擴大徵才專案進度">🎯 ${milestoneMap[driver.empMilestone]}</span>`;
                 }
+                // ==========================================
+        // 假單簽核系統邏輯
+        // ==========================================
+        const leaveRequestsCol = collection(db, "leave_requests");
+        
+        // 載入所有請假單，並以日期排序 (新的在上面)
+        onSnapshot(query(leaveRequestsCol, orderBy("date", "desc")), (snapshot) => {
+            const leaveBody = document.getElementById('leaveRequestsBody');
+            leaveBody.innerHTML = '';
+
+            if (snapshot.empty) {
+                leaveBody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-gray-500 font-bold">目前無任何請假申請。</td></tr>';
+                return;
+            }
+
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                const leaveId = docSnap.id;
+                const tr = document.createElement('tr');
+
+                // 狀態標籤顏色設定
+                let statusHtml = '';
+                let actionBtns = '-';
+
+                if (data.status === '審核中') {
+                    statusHtml = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-300">待簽核</span>';
+                    // 只有「審核中」的單子才有 批准 / 退回 按鈕
+                    actionBtns = `
+                        <button class="btn-approve bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors shadow-sm" data-id="${leaveId}">核准</button>
+                        <button class="btn-reject bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${leaveId}">退回</button>
+                    `;
+                } else if (data.status === '已核准') {
+                    statusHtml = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-300">已核准</span><div class="text-[10px] text-gray-400 mt-1">核准人: ${data.reviewedBy || ''}</div>`;
+                } else {
+                    statusHtml = `<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold border border-red-300">已退回</span><div class="text-[10px] text-gray-400 mt-1">退回人: ${data.reviewedBy || ''}</div>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="font-mono font-bold text-gray-600">${data.date ? data.date.replace(/-/g, '/') : '無'}</td>
+                    <td class="font-bold text-gray-800">${escapeHTML(data.empId)} ${escapeHTML(data.name)}</td>
+                    <td class="font-bold text-purple-600">${escapeHTML(data.type)}</td>
+                    <td class="text-gray-600 text-sm">${escapeHTML(data.reason) || '無事由'}</td>
+                    <td>${statusHtml}</td>
+                    <td style="text-align: center;">${actionBtns}</td>
+                `;
+                leaveBody.appendChild(tr);
+            });
+
+            // 綁定「核准」按鈕事件
+            document.querySelectorAll('.btn-approve').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm("確定要【核准】此排休申請嗎？\n核准後，該員當日將無法被調度員排班。")) {
+                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), {
+                            status: "已核准",
+                            reviewedBy: user.name // 紀錄是誰批准的
+                        });
+                    }
+                });
+            });
+
+            // 綁定「退回」按鈕事件
+            document.querySelectorAll('.btn-reject').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm("確定要【退回】此申請嗎？")) {
+                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), {
+                            status: "退回",
+                            reviewedBy: user.name
+                        });
+                    }
+                });
+            });
+        });
 
                 tr.innerHTML = `
                     <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${driver.id}</td>
@@ -295,6 +389,7 @@
                 }
             }));
         }
+
 
         // 儲存或更新員工資料
         document.getElementById('btnSaveDriver').addEventListener('click', async () => {
