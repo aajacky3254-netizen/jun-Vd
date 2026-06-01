@@ -142,9 +142,9 @@
     </table>
   </div>
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, getDoc, setDoc, deleteDoc, query, orderBy, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js'; 
+   import { db } from './firebase-init.js';
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { checkAuthAndGetRole } from './auth.js';
     import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // 初始化一個隱藏的「第二連線」專門用來建帳號，這樣才不會把站長自己登出
@@ -193,17 +193,6 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
             </div>
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
-
-        const firebaseConfig = {
-          apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-          authDomain: "jun-bus-dispatch.firebaseapp.com",
-          projectId: "jun-bus-dispatch",
-          storageBucket: "jun-bus-dispatch.firebasestorage.app",
-          messagingSenderId: "621725744717",
-          appId: "1:621725744717:web:64e663648d8c76b9bd6604"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const driversCol = collection(db, "Drivers");
         const dbStatusEl = document.getElementById('db-status');
 
