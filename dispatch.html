@@ -53,32 +53,28 @@
 
     @media print {
         @page { margin: 5mm; size: A4 portrait; }
-        /* 正確隱藏非列印區域，避免 position: absolute 導致多頁重疊或格式消失 */
-        #main-nav, #main-content > h2, .content-area { display: none !important; }
-        #print-zone { width: 100%; display: block !important; position: relative; }
         
-        /* 💡 徹底解決壓扁問題：使用 min-height 代替固定 height，並禁止元件縮水 */
+        /* 💡 修正 1：改用 display: none 隱藏原本的網頁介面，而不是用 absolute，這樣強制換頁才會生效！ */
+        nav, h2, .content-area { display: none !important; } 
+        
+        #print-zone { display: block !important; position: static !important; width: 100%; }
+        
         .voucher-page { 
-            display: flex; flex-direction: column; width: 100%; 
-            min-height: 250mm; /* 讓憑單有足夠的空間向下伸展 */
-            page-break-inside: avoid; 
-            page-break-after: always; /* 💡 關鍵：強制每一張印完後跳下一頁 */
+            display: block; width: 100%; 
+            break-after: page; /* 現代瀏覽器換頁語法 */
+            page-break-after: always; /* 兼容舊版換頁語法 */
             color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; margin-bottom: 0;
         }
-        .voucher-page > * {
-            flex-shrink: 0 !important; /* 絕對禁止任何區塊被擠壓變形 */
-        }
-        .voucher-page:nth-child(even) { border-bottom: none; page-break-after: always; }
 
-        .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; flex-shrink: 0;}
+        .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; }
         .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 3px 4px; text-align: center; } 
         .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
         .text-left { text-align: left !important; padding-left: 8px !important; }
         .font-bold { font-weight: bold !important; }
         .red-text { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; }
         
-        .trips-section { flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 2px; flex-shrink: 0;}
-        .trips-table-wrapper { flex-grow: 1; }
+        .trips-section { display: block; margin-bottom: 2px; }
+        .trips-table-wrapper { display: block; }
         .trips-table { height: auto; margin-bottom: 0;} 
     }
     
@@ -266,6 +262,15 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
         async function loadAvailableDrivers(selectedDate) {
           const { weekId, dayKey } = getWeekInfo(selectedDate);
           currentAvailableDrivers = [];
+          
+          // 🆕 新增：去資料庫把「今天已經被核准請假」的人名單抓出來
+          const leaveSet = new Set();
+          try {
+              const leaveQ = query(collection(db, "leave_requests"), where("date", "==", selectedDate), where("status", "==", "已核准"));
+              const leaveSnap = await getDocs(leaveQ);
+              leaveSnap.forEach(doc => leaveSet.add(doc.data().empId));
+          } catch (e) { console.error("抓取請假名單失敗:", e); }
+
           try {
             const docRef = doc(db, "weekly_schedules", weekId);
             const docSnap = await getDoc(docRef);
@@ -274,7 +279,15 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
               for (let driverId in roster) {
                 const shift = roster[driverId][dayKey];
                 if (shift && shift !== "OFF" && shift !== "OFF (休)") {
-                  currentAvailableDrivers.push({ empId: driverId, name: roster[driverId].name, shift: shift });
+                  // 🆕 判斷該駕駛是否在剛剛抓到的請假名單內
+                  const isOnLeave = leaveSet.has(driverId);
+                  
+                  currentAvailableDrivers.push({ 
+                      empId: driverId, 
+                      name: roster[driverId].name, 
+                      shift: shift,
+                      onLeave: isOnLeave // 標記他是否休假中
+                  });
                 }
               }
             }
@@ -335,9 +348,15 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
     currentDayTrips.forEach(data => { 
         let driverOptions = `<option value="尚未指派" data-empid="">-- 尚未指派 --</option>`;
         currentAvailableDrivers.forEach(d => { 
-            const displayText = escapeHTML(`${d.empId} ${d.name} (${d.shift})`);
             const isSelectedD = String(data.assigned_driver).trim() === String(d.name).trim() ? 'selected' : '';
-            driverOptions += `<option value="${escapeHTML(d.name)}" data-empid="${escapeHTML(d.empId)}" ${isSelectedD}>${displayText}</option>`;
+            
+            // 🆕 如果該駕駛請假中，將下拉選單選項鎖定 (disabled) 並標示為紅色
+            if (d.onLeave) {
+                driverOptions += `<option value="${escapeHTML(d.name)}" data-empid="${escapeHTML(d.empId)}" disabled style="color: red; font-weight: bold;">🚫 ${escapeHTML(d.name)} (已核准休假)</option>`;
+            } else {
+                const displayText = escapeHTML(`${d.empId} ${d.name} (${d.shift})`);
+                driverOptions += `<option value="${escapeHTML(d.name)}" data-empid="${escapeHTML(d.empId)}" ${isSelectedD}>${displayText}</option>`;
+            }
         });
 
         let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;
@@ -645,6 +664,8 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
 
         currentAvailableDrivers.forEach(d => {
             if (d.shift && (d.shift.includes("休") || d.shift === "OFF")) return;
+            // 防止自動調度派車給已核准請假的人
+            if (d.onLeave) return;
             
             fleet.push({ 
                 ...d, 
@@ -891,8 +912,8 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
                     `;
                 });
 
-                // 💡 動態空白行：依照現有趟數，只往下補 1 到 2 行
-                let emptyRowsLimit = Math.max(assign.trips.length + 1, 3); 
+                // 💡 修正 2：將表格的最少行數從 3 提高到 10 行，這樣即使只有跑一趟，表格也會往下補齊 10 行空白格，讓版面看起來均衡。
+                let emptyRowsLimit = Math.max(assign.trips.length + 1, 10);
                 for(let i = assign.trips.length; i < emptyRowsLimit; i++) {
                     tripsRowsHtml += `<tr style="height: 24px;"><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
                 }
