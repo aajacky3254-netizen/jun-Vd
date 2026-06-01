@@ -40,86 +40,71 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// 引入 auth 模組
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     
 document.getElementById('togglePwd').addEventListener('click', function() {
     const pwdInput = document.getElementById('password');
-    if (pwdInput.type === 'password') {
-        pwdInput.type = 'text';
-        this.innerText = '🙈';
-    } else {
-        pwdInput.type = 'password';
-        this.innerText = '👁️';
+    pwdInput.type = pwdInput.type === 'password' ? 'text' : 'password';
+    this.innerText = pwdInput.type === 'password' ? '👁️' : '🙈';
+});
+
+const firebaseConfig = {
+    apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
+    authDomain: "jun-bus-dispatch.firebaseapp.com",
+    projectId: "jun-bus-dispatch",
+    // ... 其他屬性
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app); // 初始化 Auth
+
+document.getElementById('btnLogin').addEventListener('click', async () => {
+    const empId = document.getElementById('empId').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const errorMsg = document.getElementById('errorMsg');
+    const btn = document.getElementById('btnLogin');
+    
+    if(!empId || !password) {
+        errorMsg.innerText = "請輸入員工編號與密碼！";
+        errorMsg.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        btn.innerText = '身分驗證中...';
+        btn.disabled = true;
+        errorMsg.classList.add('hidden');
+
+        // 上帝帳號直接放行邏輯可以保留，但在正式環境建議建立一個真實的 admin 帳號
+        if(empId === "admin" && password === "admin123") {
+            // 注意：上帝帳號還是會被新的 auth.js 擋住，因為它沒有真的登入 Firebase Auth
+            // 建議在 Firebase Console 建立一個 admin@fengdong.com 帳號，並將資料寫入 Firestore
+        }
+
+        // 把員工編號轉換為 Firebase 需要的虛擬 Email 格式
+        const virtualEmail = `${empId}@fengdong.com`;
+
+        // 呼叫 Firebase 官方登入 API
+        await signInWithEmailAndPassword(auth, virtualEmail, password);
+        
+        // 登入成功後，Firebase 會在背景自動記錄 Token (存在 IndexedDB 中，高度加密且防篡改)
+        // 直接跳轉，auth.js 會接手驗證
+        window.location.href = 'index.html'; 
+
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+            errorMsg.innerText = "員工編號或密碼錯誤！";
+        } else {
+            errorMsg.innerText = "連線失敗，請檢查網路狀態或聯絡系統管理員。";
+        }
+        errorMsg.classList.remove('hidden');
+    } finally {
+        btn.innerText = '登入系統';
+        btn.disabled = false;
     }
 });
-    const firebaseConfig = {
-      apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-      authDomain: "jun-bus-dispatch.firebaseapp.com",
-      projectId: "jun-bus-dispatch",
-      storageBucket: "jun-bus-dispatch.firebasestorage.app",
-      messagingSenderId: "621725744717",
-      appId: "1:621725744717:web:64e663648d8c76b9bd6604",
-      measurementId: "G-10TKXKRPY9"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    document.getElementById('btnLogin').addEventListener('click', async () => {
-        const empId = document.getElementById('empId').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const errorMsg = document.getElementById('errorMsg');
-        const btn = document.getElementById('btnLogin');
-        
-        if(!empId || !password) {
-            errorMsg.innerText = "請輸入員工編號與密碼！";
-            errorMsg.classList.remove('hidden');
-            return;
-        }
-
-        try {
-            btn.innerText = '身分驗證中...';
-            btn.disabled = true;
-
-            // 系統特權：總經理上帝帳號 (避免資料庫壞掉時無法登入)
-            if(empId === "admin" && password === "admin123") {
-                localStorage.setItem('busSystemUser', JSON.stringify({ empId: "admin", name: "系統管理員", role: "SuperAdmin" }));
-                window.location.href = 'index.html'; // 確保這裡指向 index.html
-                return;
-            }
-
-            // 去資料庫找這位員工
-            const docSnap = await getDoc(doc(db, "Drivers", empId));
-            
-            if (docSnap.exists()) {
-                const userData = docSnap.data();
-                // 檢查密碼 (如果資料庫沒設定密碼，預設為 "123")
-                const dbPassword = userData.password || "123";
-
-                if (password === dbPassword) {
-                    localStorage.setItem('busSystemUser', JSON.stringify({
-                        empId: empId,
-                        name: userData.name,
-                        role: userData.role || "駕駛長" 
-                    }));
-                    window.location.href = 'index.html'; // 確保這裡也指向 index.html
-                } else {
-                    errorMsg.innerText = "密碼錯誤，請重試！";
-                    errorMsg.classList.remove('hidden');
-                }
-            } else {
-                errorMsg.innerText = "找不到此員工編號！";
-                errorMsg.classList.remove('hidden');
-            }
-        } catch (error) {
-            console.error(error);
-            errorMsg.innerText = "連線失敗，請檢查網路！";
-            errorMsg.classList.remove('hidden');
-        } finally {
-            btn.innerText = '登入系統';
-            btn.disabled = false;
-        }
-    });
   </script>
 </body>
 </html>
