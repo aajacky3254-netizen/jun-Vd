@@ -92,6 +92,12 @@
       /* 利用 data-label 產生手機版的前綴標題 */
       td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
     }
+    th { 
+  background-color: #1e293b; color: #f8fafc; font-weight: 600; 
+  letter-spacing: 1px; position: sticky; top: 0; z-index: 10; 
+}
+/* 衝突高亮的 CSS */
+tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
   </style>
 </head>
 <body>
@@ -317,7 +323,22 @@
                     tbody.innerHTML = '<tr><td colspan="8" style="color: #94a3b8; padding: 40px; font-weight:bold; font-size:16px;">本日尚未建立任何發車車趟。</td></tr>';
                     return;
                 }
+// 在 snapshot.forEach 內，決定 rowClass 時加入：
+let hasConflict = false;
+if (data.assigned_driver !== "尚未指派" && data.status !== 'done') {
+    const start1 = timeToMins(data.departure_time);
+    const end1 = data.arrival_time ? timeToMins(data.arrival_time) : start1 + 60;
+    
+    hasConflict = currentDayTrips.some(t => {
+        if (t.id === data.id || t.assigned_driver !== data.assigned_driver || t.status === 'done') return false;
+        const start2 = timeToMins(t.departure_time);
+        const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+        // 判斷重疊或休息時間小於 10 分鐘
+        return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
+    });
+}
 
+if (hasConflict) rowClass += ' conflict-row';
                 let htmlBuffer = ""; 
 
                 snapshot.forEach(docSnap => { 
