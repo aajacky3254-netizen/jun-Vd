@@ -47,15 +47,21 @@
   </header>
 
   <main id="viewSchedule" class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24">
-    <div class="bg-gray-800 text-white text-center py-2 rounded-t-xl font-bold text-sm mx-2 mt-2">
-      本日作業 : <span id="todayDateDisplay">載入中</span>
-    </div>
-    <div class="bg-white rounded-b-xl shadow-md p-4 mx-2 mb-6 border-t-4 border-orange-500">
+    <div class="bg-gray-800 text-white py-2 px-3 rounded-t-xl font-bold text-sm mx-2 mt-2 flex justify-between items-center shadow-inner">
+      <button id="btnPrevDay" class="text-gray-300 hover:text-white px-3 py-1.5 rounded bg-gray-700 active:scale-95 transition-transform text-xs">◀ 前一日</button>
       
+      <div class="flex flex-col items-center relative">
+          <span class="text-[10px] text-orange-400 mb-0.5 tracking-wider" id="dayOfWeekLabel">載入中</span>
+          <input type="date" id="scheduleDatePicker" class="bg-transparent text-white border-none outline-none text-center cursor-pointer font-bold text-[15px] leading-none m-0 p-0 [&::-webkit-calendar-picker-indicator]:invert">
+      </div>
+      
+      <button id="btnNextDay" class="text-gray-300 hover:text-white px-3 py-1.5 rounded bg-gray-700 active:scale-95 transition-transform text-xs">下一日 ▶</button>
+    </div>
+    
+    <div class="bg-white rounded-b-xl shadow-md p-4 mx-2 mb-6 border-t-4 border-orange-500">
       <div id="scheduleContainer" class="space-y-4">
         <div class="text-center text-gray-400 py-6 font-bold text-sm">載入班表中...</div>
       </div>
-      
     </div>
   </main>
 
@@ -182,6 +188,8 @@
     const db = getFirestore(app);
 
     let currentUser = null;
+    let currentScheduleDate = new Date(); // 🆕 儲存目前畫面上選擇的日期物件
+    let unsubscribeSchedule = null;       // 🆕 用來清除舊日期的 Firebase 監聽器
     checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員', '駕駛長']).then((user) => {
         currentUser = user;
         document.getElementById('displayEmpId').innerText = escapeHTML(user.empId);
@@ -221,15 +229,22 @@
     // --- 載入個人班表 ---
     function loadMySchedule(dateStr) {
         const container = document.getElementById('scheduleContainer');
+        container.innerHTML = '<div class="text-center text-gray-400 py-6 font-bold text-sm">載入班表中...</div>';
+        
+        // 🆕 如果已經有正在監聽的班表，先取消它，避免資料重複渲染
+        if (unsubscribeSchedule) {
+            unsubscribeSchedule();
+        }
         
         const q = query(collection(db, "daily_dispatches"), 
             where("date", "==", dateStr),
             where("assigned_empid", "==", currentUser.empId)
         );
 
-        onSnapshot(q, (snapshot) => {
+        // 🆕 將 onSnapshot 指派給 unsubscribeSchedule 變數
+        unsubscribeSchedule = onSnapshot(q, (snapshot) => {
             if (snapshot.empty) {
-                container.innerHTML = `<div class="text-center text-gray-400 py-10 font-bold text-sm">今日無排定車趟，請確認是否為例行休假。</div>`;
+                container.innerHTML = `<div class="text-center text-gray-400 py-10 font-bold text-sm">本日無排定車趟，請確認是否為例行休假。</div>`;
                 return;
             }
 
