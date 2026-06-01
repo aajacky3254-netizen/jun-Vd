@@ -468,7 +468,13 @@
     document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', closeSheet));
 
     loadDispatchData(dateInput.value);
-
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      console.log('PWA ServiceWorker 註冊成功: ', reg.scope);
+    }).catch(err => console.log('ServiceWorker 註冊失敗: ', err));
+  });
+}
   </script>
 </body>
 </html>
