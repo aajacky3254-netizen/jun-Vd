@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 員工登入</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="./output.css">
 </head>
 <body class="bg-gray-100 h-screen flex items-center justify-center bg-[url('https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=2069&auto=format&fit=crop')] bg-cover bg-center">
   
@@ -57,7 +57,8 @@
 
     // 💡 3. 執行登入邏輯
     document.getElementById('btnLogin').addEventListener('click', async () => {
-        const empId = document.getElementById('empId').value.trim();
+        // 💡 加上 .toUpperCase()，就算駕駛輸入小寫的 a001，也會自動變成大寫的 A001
+        const empId = document.getElementById('empId').value.trim().toUpperCase();value.trim();
         const password = document.getElementById('password').value.trim();
         
         if(!empId || !password) {
