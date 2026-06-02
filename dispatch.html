@@ -35,12 +35,14 @@
 
     /* ========== 駛車憑單列印專屬樣式 ========== */
     @media print {
-        @page { margin: 8mm; size: A4 portrait; }
-        .no-print { display: none !important; } 
-        body { background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        #print-zone { display: block !important; width: 100%; }
-        
-        .print-page {
+    @page { margin: 8mm; size: A4 portrait; }
+    .no-print { display: none !important; } 
+    body { background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* 👇 補上這兩行，強制列印區塊全部顯示為黑色與可見 */
+    #main-content { display: none !important; }
+    #print-zone, #print-zone * { color: #000 !important; visibility: visible !important; }
+
+    .print-page {
             width: 100%;
             height: 98vh; /* 確保佔滿一頁 */
             page-break-after: always; /* 強制換頁 */
@@ -81,6 +83,7 @@
       <div class="input-group"><label>終點站</label><input type="text" id="inputEnd" list="stationsList" style="width: 150px;"></div>
       <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold">＋ 新增</button>
       <div style="flex-grow: 1;"></div> 
+      <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-5 rounded-lg font-bold">🧹 一鍵清空</button>
       <button id="btnAutoDispatch" class="bg-indigo-600 text-white px-5 rounded-lg font-bold">✨ 自動調度</button>
       <button id="btnPrintAll" class="bg-orange-600 text-white px-5 rounded-lg font-bold">🖨️ 批次列印憑單</button>
       <datalist id="routesList"></datalist>
@@ -319,6 +322,21 @@
           window.print();
       });
   }).catch(err => console.error(err));
+  // 一鍵清空排班
+document.getElementById('btnClearDispatch').addEventListener('click', async () => {
+    if(!confirm("確定要清空本日所有的駕駛與車輛派班嗎？")) return;
+
+    const batch = writeBatch(db);
+    currentDayTrips.forEach(trip => {
+        batch.update(doc(db, "daily_dispatches", trip.id), { 
+            assigned_driver: "尚未指派", 
+            assigned_empid: "", 
+            assigned_vehicle: "尚未指派" 
+        });
+    });
+    await batch.commit();
+    alert("本日排班已全數清空！");
+});
 </script>
 </body>
 </html>
