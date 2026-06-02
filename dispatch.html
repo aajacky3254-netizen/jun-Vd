@@ -183,862 +183,162 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
  </div> 
 
 <script type="module">
-import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole } from './auth.js';
-  checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then((user) => {
-    document.getElementById('main-content').style.display = 'block';
+  import { db } from './firebase-init.js';
+  import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
 
-    // 🌟 呼叫 Navbar 渲染，並告訴它現在是 dispatch (發車) 頁面，要標示亮起
-    renderNavbar(user, 'dispatch');
-    const escapeHTML = (str) => {
-        return str ? String(str).replace(/[&<>'"]/g, 
-            tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])
-        ) : '';
-    };
+  const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
+  const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
-    const timeToMins = (t) => {
-        if(!t) return 0;
-        let [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-    };
+  checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then(async (user) => {
+      document.getElementById('main-content').style.display = 'block';
+      renderNavbar(user, 'dispatch');
+      
+      const dispatchesCol = collection(db, "daily_dispatches");
+      const fleetCol = collection(db, "Vehicles");
+      const tbody = document.getElementById('dispatchBody');
+      const dateInput = document.getElementById('inputDate');
+      const mainAddBtn = document.getElementById('addTripBtn');
+      const cancelBtn = document.getElementById('cancelEditBtn');
+      
+      const today = new Date().toISOString().split('T')[0];
+      dateInput.value = today;
 
-    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員'];
+      let currentAvailableDrivers = [];
+      let currentAvailableVehicles = [];
+      let currentDayTrips = [];
+      let editingDocId = null;
+      let unsubscribeDispatch = null;
 
-    checkAuthAndGetRole(allowedRoles).then((user) => {
-        document.getElementById('main-content').style.display = 'block';
+      // 載入路線與站點快選清單
+      onSnapshot(collection(db, "Routes"), (snap) => {
+          const el = document.getElementById('routesList'); el.innerHTML = '';
+          snap.forEach(d => { el.innerHTML += `<option value="${escapeHTML(d.data().name)}"></option>`; });
+      });
+      onSnapshot(collection(db, "Stations"), (snap) => {
+          const el = document.getElementById('stationsList'); el.innerHTML = '';
+          snap.forEach(d => { el.innerHTML += `<option value="${escapeHTML(d.data().name)}"></option>`; });
+      });
 
-        const nav = document.querySelector('.navbar');
-        nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white font-bold px-4">
-                <span class="text-sm bg-blue-800 px-3 py-1 rounded">👤 ${escapeHTML(user.name)}</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm transition">登出</button>
-            </div>
-        `;
-        document.getElementById('btnLogout').addEventListener('click', logout);
-        
-        const dispatchesCol = collection(db, "daily_dispatches");
-        const fleetCol = collection(db, "Vehicles");
-        const tbody = document.getElementById('dispatchBody');
-        const dateInput = document.getElementById('inputDate');
-        
-        const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
+      function getWeekInfo(dateStr) {
+          const d = new Date(dateStr); const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+          const target = new Date(d.valueOf()); const dayNr = (d.getDay() + 6) % 7;
+          target.setDate(target.getDate() - dayNr + 3);
+          return { weekId: `${d.getFullYear()}-W${(1 + Math.ceil((target.valueOf() - target.setMonth(0, 1)) / 604800000)).toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };
+      }
 
-        let currentAvailableDrivers = [];
-        let currentAvailableVehicles = [];
-        let currentDayTrips = [];
-        let editingDocId = null;
-        let unsubscribeDispatch = null;
-
-        const routesListEl = document.getElementById('routesList');
-        onSnapshot(collection(db, "Routes"), (snap) => {
-            routesListEl.innerHTML = '';
-            snap.forEach(docSnap => { routesListEl.innerHTML += `<option value="${escapeHTML(docSnap.data().name)}"></option>`; });
-        });
-
-        const stationsListEl = document.getElementById('stationsList');
-        onSnapshot(collection(db, "Stations"), (snap) => {
-            stationsListEl.innerHTML = '';
-            snap.forEach(docSnap => { stationsListEl.innerHTML += `<option value="${escapeHTML(docSnap.data().name)}"></option>`; });
-        });
-
-        async function loadAvailableDrivers(selectedDate) {
+      async function loadAvailableDrivers(selectedDate) {
           const { weekId, dayKey } = getWeekInfo(selectedDate);
-          currentAvailableDrivers = [];
-          
-          // 🆕 新增：去資料庫把「今天已經被核准請假」的人名單抓出來
-          const leaveSet = new Set();
+          currentAvailableDrivers = []; const leaveSet = new Set();
           try {
-              const leaveQ = query(collection(db, "leave_requests"), where("date", "==", selectedDate), where("status", "==", "已核准"));
-              const leaveSnap = await getDocs(leaveQ);
+              const leaveSnap = await getDocs(query(collection(db, "leave_requests"), where("date", "==", selectedDate), where("status", "==", "已核准")));
               leaveSnap.forEach(doc => leaveSet.add(doc.data().empId));
-          } catch (e) { console.error("抓取請假名單失敗:", e); }
-
-          try {
-            const docRef = doc(db, "weekly_schedules", weekId);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists() && (docSnap.data().roster || docSnap.data().roater)) {
-              const roster = docSnap.data().roster || docSnap.data().roater;
-              for (let driverId in roster) {
-                const shift = roster[driverId][dayKey];
-                if (shift && shift !== "OFF" && shift !== "OFF (休)") {
-                  // 🆕 判斷該駕駛是否在剛剛抓到的請假名單內
-                  const isOnLeave = leaveSet.has(driverId);
-                  
-                  currentAvailableDrivers.push({ 
-                      empId: driverId, 
-                      name: roster[driverId].name, 
-                      shift: shift,
-                      onLeave: isOnLeave // 標記他是否休假中
-                  });
-                }
+              const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+              if (docSnap.exists() && docSnap.data().roster) {
+                  const roster = docSnap.data().roster;
+                  for (let dId in roster) {
+                      const shift = roster[dId][dayKey];
+                      if (shift && shift !== "OFF" && shift !== "OFF (休)") {
+                          currentAvailableDrivers.push({ empId: dId, name: roster[dId].name, shift: shift, onLeave: leaveSet.has(dId) });
+                      }
+                  }
               }
-            }
-          } catch (e) { console.error("載入駕駛失敗:", e); }
-        }
+          } catch (e) { console.error(e); }
+      }
 
-        async function loadAvailableVehicles() {
+      async function loadAvailableVehicles() {
           currentAvailableVehicles = [];
           try {
-            const snapshot = await getDocs(fleetCol);
-            snapshot.forEach((docSnap) => {
-              const v = docSnap.data();
-              if (v.status === 'ready') { currentAvailableVehicles.push({ plate: v.plate_number || docSnap.id, model: v.model }); }
-            });
-          } catch (e) { console.error("載入車輛失敗:", e); }
-        }
+              const snap = await getDocs(fleetCol);
+              snap.forEach(d => { if (d.data().status === 'ready') currentAvailableVehicles.push({ plate: d.data().plate_number || d.id, model: d.data().model }); });
+          } catch (e) { console.error(e); }
+      }
 
-        function getWeekInfo(dateStr) {
-          const d = new Date(dateStr);
-          const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-          const target = new Date(d.valueOf());
-          const dayNr = (d.getDay() + 6) % 7;
-          target.setDate(target.getDate() - dayNr + 3);
-          const firstThursday = target.valueOf();
-          target.setMonth(0, 1);
-          if (target.getDay() !== 4) { target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7); }
-          const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
-          return { weekId: `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`, dayKey: days[d.getDay()] };
-        }
+      function listenToDispatches(selectedDate) {
+          if (unsubscribeDispatch) unsubscribeDispatch();
+          routesContainer.innerHTML = ""; // 防錯
+          
+          unsubscribeDispatch = onSnapshot(query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc")), async (snapshot) => {
+              await loadAvailableDrivers(selectedDate);
+              await loadAvailableVehicles();
+              tbody.innerHTML = ''; currentDayTrips = [];
+              if (snapshot.empty) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-400 font-bold">本日尚未建立任何車趟。</td></tr>'; return; }
+              snapshot.forEach(d => currentDayTrips.push({ id: d.id, ...d.data() }));
 
-        async function listenToDispatches(selectedDate) {
-            await loadAvailableDrivers(selectedDate);
-            await loadAvailableVehicles();
+              currentDayTrips.forEach(data => {
+                  let driverOpts = `<option value="尚未指派">-- 尚未指派 --</option>`;
+                  currentAvailableDrivers.forEach(d => {
+                      if (d.onLeave) {
+                          driverOpts += `<option value="${escapeHTML(d.name)}" disabled style="color:red;">🚫 ${escapeHTML(d.name)} (已請假)</option>`;
+                      } else {
+                          driverOpts += `<option value="${escapeHTML(d.name)}" data-empid="${escapeHTML(d.empId)}" ${data.assigned_driver === d.name ? 'selected' : ''}>${d.empId} ${d.name} (${d.shift})</option>`;
+                      }
+                  });
+                  let vehicleOpts = `<option value="尚未指派">-- 尚未指派 --</option>`;
+                  currentAvailableVehicles.forEach(v => { vehicleOpts += `<option value="${escapeHTML(v.plate)}" ${data.assigned_vehicle === v.plate ? 'selected' : ''}>${escapeHTML(v.plate)}</option>`; });
 
-            if (unsubscribeDispatch) {
-                unsubscribeDispatch();
-            }
+                  let rowClass = data.status === 'active' ? 'active-row' : (data.status === 'done' ? 'done-row' : '');
+                  let statusBtn = data.status === 'pending' ? `<button class="btn-status btn-pending status-toggle" data-id="${data.id}" data-next="active">發車</button>` : (data.status === 'active' ? `<button class="btn-status btn-active status-toggle" data-id="${data.id}" data-next="done">完班</button>` : '<button class="btn-status btn-done" disabled>已完成</button>');
 
-            let q = query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc"));
+                  tbody.innerHTML += `
+                    <tr class="${rowClass}">
+                      <td class="font-bold text-lg">${escapeHTML(data.departure_time)}</td>
+                      <td><span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold">${escapeHTML(data.route)}</span></td>
+                      <td>${escapeHTML(data.start_point)}</td>
+                      <td>${escapeHTML(data.end_point)}</td>
+                      <td><select class="driver-select" data-id="${data.id}">${driverOpts}</select></td>
+                      <td><select class="vehicle-select" data-id="${data.id}">${vehicleOpts}</select></td>
+                      <td>${statusBtn}</td>
+                      <td>
+                         <button class="btn-edit-trip bg-sky-500 text-white px-2 py-1 rounded text-xs font-bold mr-1" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point}">編輯</button>
+                         <button class="btn-delete-trip bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold" data-id="${data.id}">刪除</button>
+                      </td>
+                    </tr>`;
+              });
+          });
+      }
 
-            unsubscribeDispatch = onSnapshot(q, (snapshot) => {
-    tbody.innerHTML = '';
-    currentDayTrips = [];
+      // 控制台點擊與選擇配置監聽
+      tbody.addEventListener('click', async (e) => {
+          const t = e.target;
+          if (t.classList.contains('status-toggle')) await updateDoc(doc(db, "daily_dispatches", t.dataset.id), { status: t.dataset.next });
+          if (t.classList.contains('btn-delete-trip') && confirm("確定刪除此車趟？")) await deleteDoc(doc(db, "daily_dispatches", t.dataset.id));
+          if (t.classList.contains('btn-edit-trip')) {
+              document.getElementById('inputTime').value = t.dataset.time;
+              document.getElementById('inputRoute').value = t.dataset.route;
+              document.getElementById('inputStart').value = t.dataset.start;
+              document.getElementById('inputEnd').value = t.dataset.end;
+              editingDocId = t.dataset.id; mainAddBtn.innerHTML = "💾 儲存修改"; cancelBtn.classList.remove('hidden');
+          }
+      });
 
-    if (snapshot.empty) { 
-        tbody.innerHTML = '<tr><td colspan="8" style="color: #94a3b8; padding: 40px; font-weight:bold; font-size:16px;">本日尚未建立任何發車車趟。</td></tr>';
-        return;
-    }
+      tbody.addEventListener('change', async (e) => {
+          const t = e.target; const tripId = t.dataset.id;
+          if (t.classList.contains('driver-select')) {
+              const empid = t.options[t.selectedIndex].dataset.empid || "";
+              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: t.value, assigned_empid: empid });
+          }
+          if (t.classList.contains('vehicle-select')) {
+              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: t.value });
+          }
+      });
 
-    // 1️⃣ 第一步：先收集當天所有的車趟，這樣比對衝突才會準確
-    snapshot.forEach(docSnap => { 
-        currentDayTrips.push({ id: docSnap.id, ...docSnap.data() }); 
-    });
-
-    let htmlBuffer = ""; 
-
-    // 2️⃣ 第二步：開始產生 HTML
-    currentDayTrips.forEach(data => { 
-        let driverOptions = `<option value="尚未指派" data-empid="">-- 尚未指派 --</option>`;
-        currentAvailableDrivers.forEach(d => { 
-            const isSelectedD = String(data.assigned_driver).trim() === String(d.name).trim() ? 'selected' : '';
-            
-            // 🆕 如果該駕駛請假中，將下拉選單選項鎖定 (disabled) 並標示為紅色
-            if (d.onLeave) {
-                driverOptions += `<option value="${escapeHTML(d.name)}" data-empid="${escapeHTML(d.empId)}" disabled style="color: red; font-weight: bold;">🚫 ${escapeHTML(d.name)} (已核准休假)</option>`;
-            } else {
-                const displayText = escapeHTML(`${d.empId} ${d.name} (${d.shift})`);
-                driverOptions += `<option value="${escapeHTML(d.name)}" data-empid="${escapeHTML(d.empId)}" ${isSelectedD}>${displayText}</option>`;
-            }
-        });
-
-        let vehicleOptions = `<option value="尚未指派">-- 尚未指派 --</option>`;
-        currentAvailableVehicles.forEach(v => { 
-            const isSelectedV = String(data.assigned_vehicle).trim() === String(v.plate).trim() ? 'selected' : '';
-            vehicleOptions += `<option value="${escapeHTML(v.plate)}" ${isSelectedV}>${escapeHTML(v.plate)} (${escapeHTML(v.model)})</option>`;
-        });
-
-        let rowClass = '';
-        let statusButtonHtml = '';
-        if (data.status === 'pending') {
-          statusButtonHtml = `<button class="btn-status btn-pending status-toggle" data-id="${data.id}" data-next="active">按此發車</button>`;
-        } else if (data.status === 'active') {
-          rowClass = 'active-row';
-          statusButtonHtml = `<button class="btn-status btn-active status-toggle" data-id="${data.id}" data-next="done">按此完班</button>`;
-        } else if (data.status === 'done') {
-          rowClass = 'done-row';
-          statusButtonHtml = `<button class="btn-status btn-done" disabled>已完成</button>`;
-        }
-
-        // 💡 衝突防呆判斷（放在這裡才正確）
-        let hasConflict = false;
-        if (data.assigned_driver !== "尚未指派" && data.status !== 'done') {
-            const start1 = timeToMins(data.departure_time);
-            const end1 = data.arrival_time ? timeToMins(data.arrival_time) : start1 + 60;
-            
-            hasConflict = currentDayTrips.some(t => {
-                if (t.id === data.id || t.assigned_driver !== data.assigned_driver || t.status === 'done') return false;
-                const start2 = timeToMins(t.departure_time);
-                const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
-                return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
-            });
-        }
-        if (hasConflict) rowClass += ' conflict-row';
-        
-        let timeDisplay = data.arrival_time 
-                          ? `${escapeHTML(data.departure_time)} <br><span style="font-size:12px; color:#64748b;">~ ${escapeHTML(data.arrival_time)}</span>` 
-                          : escapeHTML(data.departure_time);
-
-        htmlBuffer += `
-          <tr class="${rowClass}">
-            <td style="font-size: 17px; font-weight: 800; color: #0f172a; line-height: 1.2;">${timeDisplay}</td>
-            <td><span style="background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 6px; font-weight: bold; border: 1px solid #bae6fd;">${escapeHTML(data.route)}</span></td>
-            <td style="font-weight: 700; color:#334155;">${escapeHTML(data.start_point)}</td>
-            <td style="font-weight: 700; color:#334155;">${escapeHTML(data.end_point || '無資料')}</td>
-            <td><select class="driver-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${driverOptions}</select></td>
-            <td><select class="vehicle-select" data-id="${data.id}" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; width: 100%; background: #f8fafc; font-weight:600;">${vehicleOptions}</select></td>
-            <td>${statusButtonHtml}</td>
-            <td>
-               <button class="btn-edit-trip bg-sky-500 hover:bg-sky-600 text-white" data-id="${data.id}" data-time="${escapeHTML(data.departure_time)}" data-endtime="${escapeHTML(data.arrival_time || '')}" data-route="${escapeHTML(data.route)}" data-start="${escapeHTML(data.start_point)}" data-end="${escapeHTML(data.end_point || '')}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer;">編輯</button>
-               <button class="btn-delete-trip bg-rose-500 hover:bg-rose-600 text-white" data-id="${data.id}" style="padding: 6px 12px; font-size: 13px; border-radius:4px; font-weight:bold; border:none; cursor:pointer; margin-top: 4px;">刪除</button>
-            </td>
-          </tr>
-        `;
-    });
-    
-    tbody.innerHTML = htmlBuffer;
-});
-}
-
-        tbody.addEventListener('click', async (e) => {
-            const target = e.target;
-            
-            if (target.classList.contains('status-toggle')) {
-                await updateDoc(doc(db, "daily_dispatches", target.dataset.id), { status: target.dataset.next });
-            } 
-            else if (target.classList.contains('btn-delete-trip')) {
-                if (confirm("⚠️ 確定要刪除這筆紀錄嗎？")) {
-                    await deleteDoc(doc(db, "daily_dispatches", target.dataset.id));
-                }
-            } 
-            else if (target.classList.contains('btn-edit-trip')) {
-                document.getElementById('inputTime').value = target.dataset.time;
-                document.getElementById('inputEndTime').value = target.dataset.endtime;
-                document.getElementById('inputRoute').value = target.dataset.route;
-                document.getElementById('inputStart').value = target.dataset.start;
-                document.getElementById('inputEnd').value = target.dataset.end;
-                
-                editingDocId = target.dataset.id;
-                mainAddBtn.innerHTML = "💾 儲存修改";
-                mainAddBtn.className = "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
-                cancelBtn.classList.remove('hidden');
-                
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-        });
-
-        tbody.addEventListener('change', async (e) => {
-            const target = e.target;
-            const tripId = target.dataset.id;
-
-            if (target.classList.contains('driver-select')) {
-                const newDriver = target.value;
-                const selectedOption = target.options[target.selectedIndex];
-                const newEmpId = selectedOption.dataset.empid || "";
-
-                const currentTrip = currentDayTrips.find(t => t.id === tripId);
-
-                if (newDriver !== "尚未指派") {
-                    const start1 = timeToMins(currentTrip.departure_time);
-                    const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
-                    
-                    const hasConflict = currentDayTrips.some(t => {
-                        if (t.id === tripId || t.assigned_driver !== newDriver || t.status === 'done') return false;
-                        const start2 = timeToMins(t.departure_time);
-                        const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
-                        return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
-                    });
-
-                    if (hasConflict) {
-                        if (!confirm(`⚠️ 警告！【${newDriver}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) {
-                            target.value = currentTrip.assigned_driver;
-                            return;
-                        }
-                    }
-                }
-                await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: newDriver, assigned_empid: newEmpId });
-            } 
-            else // 找到這段程式碼：
-if (target.classList.contains('driver-select')) {
-    const newDriver = target.value;
-    const selectedOption = target.options[target.selectedIndex];
-    const newEmpId = selectedOption.dataset.empid || "";
-
-    const currentTrip = currentDayTrips.find(t => t.id === tripId);
-
-    if (newDriver !== "尚未指派") {
-        const start1 = timeToMins(currentTrip.departure_time);
-        const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
-        
-        // 👇 將這裡的衝突判斷從 newDriver 改為 newEmpId
-        const hasConflict = currentDayTrips.some(t => {
-            // 💡 修正：改用 t.assigned_empid !== newEmpId 作為判斷基準
-            if (t.id === tripId || t.assigned_empid !== newEmpId || t.status === 'done') return false;
-            const start2 = timeToMins(t.departure_time);
-            const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
-            return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
-        });
-
-        if (hasConflict) {
-            if (!confirm(`⚠️ 警告！【${newDriver}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) {
-                target.value = currentTrip.assigned_driver;
-                return;
-            }
-        }
-    }
-    // 更新資料庫
-    await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: newDriver, assigned_empid: newEmpId });
-}
-        });
-
-        const mainAddBtn = document.getElementById('addTripBtn');
-        const cancelBtn = document.getElementById('cancelEditBtn');
-
-        mainAddBtn.onclick = async () => {
-          const date = dateInput.value;
-          const time = document.getElementById('inputTime').value;
-          const endTime = document.getElementById('inputEndTime').value;
-          const route = document.getElementById('inputRoute').value.trim();
-          const start = document.getElementById('inputStart').value.trim();
-          const end = document.getElementById('inputEnd').value.trim();
-
-          if (!time || !route || !start || !end) { alert("請填寫完整資訊！"); return; }  
-
+      mainAddBtn.onclick = async () => {
           const payload = {
-              date: date,
-              departure_time: time,
-              arrival_time: endTime,
-              route: route,
-              start_point: start,
-              end_point: end
+              date: dateInput.value, departure_time: document.getElementById('inputTime').value,
+              route: document.getElementById('inputRoute').value.trim(), start_point: document.getElementById('inputStart').value.trim(), end_point: document.getElementById('inputEnd').value.trim()
           };
+          if(!payload.departure_time || !payload.route) return alert("請填寫發車時間與路線！");
+          if(editingDocId) { await updateDoc(doc(db, "daily_dispatches", editingDocId), payload); resetForm(); }
+          else { Object.assign(payload, { assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending" }); await addDoc(dispatchesCol, payload); resetForm(); }
+      };
 
-          try {
-            if (editingDocId) {
-              const docRef = doc(db, "daily_dispatches", editingDocId);
-              const docSnap = await getDoc(docRef);
-              if (docSnap.exists()) {
-                  await updateDoc(docRef, payload);
-              } else {
-                  alert("⚠️ 此車趟可能已被其他使用者刪除，請重新整理！");
-              }
-            } else {
-              payload.assigned_driver = "尚未指派";
-              payload.assigned_empid = "";
-              payload.assigned_vehicle = "尚未指派";
-              payload.status = "pending";
-              await addDoc(dispatchesCol, payload);
-            }
+      cancelBtn.onclick = resetForm;
+      function resetForm() { editingDocId = null; document.getElementById('inputTime').value = ''; document.getElementById('inputRoute').value = ''; document.getElementById('inputStart').value = ''; document.getElementById('inputEnd').value = ''; mainAddBtn.innerHTML = "＋ 新增車趟"; cancelBtn.classList.add('hidden'); }
 
-            const safeRouteId = route.replace(/\//g, '_');
-            const safeStartId = start.replace(/\//g, '_');
-            const safeEndId = end.replace(/\//g, '_');
-
-            await setDoc(doc(db, "Routes", safeRouteId), { name: route, status: 'active' }, { merge: true });
-            await setDoc(doc(db, "Stations", safeStartId), { name: start, status: 'active' }, { merge: true });
-            if(end) {
-                await setDoc(doc(db, "Stations", safeEndId), { name: end, status: 'active' }, { merge: true });
-            }
-
-            resetForm();
-          } catch (err) { console.error(err); alert("儲存失敗！"); }
-        };
-
-        cancelBtn.addEventListener('click', resetForm);
-
-        function resetForm() {
-            editingDocId = null;
-            document.getElementById('inputTime').value = '';
-            document.getElementById('inputEndTime').value = '';
-            document.getElementById('inputRoute').value = '';
-            document.getElementById('inputStart').value = '';
-            document.getElementById('inputEnd').value = '';
-            
-            mainAddBtn.innerHTML = "＋ 新增車趟";
-            mainAddBtn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold";
-            cancelBtn.classList.add('hidden');
-        }
-
-        listenToDispatches(today);
-        dateInput.addEventListener('change', (e) => { listenToDispatches(e.target.value); });
-
-        document.getElementById('btnCopyHistory').addEventListener('click', async () => {
-            const currentDate = dateInput.value;
-            const sourceDateStr = document.getElementById('copySourceDate').value;
-
-            if (!currentDate) return alert("請先設定今日日期！");
-            if (!sourceDateStr) return alert("請先選擇要載入的歷史日期！");
-            if (currentDate === sourceDateStr) return alert("目標日期與歷史日期相同，請選擇其他日期！");
-
-            if (!confirm(`確定要將【${sourceDateStr}】的所有車趟複製到今日 (${currentDate}) 嗎？`)) return;
-
-            const btn = document.getElementById('btnCopyHistory');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = "⏳ 載入中...";
-            btn.disabled = true;
-
-            try {
-                const q = query(dispatchesCol, where("date", "==", sourceDateStr));
-                const snap = await getDocs(q);
-
-                if (snap.empty) {
-                    alert(`⚠️ 找不到 ${sourceDateStr} 的任何車趟紀錄！`);
-                } else {
-                    let count = 0;
-                    let batch = writeBatch(db);
-                    
-                    for (const docSnap of snap.docs) {
-                        const data = docSnap.data();
-                        const newDocRef = doc(dispatchesCol); 
-                        
-                        batch.set(newDocRef, {
-                            date: currentDate,
-                            departure_time: data.departure_time || "",
-                            arrival_time: data.arrival_time || "",
-                            route: data.route || "",
-                            start_point: data.start_point || "",
-                            end_point: data.end_point || "",
-                            assigned_driver: "尚未指派",
-                            assigned_empid: "",
-                            assigned_vehicle: "尚未指派",
-                            status: "pending"
-                        });
-                        count++;
-                        
-                        if (count % 490 === 0) { 
-                            await batch.commit();
-                            batch = writeBatch(db);
-                        }
-                    }
-                    
-                    if (count % 490 !== 0) {
-                        await batch.commit();
-                    }
-                    
-                    alert(`✅ 成功從 ${sourceDateStr} 複製了 ${count} 筆車趟！`);
-                }
-            } catch (err) {
-                console.error("複製車趟失敗詳細錯誤:", err);
-                alert("載入失敗，詳細錯誤請見 Console。");
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        });
-
-        document.getElementById('btnClearAssign').addEventListener('click', async () => {
-            if(currentDayTrips.length === 0) return;
-            if (!confirm("確定要將今日所有的車趟還原為「尚未指派」嗎？\n(注意：這將會清除目前畫面上所有的駕駛與車輛配置！)")) return;
-
-            const btn = document.getElementById('btnClearAssign');
-            btn.innerHTML = "🧹 清除中...";
-            btn.disabled = true;
-
-            try {
-                let count = 0;
-                let batch = writeBatch(db);
-                
-                for (let trip of currentDayTrips) {
-                    if(trip.assigned_driver !== "尚未指派" || trip.assigned_vehicle !== "尚未指派") {
-                        batch.update(doc(db, "daily_dispatches", trip.id), {
-                            assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派"
-                        });
-                        count++;
-                        if (count % 490 === 0) {
-                            await batch.commit();
-                            batch = writeBatch(db);
-                        }
-                    }
-                }
-                if (count % 490 !== 0) await batch.commit();
-            } catch(e) { console.error(e); alert("清除失敗！"); }
-
-            btn.innerHTML = "🧹 一鍵清除";
-            btn.disabled = false;
-        });
-
-        // 🤖 強化的智慧自動調度：加入工時防護與空間移動緩衝
-        document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
-    if (!confirm("確定執行「智慧自動調度」嗎？\n系統將嚴格執行「工時上限」、「動態緩衝」、「勞逸均衡」與「用餐大休」進行最佳化配置！")) return;
-
-    const btn = document.getElementById('btnAutoDispatch');
-    btn.innerHTML = "🤖 運算中...";
-    btn.disabled = true;
-
-    try {
-        await loadAvailableDrivers(dateInput.value);
-        await loadAvailableVehicles();
-
-        if (currentAvailableDrivers.length === 0 || currentAvailableVehicles.length === 0) {
-            alert("⚠️ 錯誤：目前沒有可用且非休假的駕駛員或車輛！");
-            btn.innerHTML = "✨ 智慧自動調度";
-            btn.disabled = false;
-            return;
-        }
-
-        let fleet = [];
-        let availableVehs = [...currentAvailableVehicles];
-        function assignVehicle() { return availableVehs.length > 0 ? availableVehs.shift().plate : "無車可用"; }
-
-        currentAvailableDrivers.forEach(d => {
-            if (d.shift && (d.shift.includes("休") || d.shift === "OFF")) return;
-            // 防止自動調度派車給已核准請假的人
-            if (d.onLeave) return;
-            
-            fleet.push({ 
-                ...d, 
-                vehicle: assignVehicle(), 
-                availableTime: "00:00", 
-                firstTripTime: null, 
-                lastStation: "", 
-                lastRoute: "", 
-                priority: d.shift.includes("待命") ? 2 : 1, 
-                tripsCount: 0,
-                hasLunch: false,   
-                hasDinner: false,  
-                isRookie: d.experience === '新手' || false, 
-                hardRouteCount: 0  
-            });
-        });
-
-        fleet = fleet.filter(f => f.vehicle !== "無車可用");
-
-        let pendingTrips = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
-        pendingTrips.sort((a, b) => a.departure_time.localeCompare(b.departure_time));
-
-        let successCount = 0;
-        let failCount = 0;
-        let batch = writeBatch(db); 
-        let batchCount = 0;
-
-        for (let trip of pendingTrips) {
-            let depTime = trip.departure_time;
-            if (!depTime) continue; 
-            
-            let depMins = timeToMins(depTime);
-            let hour = parseInt(depTime.split(':')[0]);
-            
-            let rawEstEnd = trip.arrival_time ? timeToMins(trip.arrival_time) : depMins + 90;
-            if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
-                if (!trip.arrival_time) rawEstEnd = depMins + (90 * 1.2); 
-            }
-            let estEndMins = rawEstEnd;
-
-            let candidates = fleet.filter(unit => {
-                let availMins = timeToMins(unit.availableTime);
-                let s = unit.shift || "";
-
-                if (unit.firstTripTime) {
-                    let firstMins = timeToMins(unit.firstTripTime);
-                    let checkEndMins = estEndMins;
-                    if (checkEndMins < firstMins) checkEndMins += 24 * 60; 
-                    if ((checkEndMins - firstMins) > 660) return false; 
-                }
-
-                let travelBuffer = (unit.lastStation && unit.lastStation !== trip.start_point) ? 30 : 0;
-                if ((availMins + travelBuffer) > depMins) return false;
-                
-                if (unit.isRookie && (s.includes("頭") || s.includes("AB"))) return false;
-
-                if (s.includes("早")) {
-                    if (depMins < 300 || estEndMins > 840) return false; 
-                } else if (s.includes("晚")) {
-                    if (depMins < 900 || estEndMins > 1440) return false; 
-                } else if (s.includes("頭") || s.includes("AB")) {
-                    let isMorningPeak = (depMins >= 300 && estEndMins <= 540);  
-                    let isEveningPeak = (depMins >= 960 && estEndMins <= 1200); 
-                    if (!isMorningPeak && !isEveningPeak) return false;
-                }
-                
-                if (unit.yesterdayEndTime) {
-                    let restGap = (depMins + 24 * 60) - timeToMins(unit.yesterdayEndTime);
-                    if (restGap < 600) return false; 
-                }
-
-                return true;
-            });
-
-            if (candidates.length > 0) {
-                candidates.forEach(c => {
-                    c.score = 0;
-                    if (c.priority === 1) c.score += 100;
-                    
-                    if (c.lastStation === trip.start_point) c.score += 500;
-                    else c.score -= 200;
-                    
-                    if (c.lastRoute === trip.route) c.score += 50;
-
-                    c.score -= (c.tripsCount * 30);
-                    if (trip.route.includes("火車站") || trip.route.includes("百貨")) {
-                        c.score -= (c.hardRouteCount * 40); 
-                    }
-                });
-
-                candidates.sort((a, b) => b.score - a.score);
-                let assignedUnit = candidates[0];
-
-                batch.update(doc(db, "daily_dispatches", trip.id), {
-                    assigned_driver: assignedUnit.name,
-                    assigned_empid: assignedUnit.empId,
-                    assigned_vehicle: assignedUnit.vehicle
-                });
-                
-                successCount++;
-                batchCount++;
-                if (batchCount % 490 === 0) {
-                    await batch.commit();
-                    batch = writeBatch(db);
-                }
-
-                if (!assignedUnit.firstTripTime) assignedUnit.firstTripTime = depTime;
-                assignedUnit.tripsCount++;
-                assignedUnit.lastStation = trip.end_point;
-                assignedUnit.lastRoute = trip.route;
-                if (trip.route.includes("火車站") || trip.route.includes("百貨")) assignedUnit.hardRouteCount++;
-
-                let breakTime = 15;
-                if (assignedUnit.isRookie) breakTime += 15; 
-
-                if (hour >= 11 && hour <= 13 && !assignedUnit.hasLunch) {
-                    breakTime = Math.max(breakTime, 60);
-                    assignedUnit.hasLunch = true;
-                } else if (hour >= 17 && hour <= 19 && !assignedUnit.hasDinner) {
-                    breakTime = Math.max(breakTime, 60);
-                    assignedUnit.hasDinner = true;
-                }
-
-                let nextAvailMins = estEndMins + breakTime;
-                let h = Math.floor(nextAvailMins / 60);
-                let m = nextAvailMins % 60;
-                if (h >= 24) h -= 24;
-                assignedUnit.availableTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                
-            } else {
-                failCount++;
-            }
-        }
-
-        if (batchCount % 490 !== 0) await batch.commit();
-
-        setTimeout(() => {
-            if (failCount > 0) {
-                alert(`調度運算完畢！\n✅ 成功綁定: ${successCount} 趟\n⚠️ 略過: ${failCount} 趟\n(可能原因：勞基法超時、無大休空檔、無跨站緩衝)。\n剩餘車趟請手動微調。`);
-            } else {
-                alert(`✅ 智慧人性化調度達成！\n共計 ${successCount} 趟。\n完美套用「12H工時上限」、「餐期大休」與「勞逸均衡」排班！`);
-            }
-            btn.innerHTML = "✨ 智慧自動調度";
-            btn.disabled = false;
-        }, 500);
-
-    } catch (e) {
-        console.error(e);
-        alert("執行自動調度時發生錯誤！請檢查網路。");
-        btn.innerHTML = "✨ 智慧自動調度";
-        btn.disabled = false;
-    }
-});
-
-        document.getElementById('btnPrintAll').addEventListener('click', async () => {
-            const inputDateVal = document.getElementById('inputDate').value;
-            if (!inputDateVal) {
-                alert("請確認日期已正確填寫！");
-                return;
-            }
-
-            const printZone = document.getElementById('print-zone');
-            printZone.innerHTML = '';
-            
-            let dailyShifts = {};
-            const { weekId, dayKey } = getWeekInfo(inputDateVal);
-            try {
-                const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
-                if (docSnap.exists() && docSnap.data().roster) {
-                    const roster = docSnap.data().roster;
-                    for (let driverId in roster) {
-                        dailyShifts[driverId] = roster[driverId][dayKey] || "";
-                    }
-                }
-            } catch (e) { console.error("無法抓取週班表：", e); }
-
-            const scheduleByDriver = {};
-            currentDayTrips.forEach(trip => {
-                if (!trip.assigned_driver || trip.assigned_driver === "尚未指派") return;
-
-                if (!scheduleByDriver[trip.assigned_driver]) {
-                    let shiftName = dailyShifts[trip.assigned_empid] || "";
-                    if (!shiftName) {
-                        let dInfo = currentAvailableDrivers.find(d => d.empId === trip.assigned_empid || d.name === trip.assigned_driver);
-                        if (dInfo && dInfo.shift) shiftName = dInfo.shift;
-                    }
-
-                    scheduleByDriver[trip.assigned_driver] = {
-                        driver: trip.assigned_driver,
-                        empId: trip.assigned_empid || "",
-                        shiftType: shiftName,
-                        vehicle: (trip.assigned_vehicle === "尚未指派") ? "" : trip.assigned_vehicle,
-                        trips: []
-                    };
-                }
-                scheduleByDriver[trip.assigned_driver].trips.push({
-                    route: trip.route || '',
-                    startStation: trip.start_point || '',
-                    arrStation: trip.end_point || '',
-                    depTime: trip.departure_time || '',
-                    arrTime: trip.arrival_time || ''
-                });
-            });
-
-            const driverKeys = Object.keys(scheduleByDriver);
-            if (driverKeys.length === 0) {
-                alert("目前沒有任何「已指派駕駛」的車趟，無法列印憑單！");
-                return;
-            }
-
-            const printDate = inputDateVal.replace(/-/g, '/');
-            const blankCheckbox = `<span style="font-size:14px; color:#000 !important; font-weight:bold;">□</span>`;
-
-            driverKeys.forEach(name => {
-                const assign = scheduleByDriver[name];
-                assign.trips.sort((a, b) => a.depTime.localeCompare(b.depTime));
-
-                let tripsRowsHtml = '';
-                let lastHour = -1;
-
-                assign.trips.forEach((t, idx) => {
-                    let currentHour = parseInt(t.depTime.split(':')[0]);
-                    
-                    if (lastHour !== -1 && !isNaN(currentHour) && !isNaN(lastHour) && (currentHour - lastHour >= 4)) {
-                        tripsRowsHtml += `<tr><td colspan="9" style="background:#f1f5f9 !important; text-align:center; font-weight:bold; letter-spacing:4px; color:#475569 !important; font-size:12px; padding: 2px;">=== 駕 駛 員 中 退 休 息 ===</td></tr>`;
-                    }
-                    lastHour = currentHour;
-                    
-                    const arrStr = t.arrTime ? `~ ${escapeHTML(t.arrTime)}` : '';
-
-                    tripsRowsHtml += `
-                        <tr>
-                            <td class="font-bold" style="color:#000 !important; font-size:12px;">${idx + 1}</td>
-                            <td class="font-bold text-left" style="color:#000 !important; font-size:12px; line-height:1.2;">
-                                <span style="color:#0369a1; border: 1px solid #bae6fd; padding: 1px 4px; border-radius: 4px; display:inline-block; margin-bottom:2px;">${escapeHTML(t.route)}</span><br>
-                                ${escapeHTML(t.startStation)}
-                            </td>
-                            <td style="font-family: monospace; color:#000 !important; font-weight:bold; font-size:13px;">${escapeHTML(t.depTime)} <br><span style="font-size:10px; font-weight:normal; color:#64748b;">${arrStr}</span></td>
-                            <td></td><td></td>
-                            <td class="font-bold text-left" style="color:#000 !important; font-size:12px;">${escapeHTML(t.arrStation)}</td>
-                            <td></td><td></td>
-                            <td></td>
-                        </tr>
-                    `;
-                });
-
-                // 💡 修正 2：將表格的最少行數從 3 提高到 10 行，這樣即使只有跑一趟，表格也會往下補齊 10 行空白格，讓版面看起來均衡。
-                let emptyRowsLimit = Math.max(assign.trips.length + 1, 10);
-                for(let i = assign.trips.length; i < emptyRowsLimit; i++) {
-                    tripsRowsHtml += `<tr style="height: 24px;"><td class="font-bold" style="color:#000 !important;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-                }
-
-                const voucherHtml = `
-                <div class="voucher-page" style="color:#000 !important;">
-                    <div>
-                        <div style="text-align: center; margin-bottom: 4px;">
-                            <h1 style="font-size: 20px; font-weight: bold; display: inline-block; padding: 0 16px; letter-spacing: 1px; margin: 0; color:#000 !important;">豐東交通客運 駛車憑單(行車日報表)</h1>
-                        </div>
-                        <table class="voucher-table" style="color:#000 !important; margin-bottom: 2px;">
-                            <tr>
-                                <th style="width:12%; color:#000 !important;">駕駛姓名</th><td style="width:18%; color:#000 !important;" class="font-bold">${escapeHTML(assign.driver)}</td>
-                                <th style="width:12%; color:#000 !important;">員工編號</th><td style="width:14%; color:#000 !important; font-family:monospace; font-weight:bold; font-size:12px;">${escapeHTML(assign.empId)}</td>
-                                <th style="width:12%; color:#000 !important;">車　　號</th><td style="width:18%; color:#000 !important;" class="font-bold">${escapeHTML(assign.vehicle)}</td>
-                                <th style="width:14%; color:#000 !important;">日　　期</th>
-                            </tr>
-                            <tr>
-                                <th style="color:#000 !important;">路線班別</th>
-                                <td class="font-bold" style="color:#000 !important; font-size:14px;">${escapeHTML(assign.shiftType)}</td>
-                                <td colspan="4" class="text-left" style="font-size:11px; color:#000 !important;">行車系統時間： □ 正確　□ 不正確</td>
-                                <td style="font-family:monospace; font-size:12px; color:#000 !important; font-weight:bold;">${escapeHTML(printDate)}</td>
-                            </tr>
-                        </table>
-                        <div style="display: flex; gap: 4px; margin-bottom: 2px;">
-                            <div style="flex: 1;">
-                                <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
-                                    <tr><th style="width:20%; color:#000 !important; font-size:10px;">駕照檢驗</th><td style="width:30%; color:#000 !important; font-size:10px;" class="text-left">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="width:20%; color:#000 !important; font-size:10px;">體溫檢測</th><td style="width:30%; color:#000 !important; font-size:10px;" class="text-left">${blankCheckbox} 合格(＿＿度)</td></tr>
-                                    <tr><th style="color:#000 !important; font-size:10px;">行照檢驗</th><td class="text-left" style="color:#000 !important; font-size:10px;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important; font-size:10px;">酒精檢測</th><td class="text-left" style="color:#000 !important; font-size:10px;">${blankCheckbox} 合格(值:＿＿)</td></tr>
-                                    <tr><th style="color:#000 !important; font-size:10px;">教育訓練</th><td class="text-left" style="color:#000 !important; font-size:10px;">${blankCheckbox} 合格　${blankCheckbox} 不合格</td><th style="color:#000 !important; font-size:10px;">血壓檢測</th><td class="text-left" style="color:#000 !important; font-size:10px;">高 ＿＿ / 低 ＿＿</td></tr>
-                                </table>
-                                <div style="border: 2px solid #000; border-top: none; text-align: center; padding: 1px; font-weight: bold; font-size: 11px;" class="red-text">※ 未通過酒測及血壓超標者，嚴禁出車！</div>
-                            </div>
-                            <div style="width: 130px; border: 2px solid #000; padding: 2px; font-weight: bold; font-size: 11px; display: flex; flex-direction: column; justify-content: space-around; color:#000 !important;">
-                                <div style="color:#000 !important;">出車前里程：<br><div style="text-align:right; color:#000 !important; margin-top:4px;">公里</div></div>
-                                <div style="color:#000 !important;">返場接續里程：<br><div style="text-align:right; color:#000 !important; margin-top:4px;">公里</div></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="trips-section">
-                        <div class="trips-table-wrapper">
-                            <table class="voucher-table trips-table" style="margin-bottom:0; color:#000 !important;">
-                                <thead>
-                                    <tr>
-                                        <th style="width:6%; color:#000 !important; font-size:10px;">班次</th><th style="width:18%; color:#000 !important; font-size:10px;">出發站/端點</th><th style="width:10%; color:#000 !important; font-size:10px;">排定時間</th>
-                                        <th style="width:10%; font-size:9px; color:#000 !important;">出發/管制時間<br>(實際發車)</th><th style="width:8%; color:#000 !important; font-size:10px;">站務簽章</th>
-                                        <th style="width:18%; color:#000 !important; font-size:10px;">到達站</th><th style="width:10%; font-size:9px; color:#000 !important;">到達時間<br>(實際到站)</th>
-                                        <th style="width:8%; color:#000 !important; font-size:10px;">站務簽章</th><th style="width:12%; color:#000 !important; font-size:10px;">備註</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${tripsRowsHtml}</tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 2px;">
-                        <table class="voucher-table" style="margin-bottom: 2px; color:#000 !important;">
-                            <tr style="height: 18px;"><th style="width: 33.33%; color:#000 !important; font-size:10px;">補票紀錄</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">油耗記錄(加油公升/時間)</th><th style="width: 33.33%; color:#000 !important; font-size:10px;">趟次中拋錨、肇事情形</th></tr>
-                            <tr style="height: 28px;"><td></td><td style="position: relative;"><div style="position: absolute; top: 2px; left: 8px; font-size: 10px; text-align: left; color:#000 !important;">加油量：＿＿＿ 公升 簽章：＿＿＿</div></td><td></td></tr>
-                        </table>
-
-                        <div style="border: 2px solid #000; padding: 2px 8px; margin-bottom: 2px; color:#000 !important;">
-                            <h3 style="text-align: center; font-size: 12px; font-weight: bold; margin-bottom: 2px; letter-spacing: 1px; margin-top:0; color:#000 !important;">路口轉彎停看行、禮讓行人優先行</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px; font-size: 10px; font-weight: bold; color:#000 !important;">
-                                <p style="margin:0; color:#000 !important;">1. 慢慢開、不急、不趕、路口減速。</p><p style="margin:0; color:#000 !important;">2. 遠離機車，遠離危險。</p>
-                                <p style="margin:0; color:#000 !important;">3. 開關車門時務必廣播提醒乘客。</p><p style="margin:0; color:#000 !important;">4. 行車中嚴禁使用手機及平板。</p>
-                                <p style="margin:0; color:#000 !important;">5. 離開駕駛座拉好手剎車。</p><p style="margin:0; color:#000 !important;">6. 候車亭服務燈亮起一定暫停確認。</p>
-                            </div>
-                            <div style="margin-top: 2px; display: flex; justify-content: flex-end; align-items: center; font-size: 11px; font-weight: bold; color:#000 !important;">
-                                <span style="margin-right: 8px; color:#000 !important;">駕駛員確認簽名：</span><span style="display: inline-block; width: 120px; border-bottom: 1px solid #000; height: 12px;"></span>
-                            </div>
-                        </div>
-
-                        <table class="voucher-table" style="margin-bottom: 0; color:#000 !important;">
-                            <tr><th style="width:16%; color:#000 !important; font-size:10px;">組別/班次</th><th style="width:16%; color:#000 !important; font-size:10px;">鍵入人員簽章</th><th style="width:16%; color:#000 !important; font-size:10px;">調度員簽章</th><th style="width:20%; color:#000 !important; font-size:10px;">站主管審核章</th><th style="width:16%; color:#000 !important; font-size:10px;">收回張數</th><th style="width:16%; color:#000 !important; font-size:10px;">票值合計</th></tr>
-                            <tr style="height: 22px;">
-                                <td class="font-bold" style="color:#000 !important;"></td><td></td>
-                                <td style="position: relative;">
-                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 1px dashed #ef4444; color: #ef4444 !important; padding: 1px 2px; font-weight: bold; font-size: 9px; white-space: nowrap;">
-                                        調度員 邱政明
-                                    </div>
-                                </td>
-                                <td style="position: relative;">
-                                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); border: 1px dashed #ef4444; color: #ef4444 !important; padding: 1px 2px; font-weight: bold; font-size: 9px; white-space: nowrap;">
-                                        站長 辛資貴
-                                    </div>
-                                </td>
-                                <td></td><td></td>
-                            </tr>
-                        </table>
-                        <div style="font-size: 8px; line-height: 1.1; margin-top: 1px; color:#000 !important;">
-                            <p style="margin:0; color:#000 !important;">註1: 偏線督導執行 SOP 標準作業程序相關規定。</p>
-                            <p style="margin:0; color:#000 !important;">註2: 行車中嚴禁撥打或持握式行動電話，過趟次中探聽電信以三通為限，每通不超過一分鐘。</p>
-                        </div>
-                    </div>
-                </div>`;
-                printZone.innerHTML += voucherHtml;
-            });
-
-            setTimeout(() => { window.print(); }, 300);
-        });
-
-    }).catch((err) => {
-        console.error("驗證失敗或未登入", err);
-    });
+      listenToDispatches(today);
+      dateInput.onchange = (e) => listenToDispatches(e.target.value);
+  }).catch(err => console.error(err));
 </script>
 </body>
 </html>

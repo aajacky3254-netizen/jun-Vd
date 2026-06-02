@@ -86,7 +86,7 @@
   <script type="module">
     import { db } from './firebase-init.js';
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole } from './auth.js';
+import { checkAuthAndGetRole, logout } from './auth.js';
 
     // 💡 傳入空陣列 []，代表「只要有登入的人」都可以進來這個網頁
     checkAuthAndGetRole([]).then((user) => {

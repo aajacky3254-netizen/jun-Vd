@@ -86,7 +86,7 @@
    <script type="module">
     import { db } from './firebase-init.js';
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole } from './auth.js';
+import { checkAuthAndGetRole, logout } from './auth.js';
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 

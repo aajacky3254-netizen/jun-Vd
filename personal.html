@@ -204,14 +204,6 @@ document.getElementById('btnChangePassword').addEventListener('click', async () 
 });
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-        authDomain: "jun-bus-dispatch.firebaseapp.com",
-        projectId: "jun-bus-dispatch",
-        storageBucket: "jun-bus-dispatch.firebasestorage.app"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
 
     let currentUser = null;
     let currentScheduleDate = new Date(); // 🆕 儲存目前畫面上選擇的日期物件
