@@ -38,44 +38,60 @@
     </div>
   </div>
 
-  <script type="module">
-    import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole } from './auth.js';
-   
-const auth = getAuth(app);
+    <script type="module">
+    // 💡 1. 正確引入 Firebase Auth 登入套件與您的設定檔
+    import { auth } from './firebase-init.js';
+    import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-document.getElementById('btnLogin').addEventListener('click', async () => {
-    // 1. 員工依然只輸入 001 跟 123
-    const empId = document.getElementById('empId').value.trim();
-    const password = document.getElementById('password').value.trim();
-    
-    if(!empId || !password) return;
-
-    try {
-        // 2. 程式在背後自動幫他加上虛擬網域 (員工完全無感)
-        const virtualEmail = `${empId}@fengdong.com`;
-
-        // 3. 丟給 Firebase 安全驗證
-        await signInWithEmailAndPassword(auth, virtualEmail, password);
-        
-        // 4. 登入成功，跳轉首頁
-        window.location.href = 'index.html'; 
-        
-    } catch (error) {
-        alert("員工編號或密碼錯誤！");
-    }
-});
+    // 💡 2. 實作「顯示/隱藏密碼」的小眼睛切換功能
     document.getElementById('togglePwd').addEventListener('click', function() {
-    const pwdInput = document.getElementById('password');
-    if (pwdInput.type === 'password') {
-        pwdInput.type = 'text';
-        this.innerText = '🙈'; // 閉眼圖示
-    } else {
-        pwdInput.type = 'password';
-        this.innerText = '👁️'; // 睜眼圖示
-    }
-});
+        const pwdInput = document.getElementById('password');
+        if (pwdInput.type === 'password') {
+            pwdInput.type = 'text';
+            this.innerText = '🙈'; // 閉眼
+        } else {
+            pwdInput.type = 'password';
+            this.innerText = '👁️'; // 睜眼
+        }
+    });
+
+    // 💡 3. 執行登入邏輯
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+        const empId = document.getElementById('empId').value.trim();
+        const password = document.getElementById('password').value.trim();
+        
+        if(!empId || !password) {
+            alert("請輸入員工編號與密碼！");
+            return;
+        }
+
+        const btn = document.getElementById('btnLogin');
+        const originalText = btn.innerText;
+        btn.innerText = "驗證中...";
+        btn.disabled = true;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+
+        try {
+            // 在背後自動幫員工加上虛擬網域
+            const virtualEmail = `${empId}@fengdong.com`;
+
+            // 丟給 Firebase 安全驗證
+            await signInWithEmailAndPassword(auth, virtualEmail, password);
+            
+            // 登入成功，跳轉首頁
+            window.location.href = 'index.html'; 
+            
+        } catch (error) {
+            console.error("登入錯誤:", error);
+            alert("登入失敗：員工編號或密碼錯誤！\n(請確認該員工是否已在人事系統中建立)");
+            
+            // 登入失敗時，恢復按鈕狀態
+            btn.innerText = originalText;
+            btn.disabled = false;
+            btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        }
+    });
   </script>
+
 </body>
 </html>
