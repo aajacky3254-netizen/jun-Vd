@@ -165,34 +165,45 @@ import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
 
         // 勞務統計計算
         async function generateFairnessDashboard() {
-            try {
-                const snap = await getDocs(collection(db, "daily_dispatches"));
-                let driverCounts = {};
-                snap.forEach(doc => {
-                    const d = doc.data().assigned_driver;
-                    if(d && d !== "尚未指派") driverCounts[d] = (driverCounts[d] || 0) + 1;
-                });
+    try {
+        const snap = await getDocs(collection(db, "daily_dispatches"));
+        let driverWorkMins = {}; // 改為記錄分鐘數
+        
+        snap.forEach(doc => {
+            const data = doc.data();
+            const d = data.assigned_driver;
+            if(d && d !== "尚未指派") {
+                const s = timeToMins(data.departure_time);
+                let e = data.arrival_time ? timeToMins(data.arrival_time) : s + 60;
+                if (e < s) e += 24 * 60;
                 
-                let html = '';
-                const maxTrips = Math.max(...Object.values(driverCounts), 1);
-                
-                for(let [driver, count] of Object.entries(driverCounts)) {
-                    let percent = (count / maxTrips) * 100;
-                    let barColor = count >= 10 ? 'bg-red-500' : 'bg-emerald-500';
-                    let alertIcon = count >= 10 ? '⚠️ 勞務偏重' : '';
-                    
-                    html += `
-                    <div class="flex items-center gap-4">
-                        <div class="w-32 text-right font-bold text-gray-700">${driver}</div>
-                        <div class="flex-grow bg-gray-100 rounded-full h-4 overflow-hidden">
-                            <div class="${barColor} h-4 rounded-full transition-all duration-1000" style="width: ${percent}%"></div>
-                        </div>
-                        <div class="w-24 font-bold text-gray-600">${count} 趟 <span class="text-red-500 text-xs">${alertIcon}</span></div>
-                    </div>`;
-                }
-                document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center text-gray-500 font-bold py-4">目前尚無派車資料。</div>';
-            } catch (e) { console.error(e); }
+                driverWorkMins[d] = (driverWorkMins[d] || 0) + (e - s);
+            }
+        });
+        
+        let html = '';
+        // 找出最高工時作為進度條分母 (最少1分鐘避免除以零)
+        const maxMins = Math.max(...Object.values(driverWorkMins), 1); 
+        
+        for(let [driver, mins] of Object.entries(driverWorkMins)) {
+            let hours = (mins / 60).toFixed(1); // 轉換為小時
+            let percent = (mins / maxMins) * 100;
+            // 實務警戒線：當週累計超過 46 小時亮紅燈
+            let barColor = hours >= 46 ? 'bg-red-500' : 'bg-emerald-500'; 
+            let alertIcon = hours >= 46 ? '⚠️ 工時偏高' : '';
+            
+            html += `
+            <div class="flex items-center gap-4">
+                <div class="w-32 text-right font-bold text-gray-700">${driver}</div>
+                <div class="flex-grow bg-gray-100 rounded-full h-4 overflow-hidden">
+                    <div class="${barColor} h-4 rounded-full transition-all duration-1000" style="width: ${percent}%"></div>
+                </div>
+                <div class="w-32 font-bold text-gray-600">${hours} 小時 <span class="text-red-500 text-xs">${alertIcon}</span></div>
+            </div>`;
         }
+        document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center text-gray-500 font-bold py-4">目前尚無派車資料。</div>';
+    } catch (e) { console.error(e); }
+}
 
     }).catch((err) => {
         console.error("未登入，已退回登入頁面", err);
