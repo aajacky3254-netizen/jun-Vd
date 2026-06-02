@@ -210,7 +210,7 @@ document.getElementById('btnChangePassword').addEventListener('click', async () 
     let currentUser = null;
     let currentScheduleDate = new Date(); // 🆕 儲存目前畫面上選擇的日期物件
     let unsubscribeSchedule = null;       // 🆕 用來清除舊日期的 Firebase 監聽器
-    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員', '駕駛長']).then((user) => {
+  checkAuthAndGetRole(['駕駛長', '站長', '調度員', '總公司']).then((user) => {
         currentUser = user;
         document.getElementById('displayEmpId').innerText = escapeHTML(user.empId);
         document.getElementById('displayName').innerText = escapeHTML(user.name);
