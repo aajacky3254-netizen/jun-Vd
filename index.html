@@ -6,7 +6,7 @@
   <title>豐東交通客運 - 營運管理入口網</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; display: none; }
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; }
     .navbar { background-color: #1e293b; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: auto; text-decoration: none; letter-spacing: 1px; }
     .module-card { transition: all 0.3s ease; }
@@ -14,7 +14,11 @@
   </style>
 </head>
 <body>
-
+<div id="global-loader" class="fixed inset-0 bg-[#f4f6f9] z-[9999] flex flex-col items-center justify-center transition-opacity duration-500">
+      <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="豐東客運" class="h-20 mb-6 animate-pulse object-contain">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600 mb-4"></div>
+      <p class="text-gray-600 font-bold tracking-widest text-sm">系統安全驗證與載入中...</p>
+  </div>
   <nav class="navbar" id="main-nav">
     <a href="index.html" class="navbar-brand flex items-center">
       <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
@@ -111,8 +115,13 @@ import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from
 import { checkAuthAndGetRole } from './auth.js';
 
     checkAuthAndGetRole([]).then(async (user) => {
-        // 1. 驗證成功後，先顯示網頁主體
-        document.body.style.display = 'block'; 
+        // 1. 驗證成功後，先顯示網頁主體 
+      // ✅ 改成以下這段 Loader 淡出邏輯
+        const loader = document.getElementById('global-loader');
+        if (loader) {
+            loader.style.opacity = '0'; // 觸發 CSS 淡出動畫
+            setTimeout(() => loader.remove(), 500); // 0.5秒後從網頁結構中徹底移除
+        }
         document.getElementById('welcomeMsg').innerText = `您好，${user.name}！`;
         
         document.getElementById('main-nav').innerHTML += `
