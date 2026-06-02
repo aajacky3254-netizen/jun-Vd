@@ -109,10 +109,6 @@
    import { db } from './firebase-init.js';
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { checkAuthAndGetRole } from './auth.js';
-    const app = initializeApp({
-      apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI", authDomain: "jun-bus-dispatch.firebaseapp.com", projectId: "jun-bus-dispatch"
-    });
-    const db = getFirestore(app);
 
     checkAuthAndGetRole([]).then(async (user) => {
         // 1. 驗證成功後，先顯示網頁主體
