@@ -58,12 +58,12 @@
 
   <script type="module">
     import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, orderBy, getDocs} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole, logout } from './auth.js';
+    // 💡 補上 where 條件篩選
+    import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, orderBy, getDocs, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js';
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
-    // 只有站長與調度員可以進入簽核頁面
     checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
         document.body.style.display = 'block'; 
 
@@ -76,25 +76,38 @@ import { checkAuthAndGetRole, logout } from './auth.js';
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-       
         const dbStatusEl = document.getElementById('db-status');
-
         const leaveRequestsCol = collection(db, "leave_requests");
         
-        onSnapshot(query(leaveRequestsCol, orderBy("date", "desc")), (snapshot) => {
+        // 💡 權限分流判斷：駕駛只能看自己的，主管看全部
+        let q;
+        if (user.role === '駕駛長') {
+            q = query(leaveRequestsCol, where("empId", "==", user.empId));
+        } else {
+            q = query(leaveRequestsCol, orderBy("date", "desc"));
+        }
+        
+        onSnapshot(q, (snapshot) => {
             const leaveBody = document.getElementById('leaveRequestsBody');
             leaveBody.innerHTML = '';
 
-            if (snapshot.empty) {
+            // 如果是駕駛，需要把抓回來的資料在前端排序 (因為用了 where 就不能混用其他欄位的 orderBy)
+            let requests = [];
+            snapshot.forEach(docSnap => requests.push({ id: docSnap.id, ...docSnap.data() }));
+            
+            if (user.role === '駕駛長') {
+                requests.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+            }
+
+            if (requests.length === 0) {
                 leaveBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">目前無任何請假申請。</td></tr>';
                 dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
                 dbStatusEl.innerText = "資料庫已連線";
                 return;
             }
 
-            snapshot.forEach(docSnap => {
-                const data = docSnap.data();
-                const leaveId = docSnap.id;
+            requests.forEach(data => {
+                const leaveId = data.id;
                 const tr = document.createElement('tr');
 
                 let statusHtml = '';
@@ -102,10 +115,16 @@ import { checkAuthAndGetRole, logout } from './auth.js';
 
                 if (data.status === '審核中') {
                     statusHtml = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-300">待簽核</span>';
-                    actionBtns = `
-                        <button class="btn-approve bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors shadow-sm" data-id="${leaveId}">核准</button>
-                        <button class="btn-reject bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${leaveId}">退回</button>
-                    `;
+                    
+                    // 💡 按鈕分流：駕駛顯示刪除(撤銷)，主管顯示核准/退回
+                    if (user.role === '駕駛長') {
+                        actionBtns = `<button class="btn-delete bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${leaveId}">撤銷假單</button>`;
+                    } else {
+                        actionBtns = `
+                            <button class="btn-approve bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors shadow-sm" data-id="${leaveId}">核准</button>
+                            <button class="btn-reject bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${leaveId}">退回</button>
+                        `;
+                    }
                 } else if (data.status === '已核准') {
                     statusHtml = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-300">已核准</span><div class="text-[10px] text-gray-400 mt-1">核准人: ${escapeHTML(data.reviewedBy || '')}</div>`;
                 } else {
@@ -126,58 +145,63 @@ import { checkAuthAndGetRole, logout } from './auth.js';
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
             dbStatusEl.innerText = "資料庫已連線";
 
-            // 綁定核准按鈕防連點
+            // 💡 主管功能：核准
             document.querySelectorAll('.btn-approve').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const currentBtn = e.target;
-                    // 如果按鈕已經被禁用，就不理會
                     if (currentBtn.disabled) return; 
-
-                    if (confirm("確定要【核准】此排休申請嗎？\n核准後，該員當日將無法被調度員排班。")) {
-                        // 點擊後立刻禁用按鈕並改變外觀
-                        const originalText = currentBtn.innerText;
+                    if (confirm("確定要【核准】此申請嗎？")) {
                         currentBtn.innerText = "處理中...";
                         currentBtn.disabled = true;
-                        currentBtn.style.opacity = "0.5";
-                        
                         try {
                             await updateDoc(doc(db, "leave_requests", currentBtn.dataset.id), { status: "已核准", reviewedBy: user.name });
-                            // 成功後 onSnapshot 會自動重新渲染表格，不需手動恢復按鈕
                         } catch (err) {
-                            console.error("核准失敗", err);
                             alert("處理失敗，請檢查網路！");
-                            currentBtn.innerText = originalText;
+                            currentBtn.innerText = "核准";
                             currentBtn.disabled = false;
-                            currentBtn.style.opacity = "1";
                         }
                     }
                 });
             });
 
-            // 綁定退回按鈕防連點
+            // 💡 主管功能：退回
             document.querySelectorAll('.btn-reject').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const currentBtn = e.target;
                     if (currentBtn.disabled) return;
-
                     if (confirm("確定要【退回】此申請嗎？")) {
-                        const originalText = currentBtn.innerText;
                         currentBtn.innerText = "處理中...";
                         currentBtn.disabled = true;
-                        currentBtn.style.opacity = "0.5";
-                        
                         try {
                             await updateDoc(doc(db, "leave_requests", currentBtn.dataset.id), { status: "退回", reviewedBy: user.name });
                         } catch (err) {
-                            console.error("退回失敗", err);
                             alert("處理失敗，請檢查網路！");
-                            currentBtn.innerText = originalText;
+                            currentBtn.innerText = "退回";
                             currentBtn.disabled = false;
-                            currentBtn.style.opacity = "1";
                         }
                     }
                 });
             });
+
+            // 💡 駕駛長功能：撤銷(刪除)自己的假單
+            document.querySelectorAll('.btn-delete').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const currentBtn = e.target;
+                    if (currentBtn.disabled) return;
+                    if (confirm("確定要【撤銷刪除】這張請假單嗎？\n刪除後如需請假必須重新填寫。")) {
+                        currentBtn.innerText = "撤銷中...";
+                        currentBtn.disabled = true;
+                        try {
+                            await deleteDoc(doc(db, "leave_requests", currentBtn.dataset.id));
+                        } catch (err) {
+                            alert("撤銷失敗，請檢查網路！");
+                            currentBtn.innerText = "撤銷假單";
+                            currentBtn.disabled = false;
+                        }
+                    }
+                });
+            });
+
         }, (err) => {
             console.error(err);
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
