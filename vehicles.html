@@ -111,12 +111,24 @@
       </tbody>
     </table>
   </div>
-
-  <script type="module">
+<script type="module">
+    import { checkAuthAndGetRole, renderNavbar } from './auth.js';
     import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole, logout } from './auth.js';
+    import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js';
 
+  // 執行權限檢查，並傳入該頁面允許的角色（例如車輛頁面允許這三個角色）
+    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員'])
+        .then((user) => {
+            // 1. 成功後渲染導覽列，並將 'vehicles' 設為高亮 active
+            renderNavbar(user, 'vehicles');
+            
+            // 2. 在這裡寫你原本在 vehicles.html 裡抓取 Firestore 資料庫的邏輯...
+            console.log("驗證成功，開始載入車輛資料...");
+        })
+        .catch((err) => {
+            console.error("驗證失敗：", err);
+        });
     const escapeHTML = (str) => {
         return str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
     };

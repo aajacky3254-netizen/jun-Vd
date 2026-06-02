@@ -1,25 +1,19 @@
 // auth.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// 1. 從你原本就寫好的初始化檔案中匯入 db 與 auth
+import { db, auth } from './firebase-init.js';
 
-const firebaseConfig = {
-    apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-    authDomain: "jun-bus-dispatch.firebaseapp.com",
-    projectId: "jun-bus-dispatch",
-    storageBucket: "jun-bus-dispatch.firebasestorage.app",
-    messagingSenderId: "621725744717",
-    appId: "1:621725744717:web:64e663648d8c76b9bd6604"
-};
+// 2. 引入需要的 Firebase 原生功能方法
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
+/**
+ * 驗證登入狀態與檢查角色權限
+ * @param {Array} allowedRoles 允許存取該頁面的角色陣列
+ */
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            unsubscribe(); 
+            unsubscribe(); // 取得一次狀態後立即取消監聽，避免重複觸發
             
             if (!user) {
                 window.location.href = 'login.html';
@@ -27,9 +21,10 @@ export function checkAuthAndGetRole(allowedRoles = []) {
             }
 
             try {
-                // 💡 關鍵修復：將 Firebase 的小寫信箱強制轉回大寫，才能對應資料庫的 A001
+                // 💡 將 Firebase 的小寫信箱強制轉回大寫，才能對應資料庫的員工工號（如 A001）
                 const empId = user.email.split('@')[0].toUpperCase();
                 
+                // 讀取人事資料庫中的角色資料
                 const docSnap = await getDoc(doc(db, "Drivers", empId));
                 
                 if (!docSnap.exists()) {
@@ -42,6 +37,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                 const userData = docSnap.data();
                 const userRole = userData.role || "駕駛長";
 
+                // 權限檢查
                 if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
                     alert(`權限不足！您的職稱為「${userRole}」，無法存取此頁面。`);
                     window.location.href = 'index.html'; 
@@ -49,7 +45,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                 }
 
                 const safeUser = { empId: empId, name: userData.name, role: userRole };
-                window.currentUser = safeUser;
+                window.currentUser = safeUser; // 掛載到全域方便頁面調用
                 resolve(safeUser);
 
             } catch (error) {
@@ -60,6 +56,9 @@ export function checkAuthAndGetRole(allowedRoles = []) {
     });
 }
 
+/**
+ * 登出系統
+ */
 export function logout() {
     if(confirm("確定要登出系統嗎？")) {
         signOut(auth).then(() => {
@@ -70,6 +69,11 @@ export function logout() {
     }
 }
 
+/**
+ * 動態渲染導覽列
+ * @param {Object} user 登入的使用者物件
+ * @param {String} activePageId 當前頁面的 ID
+ */
 export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
@@ -106,5 +110,10 @@ export function renderNavbar(user, activePageId) {
     `;
 
     nav.innerHTML = html;
-    document.getElementById('btnLogout').addEventListener('click', logout);
+    
+    // 確保按鈕渲染完成後再行監聽
+    const btnLogout = document.getElementById('btnLogout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', logout);
+    }
 }
