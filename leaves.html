@@ -64,7 +64,7 @@ import { checkAuthAndGetRole, logout } from './auth.js';
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
     // 只有站長與調度員可以進入簽核頁面
-    checkAuthAndGetRole(['總公司', '站長', '調度員']).then((user) => {
+    checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
         document.body.style.display = 'block'; 
 
         const nav = document.getElementById('main-nav');
