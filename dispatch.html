@@ -327,6 +327,29 @@
               const currentTrip = currentDayTrips.find(t => t.id === tripId);
               if (newDriver !== "尚未指派") {
                   const start1 = timeToMins(currentTrip.departure_time);
+                  let end1 = trip.arrival_time ? timeToMins(trip.arrival_time) : start1 + 60;
+                // 關鍵修復：如果到達時間的分鐘數小於發車時間，代表跨越午夜，必須加上 24 小時的分鐘數
+                  if (end1 < start1) {
+                      end1 += 24 * 60;
+// 建立工時累計字典
+let driverDailyMinutes = {};
+
+// 遍歷當日車趟計算已指派工時
+tempTrips.forEach(t => {
+    if (t.assigned_empid) {
+        const s = timeToMins(t.departure_time);
+        let e = t.arrival_time ? timeToMins(t.arrival_time) : s + 60;
+        if (e < s) e += 24 * 60;
+        driverDailyMinutes[t.assigned_empid] = (driverDailyMinutes[t.assigned_empid] || 0) + (e - s);
+    }
+});
+
+// 在指派迴圈中加入工時阻擋
+if (driverDailyMinutes[d.empId] + (end1 - start1) > 600) {
+    continue; // 超過每日 10 小時上限，跳過這位駕駛
+}
+
+                    
                   const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
                   const hasConflict = currentDayTrips.some(t => {
                       if (t.id === tripId || t.assigned_empid !== empid || t.status === 'done') return false;
