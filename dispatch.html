@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 每日發車時刻表</title>
+  <meta name="robots" content="noindex, nofollow">
+    
+    <meta property="og:title" content="豐東交通客運 | 智慧車輛調度與個人作業台">
+    <meta property="og:description" content="豐東客運專屬營運入口網，請登入以查看最新班表、派車資訊與差勤紀錄。">
+    <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
@@ -290,7 +295,7 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
                       <td><select class="vehicle-select" data-id="${data.id}">${vehicleOpts}</select></td>
                       <td>${statusBtn}</td>
                       <td>
-                         <button class="btn-edit-trip bg-sky-500 text-white px-2 py-1 rounded text-xs font-bold mr-1" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point}">編輯</button>
+                         <button class="bg-blue-500 text-white min-h-[44px] px-4 py-2 rounded text-base font-medium">編輯</button>
                          <button class="btn-delete-trip bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold" data-id="${data.id}">刪除</button>
                       </td>
                     </tr>`;

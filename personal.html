@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>駕駛長個人作業台 - 豐東客運</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="manifest" href="manifest.json">
@@ -16,8 +16,8 @@
     .nav-btn.active { color: #f97316; } /* 品牌橘色 */
     
     /* 滑動確認按鈕模擬 */
-    .slide-confirm { background: #e5e7eb; border-radius: 9999px; position: relative; height: 44px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; transition: background 0.3s;}
-    .slide-confirm.confirmed { background: #f97316; color: white;} /* 品牌橘色 */
+    .long-press-confirm { background: #e5e7eb; border-radius: 9999px; position: relative; height: 44px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; transition: background 0.3s;}
+    .long-press-confirm.confirmed { background: #f97316; color: white;} /* 品牌橘色 */
     .slide-text { z-index: 10; font-weight: bold; font-size: 14px; transition: color 0.3s;}
     
     .course-card { transition: transform 0.2s; cursor: pointer; }
@@ -169,6 +169,8 @@
       <svg class="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0v6m0-6L3 9m9 5l9-5" /></svg>
       <span class="text-[10px] font-bold tracking-wider">數位學習</span>
     </button>
+    <button class="slide-confirm bg-blue-600 ...">確認出車</button>
+    <button class="long-press-confirm bg-blue-600 ...">確認出車</button>
   </nav>
 
 </div> <script type="module">
