@@ -258,11 +258,9 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
               snap.forEach(d => { if (d.data().status === 'ready') currentAvailableVehicles.push({ plate: d.data().plate_number || d.id, model: d.data().model }); });
           } catch (e) { console.error(e); }
       }
-    const routesContainer = document.getElementById('routesContainer'); // 請替換成實際的 ID
+
       function listenToDispatches(selectedDate) {
           if (unsubscribeDispatch) unsubscribeDispatch();
-          routesContainer.innerHTML = ""; // 防錯
-          
           unsubscribeDispatch = onSnapshot(query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc")), async (snapshot) => {
               await loadAvailableDrivers(selectedDate);
               await loadAvailableVehicles();
@@ -295,7 +293,7 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
                       <td><select class="vehicle-select" data-id="${data.id}">${vehicleOpts}</select></td>
                       <td>${statusBtn}</td>
                       <td>
-                         <button class="bg-blue-500 text-white min-h-[44px] px-4 py-2 rounded text-base font-medium">編輯</button>
+                         <button class="btn-edit-trip bg-blue-500 text-white min-h-[44px] px-4 py-2 rounded text-base font-medium" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point}">編輯</button>
                          <button class="btn-delete-trip bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold" data-id="${data.id}">刪除</button>
                       </td>
                     </tr>`;
