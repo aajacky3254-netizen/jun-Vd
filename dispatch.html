@@ -48,41 +48,41 @@
     .btn-active { background-color: #10b981; animation: pulse 2s infinite; } 
     .btn-done { background-color: #64748b; cursor: default; box-shadow: none;} 
 
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
-      70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    
     @media screen { #print-zone { display: none; } }
 
+    /* =========================================
+       列印專屬樣式 (完全對齊愛巴士實務憑單)
+       ========================================= */
     @media print {
-        @page { margin: 10mm; size: A4 portrait; }
+        @page { margin: 8mm; size: A4 portrait; }
         .no-print { display: none !important; } 
+        body { background-color: #fff; }
         #print-zone { display: block !important; position: static !important; width: 100%; }
         
-        /* 💡 修正：強制憑單一人一頁獨立列印 */
-        .voucher-card { 
-            border: 2px solid #000; padding: 25px; margin-bottom: 0; border-radius: 8px;
+        .daily-log-sheet {
+            width: 100%; height: 98vh; 
             page-break-inside: avoid;
             page-break-after: always; 
+            font-family: "微軟正黑體", sans-serif;
+            color: #000;
         }
-        .voucher-card:last-child {
-            page-break-after: auto; 
-        }
-        .voucher-title { font-size: 24px; font-weight: bold; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; letter-spacing: 2px; }
-        .voucher-table-print { width: 100%; border-collapse: collapse; font-size: 14pt; }
-        .voucher-table-print th, .voucher-table-print td { border: 1px solid #000; padding: 12px; text-align: left; }
-        .voucher-table-print th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; width: 25%; font-weight: bold; }
-    }
-    
-    @media screen and (max-width: 768px) {
-      table, thead, tbody, th, td, tr { display: block; }
-      thead tr { display: none; }
-      tr { background: white; margin-bottom: 1rem; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; padding: 12px; }
-      td { border: none; border-bottom: 1px solid #f1f5f9; position: relative; padding: 12px 10px 12px 40%; text-align: right; min-height: 45px; display: flex; justify-content: flex-end; align-items: center;}
-      td:last-child { border-bottom: none; justify-content: center; padding: 15px 10px 5px; }
-      td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
+        .daily-log-sheet:last-child { page-break-after: auto; }
+        
+        .log-title { font-size: 26px; font-weight: 900; text-align: center; margin-bottom: 12px; letter-spacing: 2px; }
+        
+        .table-bordered { width: 100%; border-collapse: collapse; border: 2px solid #000; margin-bottom: -2px; }
+        .table-bordered th, .table-bordered td { border: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 13px; }
+        .table-bordered th { font-weight: 800; background-color: #f8f8f8 !important; -webkit-print-color-adjust: exact; }
+        
+        .align-left { text-align: left !important; }
+        .text-red { color: #dc2626 !important; -webkit-print-color-adjust: exact; }
+        .font-mono { font-family: monospace; }
+        
+        .break-row td { padding: 4px; font-weight: 800; letter-spacing: 8px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+        .trip-row td { height: 45px; vertical-align: middle; }
+        
+        /* 底部戳章區 */
+        .stamp-box { border: 2px dashed #dc2626; color: #dc2626; display: inline-block; padding: 4px 15px; font-weight: bold; font-size: 14px; margin-top: 4px; }
     }
   </style>
 </head>
@@ -163,7 +163,7 @@
       </button>
       
       <button id="btnPrintAll" class="bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold" style="height: 42px;">
-        🖨️ 批次列印憑單
+        🖨️ 批次列印日報表
       </button>
     </div>
 
@@ -498,39 +498,202 @@
           }
       });
 
+      // ==========================================
+      // 🖨️ 批次列印憑單 (依駕駛員分組產生獨立日報表)[cite: 4]
+      // ==========================================
       document.getElementById('btnPrintAll').addEventListener('click', () => {
           if (currentDayTrips.length === 0) return alert("本日尚無車趟可列印！");
           const printZone = document.getElementById('print-zone');
           
+          // 1. 以「駕駛員編號」將車趟進行分組[cite: 4]
+          let driverTripsMap = {};
+          currentDayTrips.forEach(trip => {
+              const empId = trip.assigned_empid;
+              if (!empId) return; // 忽略尚未指派駕駛的車趟
+              
+              if (!driverTripsMap[empId]) {
+                  // 從 currentAvailableDrivers 中尋找該名駕駛的當日班別 (Shift)
+                  let shiftType = "未知";
+                  const drv = currentAvailableDrivers.find(d => d.empId === empId);
+                  if(drv) shiftType = drv.shift;
+
+                  driverTripsMap[empId] = {
+                      driverName: trip.assigned_driver,
+                      empId: empId,
+                      vehicles: new Set(),
+                      shift: shiftType,
+                      trips: []
+                  };
+              }
+              driverTripsMap[empId].trips.push(trip);
+              if(trip.assigned_vehicle !== "尚未指派") driverTripsMap[empId].vehicles.add(trip.assigned_vehicle);
+          });
+
           let html = '';
-          currentDayTrips.forEach((trip) => {
+
+          // 2. 針對每位駕駛員，產生獨立的行車日報表[cite: 4]
+          for (let empId in driverTripsMap) {
+              const driverData = driverTripsMap[empId];
+              // 車趟依時間排序
+              driverData.trips.sort((a, b) => timeToMins(a.departure_time) - timeToMins(b.departure_time));
+              
+              const vList = Array.from(driverData.vehicles).join(', ') || "無";
+              const targetDate = dateInput.value.replace(/-/g, '/');
+
+              html += `<div class="daily-log-sheet">`;
+              html += `<div class="log-title">豐東交通客運 駛車憑單(行車日報表)</div>`;
+              
+              // 頂部資訊與檢核表[cite: 4]
               html += `
-              <div class="voucher-card">
-                  <div class="voucher-title">豐東交通客運 - 行車憑單</div>
-                  <table class="voucher-table-print">
-                      <tr>
-                          <th>行駛日期</th><td>${trip.date}</td>
-                          <th>營運路線</th><td style="font-weight:bold; color:#1e3a8a;">${trip.route}</td>
-                      </tr>
-                      <tr>
-                          <th>發車時間</th><td style="font-weight:bold; font-size:16pt;">${trip.departure_time}</td>
-                          <th>到達時間</th><td>${trip.arrival_time || '依實際路況'}</td>
-                      </tr>
-                      <tr>
-                          <th>起站點</th><td>${trip.start_point}</td>
-                          <th>終點站</th><td>${trip.end_point}</td>
-                      </tr>
-                      <tr>
-                          <th>駕駛長</th><td style="font-weight:bold;">${trip.assigned_driver}</td>
-                          <th>車牌號碼</th><td style="font-weight:bold; font-family:monospace;">${trip.assigned_vehicle}</td>
-                      </tr>
-                  </table>
-                  <div style="font-size: 11pt; color: #4b5563; text-align: right; margin-top: 30px;">
-                      列印時間: ${new Date().toLocaleString()} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 站長簽核欄: __________________
+              <table class="table-bordered" style="margin-bottom: -1px;">
+                  <tr>
+                      <th style="width:12%">駕駛姓名</th>
+                      <td style="width:13%">${escapeHTML(driverData.driverName)}</td>
+                      <th style="width:12%">員工編號</th>
+                      <td style="width:13%">${escapeHTML(driverData.empId)}</td>
+                      <th style="width:12%">車　　號</th>
+                      <td style="width:23%">${escapeHTML(vList)}</td>
+                      <th style="width:10%">日　　期</th>
+                  </tr>
+                  <tr>
+                      <th>路線班別</th>
+                      <td colspan="3" class="font-bold">${escapeHTML(driverData.shift)}</td>
+                      <th colspan="2">行車系統時間： □ 正確　□ 不正確</th>
+                      <td class="font-bold">${targetDate}</td>
+                  </tr>
+              </table>
+              <table class="table-bordered" style="margin-bottom: 2px;">
+                  <tr>
+                      <th style="width:15%">駕照檢驗</th><td class="align-left" style="width:20%">□ 合格　□ 不合格</td>
+                      <th style="width:15%">體溫檢測</th><td class="align-left" style="width:25%">□ 合格 ( _ _ . _ 度 )</td>
+                      <td rowspan="3" class="align-left" style="vertical-align: top; width:25%;">
+                          出車前里程數：<br><br><div style="text-align:right">公里</div>
+                          <hr style="border-top:1px solid #000; margin:10px 0;">
+                          返場接續里程數：<br><br><div style="text-align:right">公里</div>
+                      </td>
+                  </tr>
+                  <tr>
+                      <th>行照檢驗</th><td class="align-left">□ 合格　□ 不合格</td>
+                      <th>酒精檢測</th><td class="align-left">□ 合格 ( 數值: 0.00 )</td>
+                  </tr>
+                  <tr>
+                      <th>教育訓練證明</th><td class="align-left">□ 合格　□ 不合格</td>
+                      <th>血壓檢測</th><td class="align-left">收縮 _ _ _ / 舒張 _ _ _</td>
+                  </tr>
+                  <tr>
+                      <td colspan="5" class="text-red font-bold">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td>
+                  </tr>
+              </table>
+              `;
+
+              // 核心班次表格[cite: 4]
+              html += `
+              <table class="table-bordered">
+                  <tr>
+                      <th style="width:5%">班次</th>
+                      <th style="width:25%">出發站/端點</th>
+                      <th style="width:10%">排定時間</th>
+                      <th style="width:12%">出發/管制時間<br><span style="font-size:10px">(實際發車)</span></th>
+                      <th style="width:8%">站務簽章</th>
+                      <th style="width:16%">到達站</th>
+                      <th style="width:8%">到達時間<br><span style="font-size:10px">(實際到站)</span></th>
+                      <th style="width:8%">站務簽章</th>
+                      <th style="width:8%">備註</th>
+                  </tr>
+              `;
+
+              let tripCount = 1;
+              const maxRows = 7; // 模擬實體表格的固定列數
+
+              driverData.trips.forEach((trip, index) => {
+                  html += `
+                  <tr class="trip-row">
+                      <td class="font-bold">${tripCount++}</td>
+                      <td class="align-left">
+                          <strong style="color:#2563eb;">${escapeHTML(trip.route)}</strong> ${escapeHTML(trip.start_point)}
+                      </td>
+                      <td class="font-bold">${escapeHTML(trip.departure_time)} ~ ${escapeHTML(trip.arrival_time || '')}</td>
+                      <td></td><td></td>
+                      <td>${escapeHTML(trip.end_point)}</td>
+                      <td></td><td></td><td></td>
+                  </tr>
+                  `;
+                  // 在每個班次之間安插「中退休息」分隔線[cite: 4]
+                  if (index < driverData.trips.length - 1) {
+                      html += `<tr class="break-row"><td colspan="9">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
+                  }
+              });
+
+              // 補足剩下的空白列，維持表格版面[cite: 4]
+              while (tripCount <= maxRows) {
+                  html += `<tr class="trip-row"><td class="font-bold">${tripCount++}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+              }
+
+              html += `</table>`;
+
+              // 底部油耗與肇事紀錄[cite: 4]
+              html += `
+              <table class="table-bordered" style="margin-top: -1px;">
+                  <tr>
+                      <th style="width:30%">補票紀錄</th>
+                      <th style="width:40%">油耗記錄 (加油公升/時間)</th>
+                      <th style="width:30%">趟次中拋錨、肇事情形</th>
+                  </tr>
+                  <tr>
+                      <td style="height:40px;"></td>
+                      <td class="align-left">加油量：_ _ _ 公升　簽章：_ _ _ _</td>
+                      <td></td>
+                  </tr>
+              </table>
+              `;
+
+              // 安全宣導與簽名區[cite: 4]
+              const currentUserRole = window.currentUser ? window.currentUser.name : '系統自動';
+              html += `
+              <div style="border: 2px solid #000; border-top: none; padding: 10px; font-size: 13px;">
+                  <div style="text-align:center; font-weight:bold; margin-bottom:5px;">路口轉彎停看行、禮讓行人優先行</div>
+                  <div style="display:flex; justify-content:space-between;">
+                      <div style="width:50%;">
+                          1. 慢(慢開)、不急、不趕、路口減速。<br>
+                          3. 開關車門時務必廣播提醒乘客才可起步。<br>
+                          5. 「離開駕駛座拉好手剎車」。
+                      </div>
+                      <div style="width:50%;">
+                          2. 遠離機車，遠離危險。<br>
+                          4. 行車中嚴禁使用手機及平板。<br>
+                          6. 候車亭服務燈亮起一定暫停確認。
+                      </div>
+                  </div>
+                  <div style="text-align:right; margin-top: 15px; font-weight:bold;">
+                      駕駛員確認簽名：_________________________
                   </div>
               </div>
-              `;
-          });
+              <table class="table-bordered" style="margin-top: -1px;">
+                  <tr>
+                      <th style="width:16%">組別/班次</th>
+                      <th style="width:16%">鍵入人員簽章</th>
+                      <th style="width:17%">調度員簽章</th>
+                      <th style="width:17%">站主管審核章</th>
+                      <th style="width:17%">收回張數</th>
+                      <th style="width:17%">票值合計</th>
+                  </tr>
+                  <tr>
+                      <td style="height:50px;"></td>
+                      <td></td>
+                      <td><div class="stamp-box">調度員 ${escapeHTML(currentUserRole)}</div></td>
+                      <td><div class="stamp-box" style="border-style: solid;">站長 辛資貴</div></td>
+                      <td></td>
+                      <td></td>
+                  </tr>
+              </table>
+              </div>`; // 結束 daily-log-sheet
+          }
+
+          if(html === '') {
+              alert("當前沒有指派任何駕駛，無法產生憑單！");
+              return;
+          }
+
           printZone.innerHTML = html;
           window.print();
       });
