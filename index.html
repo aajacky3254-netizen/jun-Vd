@@ -120,13 +120,15 @@
   </div>
 
   <script type="module">
-   import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
+    import { db } from './firebase-init.js';
+    import { collection, query, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
+
+    // 💡 修正：補上計算工時必須用到的時間轉換函數
+    const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
     checkAuthAndGetRole([]).then(async (user) => {
         // 1. 驗證成功後，先顯示網頁主體 
-      // ✅ 改成以下這段 Loader 淡出邏輯
         const loader = document.getElementById('global-loader');
         if (loader) {
             loader.style.opacity = '0'; // 觸發 CSS 淡出動畫
@@ -150,10 +152,10 @@ import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
             hide('card-dispatch'); hide('card-schedule'); hide('card-drivers'); hide('card-routes');
         } else if (r === '調度員') {
             hide('card-drivers'); hide('card-routes'); hide('card-personal');
-        } else if (r === '維修人員') {
+        } else if (r === '維修保養班') {
             hide('card-dispatch'); hide('card-schedule'); hide('card-drivers'); hide('card-routes'); hide('card-personal');
         } else { 
-            // 站長 (StationManager) 或 SuperAdmin 權限
+            // 站長 或 總公司 權限
             hide('card-personal'); 
             
             // 顯示儀表板
@@ -163,47 +165,45 @@ import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
             await generateFairnessDashboard();
         }
 
-        // 勞務統計計算
+        // 💡 修正：勞務統計計算 (使用時長而非單純算趟次)
         async function generateFairnessDashboard() {
-    try {
-        const snap = await getDocs(collection(db, "daily_dispatches"));
-        let driverWorkMins = {}; // 改為記錄分鐘數
-        
-        snap.forEach(doc => {
-            const data = doc.data();
-            const d = data.assigned_driver;
-            if(d && d !== "尚未指派") {
-                const s = timeToMins(data.departure_time);
-                let e = data.arrival_time ? timeToMins(data.arrival_time) : s + 60;
-                if (e < s) e += 24 * 60;
+            try {
+                const snap = await getDocs(collection(db, "daily_dispatches"));
+                let driverWorkMins = {}; 
                 
-                driverWorkMins[d] = (driverWorkMins[d] || 0) + (e - s);
-            }
-        });
-        
-        let html = '';
-        // 找出最高工時作為進度條分母 (最少1分鐘避免除以零)
-        const maxMins = Math.max(...Object.values(driverWorkMins), 1); 
-        
-        for(let [driver, mins] of Object.entries(driverWorkMins)) {
-            let hours = (mins / 60).toFixed(1); // 轉換為小時
-            let percent = (mins / maxMins) * 100;
-            // 實務警戒線：當週累計超過 46 小時亮紅燈
-            let barColor = hours >= 46 ? 'bg-red-500' : 'bg-emerald-500'; 
-            let alertIcon = hours >= 46 ? '⚠️ 工時偏高' : '';
-            
-            html += `
-            <div class="flex items-center gap-4">
-                <div class="w-32 text-right font-bold text-gray-700">${driver}</div>
-                <div class="flex-grow bg-gray-100 rounded-full h-4 overflow-hidden">
-                    <div class="${barColor} h-4 rounded-full transition-all duration-1000" style="width: ${percent}%"></div>
-                </div>
-                <div class="w-32 font-bold text-gray-600">${hours} 小時 <span class="text-red-500 text-xs">${alertIcon}</span></div>
-            </div>`;
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const d = data.assigned_driver;
+                    if(d && d !== "尚未指派") {
+                        const s = timeToMins(data.departure_time);
+                        let e = data.arrival_time ? timeToMins(data.arrival_time) : s + 60;
+                        if (e < s) e += 24 * 60; // 跨日子夜修正
+                        
+                        driverWorkMins[d] = (driverWorkMins[d] || 0) + (e - s);
+                    }
+                });
+                
+                let html = '';
+                const maxMins = Math.max(...Object.values(driverWorkMins), 1); 
+                
+                for(let [driver, mins] of Object.entries(driverWorkMins)) {
+                    let hours = (mins / 60).toFixed(1); 
+                    let percent = (mins / maxMins) * 100;
+                    let barColor = hours >= 46 ? 'bg-red-500' : 'bg-emerald-500'; 
+                    let alertIcon = hours >= 46 ? '⚠️ 工時偏高' : '';
+                    
+                    html += `
+                    <div class="flex items-center gap-4">
+                        <div class="w-32 text-right font-bold text-gray-700">${driver}</div>
+                        <div class="flex-grow bg-gray-100 rounded-full h-4 overflow-hidden">
+                            <div class="${barColor} h-4 rounded-full transition-all duration-1000" style="width: ${percent}%"></div>
+                        </div>
+                        <div class="w-32 font-bold text-gray-600">${hours} 小時 <span class="text-red-500 text-xs">${alertIcon}</span></div>
+                    </div>`;
+                }
+                document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center text-gray-500 font-bold py-4">目前尚無派車資料。</div>';
+            } catch (e) { console.error(e); }
         }
-        document.getElementById('dashboardContent').innerHTML = html || '<div class="text-center text-gray-500 font-bold py-4">目前尚無派車資料。</div>';
-    } catch (e) { console.error(e); }
-}
 
     }).catch((err) => {
         console.error("未登入，已退回登入頁面", err);
