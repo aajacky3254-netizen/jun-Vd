@@ -192,63 +192,65 @@
         onSnapshot(query(vehiclesCol), (snapshot) => {
           const tbody = document.getElementById('vehiclesBody');
           const scrappedTbody = document.getElementById('scrappedVehiclesBody');
-          tbody.innerHTML = '';
-          scrappedTbody.innerHTML = '';
+          tbody.innerHTML = ''; scrappedTbody.innerHTML = '';
 
-          let activeVehicles = [];
-          let scrappedVehicles = [];
+          let vehiclesData = [];
+          snapshot.forEach(doc => { vehiclesData.push({ id: doc.id, ...doc.data() }); });
+          vehiclesData.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
 
-          snapshot.forEach(doc => {
-              const data = { id: doc.id, ...doc.data() };
-              if (data.status === 'scrapped') {
-                  scrappedVehicles.push(data);
-              } else {
-                  activeVehicles.push(data);
-              }
+          let scrappedCount = 0;
+
+          vehiclesData.forEach((data) => {
+            // --- 處理主表格渲染 (包含所有車輛) ---
+            const tr = document.createElement('tr');
+            if (data.status === 'maintenance') tr.className = 'status-maintenance';
+            if (data.status === 'breakdown') tr.className = 'status-breakdown';
+            if (data.status === 'scrapped') tr.style.opacity = "0.6"; // 報廢車在主表顯示半透明
+
+            let statusHtml = '';
+            if (data.status === 'ready') statusHtml = '<span class="badge badge-ready">正常營運</span>';
+            else if (data.status === 'maintenance') statusHtml = '<span class="badge badge-maintenance">定保中</span>';
+            else if (data.status === 'breakdown') statusHtml = '<span class="badge badge-breakdown">故障維修</span>';
+            else if (data.status === 'scrapped') statusHtml = '<span class="badge badge-scrapped">⚫ 已報廢</span>';
+
+            let actionHtml = '';
+            if (user.role !== '駕駛長') {
+                actionHtml = `
+                <td class="admin-action-col" style="text-align: center;">
+                  <button class="btn-edit bg-teal-500 text-white px-3 py-1 rounded" data-id="${data.id}" data-plate="${data.plate_number}" data-model="${data.model}" data-status="${data.status}" data-notes="${data.notes || ''}">編輯</button>
+                  ${data.status !== 'scrapped' ? `<button class="btn-archive bg-slate-700 text-white px-3 py-1 rounded" data-id="${data.id}" data-plate="${data.plate_number}">報廢</button>` : ''}
+                </td>`;
+            } else {
+                actionHtml = `<td>-</td>`;
+            }
+
+            tr.innerHTML = `
+              <td class="font-bold text-lg">${escapeHTML(data.plate_number || data.id)}</td>
+              <td>${data.status === 'scrapped' ? `<del>${escapeHTML(data.model)}</del>` : escapeHTML(data.model)}</td>
+              <td>${statusHtml}</td>
+              <td>${escapeHTML(data.notes || '-')}</td>
+              ${actionHtml}
+            `;
+            tbody.appendChild(tr);
+
+            // --- 處理獨立報廢專區 ---
+            if (data.status === 'scrapped') {
+                scrappedCount++;
+                const sTr = document.createElement('tr');
+                sTr.className = "bg-slate-950 text-slate-400 border-b border-slate-900";
+                sTr.innerHTML = `
+                    <td class="font-bold font-mono text-slate-300 py-3">${escapeHTML(data.plate_number || data.id)}</td>
+                    <td>${escapeHTML(data.model)} <br><span class="text-xs">(${escapeHTML(data.notes || '無')})</span></td>
+                    <td class="font-mono text-amber-600">${escapeHTML(data.scrap_date || '-')}</td>
+                    <td class="font-mono text-emerald-600">${escapeHTML(data.plate_return_date || '-')}</td>
+                    <td><span class="badge badge-scrapped text-xs">已報廢</span></td>
+                `;
+                scrappedTbody.appendChild(sTr);
+            }
           });
 
-          activeVehicles.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
-          scrappedVehicles.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
-
-          // 渲染在役清單
-          if (activeVehicles.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500 font-bold">目前車隊中沒有任何正常在役車輛。</td></tr>';
-          } else {
-              activeVehicles.forEach((data) => {
-                const tr = document.createElement('tr');
-                if (data.status === 'maintenance') tr.className = 'status-maintenance';
-                if (data.status === 'breakdown') tr.className = 'status-breakdown';
-
-                let statusHtml = '';
-                if (data.status === 'ready') statusHtml = '<span class="badge badge-ready">正常營運</span>';
-                if (data.status === 'maintenance') statusHtml = '<span class="badge badge-maintenance">定保中</span>';
-                if (data.status === 'breakdown') statusHtml = '<span class="badge badge-breakdown">故障維修</span>';
-
-                let actionHtml = '';
-                if (user.role !== '駕駛長') {
-                    actionHtml = `
-                    <td class="admin-action-col" data-label="操作" style="text-align: center;">
-                      <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white min-h-[44px] px-4 py-2 rounded text-base font-bold mr-2 transition-colors" data-id="${escapeHTML(data.id)}" data-plate="${escapeHTML(data.plate_number)}" data-model="${escapeHTML(data.model)}" data-status="${escapeHTML(data.status)}" data-notes="${escapeHTML(data.notes || '')}">編輯</button>
-                      <button class="btn-archive bg-slate-700 hover:bg-slate-800 text-white min-h-[44px] px-4 py-2 rounded text-base font-bold transition-colors" data-id="${escapeHTML(data.id)}" data-plate="${escapeHTML(data.plate_number)}" data-model="${escapeHTML(data.model)}">報廢</button>
-                    </td>`;
-                } else {
-                    actionHtml = `<td class="admin-action-col" data-label="操作" style="text-align: center;">-</td>`;
-                }
-
-                tr.innerHTML = `
-                  <td data-label="車牌號碼" style="font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #334155;">${escapeHTML(data.plate_number || data.id)}</td>
-                  <td data-label="車輛型號" style="font-weight: 600; color: #475569;">${escapeHTML(data.model)}</td>
-                  <td data-label="目前狀態">${statusHtml}</td>
-                  <td data-label="備註說明" style="color: #64748b;">${escapeHTML(data.notes || '-')}</td>
-                  ${actionHtml}
-                `;
-                tbody.appendChild(tr);
-              });
-          }
-
-          // 渲染報廢車專區
-          if (scrappedVehicles.length === 0) {
-              scrappedTbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500 font-bold">目前無除役報廢車輛。</td></tr>';
+          if (vehiclesData.length === 0) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6">無車輛</td></tr>';
+          if (scrappedCount === 0) scrappedTbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500">無除役報廢車輛。</td></tr>';
           } else {
               scrappedVehicles.forEach((data) => {
                   const tr = document.createElement('tr');
