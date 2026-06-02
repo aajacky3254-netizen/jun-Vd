@@ -363,6 +363,53 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
+    // ==========================================
+// 🚀 一鍵同步舊有員工帳號小工具
+// ==========================================
+setTimeout(() => {
+    // 在畫面右下角生成一個臨時按鈕
+    const syncBtn = document.createElement('button');
+    syncBtn.innerHTML = "🔄 批次同步舊員工 Auth 帳號";
+    syncBtn.className = "fixed bottom-5 right-5 bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg font-bold z-50";
+    document.body.appendChild(syncBtn);
+
+    syncBtn.addEventListener('click', async () => {
+        if(!confirm("確定要將所有尚未建立登入帳號的舊員工，批次同步到 Firebase Auth 嗎？")) return;
+        
+        syncBtn.innerText = "⏳ 同步中，請稍候...";
+        syncBtn.disabled = true;
+
+        const gasUrl = "請在這裡貼上你剛剛部署的 GAS 網址"; // ⚠️記得替換網址
+        let successCount = 0;
+
+        try {
+            const snap = await getDocs(collection(db, "Drivers"));
+            const drivers = [];
+            snap.forEach(doc => drivers.push(doc.id));
+
+            for (let empId of drivers) {
+                try {
+                    const res = await fetch(gasUrl, {
+                        method: "POST",
+                        body: JSON.stringify({ empId: empId }) 
+                    });
+                    const result = await res.json();
+                    if (result.success || (result.result && result.result.error && result.result.error.message === "EMAIL_EXISTS")) {
+                        console.log(`${empId} 帳號建立成功或已存在`);
+                        successCount++;
+                    }
+                } catch (e) {
+                    console.error(`${empId} 同步失敗`, e);
+                }
+            }
+            alert(`✅ 同步完成！共檢查/同步了 ${successCount} 位員工的登入帳號。`);
+        } catch (error) {
+            alert("讀取員工清單失敗！");
+        } finally {
+            syncBtn.remove(); // 執行完畢後移除按鈕
+        }
+    });
+}, 2000);
   </script>
 </body>
 </html>
