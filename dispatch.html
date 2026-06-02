@@ -7,59 +7,34 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
-    
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
     .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
-
     .content-area { padding: 0 20px; }
-    
-    .control-panel {
-      background: #fff; padding: 20px; border-radius: 12px; 
-      box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;
-      display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0;
-    }
+    .control-panel { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0; }
     .input-group { display: flex; flex-direction: column; gap: 6px; }
     .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
     .input-group input, .input-group select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; outline: none; }
-    
     table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; border-radius: 8px; overflow: hidden;}
     th, td { border: 1px solid #e2e8f0; padding: 14px; }
     th { background-color: #1e293b; color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
-    tr.active-row { background-color: #ecfdf5; } 
-    tr.done-row { background-color: #f1f5f9; color: #94a3b8; } 
-
+    
     @media screen { #print-zone { display: none; } }
-
-    /* ========== 駛車憑單列印專屬樣式 (已依照 PDF 完美還原) ========== */
     @media print {
         @page { margin: 8mm; size: A4 portrait; }
         .no-print { display: none !important; } 
         body { background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: "微軟正黑體", sans-serif;}
-        
         #main-content { display: none !important; }
         #print-zone, #print-zone * { color: #000 !important; visibility: visible !important; }
-
-        .print-page {
-            width: 100%;
-            height: 98vh; /* 確保佔滿一頁 */
-            page-break-after: always;
-            box-sizing: border-box;
-            color: #000;
-        }
+        .print-page { width: 100%; height: 98vh; page-break-after: always; box-sizing: border-box; color: #000; }
         .print-page:last-child { page-break-after: auto; }
-        
-        .print-title { font-size: 24px; font-weight: 900; text-align: center; margin-bottom: 10px; letter-spacing: 2px; }
-        
         .p-table { width: 100%; border-collapse: collapse; border: 2px solid #000; margin-bottom: -2px; font-size: 13px; }
         .p-table th, .p-table td { border: 1px solid #000; padding: 6px; text-align: center; vertical-align: middle; }
         .p-table th { font-weight: 900; background-color: #f4f4f4 !important; }
         .p-table td { font-weight: 700; }
-        
         .text-left { text-align: left !important; }
-        .text-red { color: #000 !important; font-weight: 900;} /* 黑白列印優化 */
         .stamp { border: 2px dashed #000; color: #000; display: inline-block; padding: 5px 15px; font-size: 14px; font-weight: 900; transform: rotate(-5deg); }
         .stamp-solid { border-style: solid; transform: rotate(0deg); }
     }
@@ -71,10 +46,7 @@
  <div id="main-content" class="no-print">
   <div class="content-area mt-5">
     <div class="control-panel">
-      <div class="input-group">
-        <label>日期</label>
-        <input type="date" id="inputDate">
-      </div>
+      <div class="input-group"><label>日期</label><input type="date" id="inputDate"></div>
       <div class="input-group"><label>發車時間</label><input type="time" id="inputTime"></div>
       <div class="input-group"><label>到達時間(選)</label><input type="time" id="inputEndTime"></div>
       <div class="input-group"><label>路線</label><input type="text" id="inputRoute" list="routesList" style="width: 100px;"></div>
@@ -82,11 +54,14 @@
       <div class="input-group"><label>終點站</label><input type="text" id="inputEnd" list="stationsList" style="width: 150px;"></div>
       <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-700 transition">＋ 新增</button>
       
-      <button id="btnCopyYesterday" class="bg-teal-600 hover:bg-teal-700 text-white px-5 rounded-lg font-bold transition shadow-sm border border-teal-700">📋 載入昨日時刻</button>
-      
+      <div class="input-group ml-4 border-l-2 border-gray-200 pl-4">
+          <label class="text-teal-700">複製來源日</label>
+          <input type="date" id="inputCopySource" class="bg-teal-50 border-teal-300 text-teal-800 font-bold" style="width: 140px;">
+      </div>
+      <button id="btnCopyFromDate" class="bg-teal-600 hover:bg-teal-700 text-white px-5 rounded-lg font-bold transition shadow-sm border border-teal-700">📋 複製時刻</button>
       <div style="flex-grow: 1;"></div> 
       <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-5 rounded-lg font-bold transition shadow-sm">🧹 一鍵清空</button>
-      <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-lg font-bold transition shadow-sm">✨ 自動調度</button>
+      <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-lg font-bold transition shadow-sm">✨ 智慧調度</button>
       <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-700 text-white px-5 rounded-lg font-bold transition shadow-sm border border-orange-700">🖨️ 批次列印憑單</button>
       
       <datalist id="routesList"></datalist>
@@ -106,7 +81,6 @@
 
 <script type="module">
   import { db } from './firebase-init.js';
-  // 💡 補上了 where，確保只抓取特定日期的資料
   import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
@@ -126,7 +100,6 @@
       let currentDayTrips = []; 
       let unsubscribeDispatch = null; 
 
-      // 監聽路線與站點
       onSnapshot(collection(db, "Routes"), snap => {
           document.getElementById('routesList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join('');
       });
@@ -134,7 +107,6 @@
           document.getElementById('stationsList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join('');
       });
 
-      // 載入當日可用資源 (班表與車輛)
       async function loadResources(selectedDate) {
           const d = new Date(selectedDate);
           const target = new Date(d.valueOf()); 
@@ -158,25 +130,23 @@
           }
       }
 
-      // 💡 核心修正：只抓取「特定日期」的派班資料，切換日期時重新載入，徹底防呆
       function loadDispatchForDate(dateStr) {
-          if (unsubscribeDispatch) unsubscribeDispatch(); // 取消舊的監聽
-          
+          if (unsubscribeDispatch) unsubscribeDispatch(); 
           const q = query(dispatchesCol, where("date", "==", dateStr));
 
           unsubscribeDispatch = onSnapshot(q, async (snapshot) => {
               await loadResources(dateStr);
               currentDayTrips = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-              
-              // 💡 記憶體內排序，避免 Firebase 缺少複合索引報錯
               currentDayTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
               
               tbody.innerHTML = currentDayTrips.map(data => {
-                  let drvOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableDrivers.map(d => `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver===d.name?'selected':''}>${d.empId} ${d.name}</option>`).join('');
+                  let drvOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableDrivers.map(d => `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver===d.name?'selected':''}>${d.empId} ${d.name} (${d.shift.split(' ')[0]})</option>`).join('');
                   let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
                   
                   return `<tr>
-                      <td class="font-bold">${data.departure_time}</td><td>${data.route}</td><td>${data.start_point}</td><td>${data.end_point}</td>
+                      <td class="font-bold">${data.departure_time} ${data.arrival_time ? '~ '+data.arrival_time : ''}</td>
+                      <td class="text-blue-700 font-bold">${data.route}</td>
+                      <td>${data.start_point}</td><td>${data.end_point}</td>
                       <td><select class="driver-select" data-id="${data.id}">${drvOpts}</select></td>
                       <td><select class="vehicle-select" data-id="${data.id}">${vehOpts}</select></td>
                       <td><button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition" data-id="${data.id}">刪除</button></td>
@@ -185,13 +155,9 @@
           });
       }
 
-      // 初始載入今日資料
       loadDispatchForDate(dateInput.value);
-
-      // 💡 當使用者切換日期時，重新載入該日期的資料，防止畫面與資料庫脫鉤
       dateInput.addEventListener('change', (e) => loadDispatchForDate(e.target.value));
 
-      // 新增車趟
       document.getElementById('addTripBtn').onclick = async () => {
           await addDoc(dispatchesCol, {
               date: dateInput.value, departure_time: document.getElementById('inputTime').value, arrival_time: document.getElementById('inputEndTime').value,
@@ -200,7 +166,6 @@
           });
       };
 
-      // 變更派班
       tbody.addEventListener('change', async (e) => {
           const tripId = e.target.dataset.id;
           if (e.target.classList.contains('driver-select')) {
@@ -209,120 +174,208 @@
           if (e.target.classList.contains('vehicle-select')) await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: e.target.value });
       });
 
-      // 刪除車趟
       tbody.addEventListener('click', async (e) => {
           if (e.target.classList.contains('btn-delete-trip')) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
       });
 
-     // ==========================================
-      // 📋 載入昨日時刻表 (只複製路線與時間，清空人車)
       // ==========================================
-      document.getElementById('btnCopyYesterday').addEventListener('click', async () => {
+      // 📋 載入指定日期時刻表 (只複製路線與時間，清空人車)
+      // ==========================================
+      
+      // 初始化：自動將複製來源日期預設為「昨天」，節省操作時間
+      const copySourceInput = document.getElementById('inputCopySource');
+      const yesterdayInit = new Date();
+      yesterdayInit.setDate(yesterdayInit.getDate() - 1);
+      copySourceInput.value = yesterdayInit.toISOString().split('T')[0];
+
+      document.getElementById('btnCopyFromDate').addEventListener('click', async () => {
+          const sourceDate = copySourceInput.value;
+          const targetDate = dateInput.value;
+
+          if (!sourceDate) return alert("請先選擇要複製的來源日期！");
+          if (sourceDate === targetDate) return alert("來源日期與當前排班日期相同，無需複製！");
+
+          // 防呆警告
           if(currentDayTrips.length > 0) {
-              if(!confirm("畫面上已經有今天的車趟了，載入昨日時刻表會「疊加」上去，確定要繼續嗎？")) return;
+              if(!confirm(`⚠️ 畫面上已經有 ${targetDate} 的車趟了，載入 ${sourceDate} 的時刻表會「疊加」上去，確定要繼續嗎？`)) return;
           }
           
-          const btn = document.getElementById('btnCopyYesterday');
-          btn.innerText = "⏳ 載入中...";
-          btn.disabled = true;
+          const btn = document.getElementById('btnCopyFromDate');
+          btn.innerText = "⏳ 載入中..."; btn.disabled = true;
 
           try {
-              // 計算出「昨天」的精準日期
-              const d = new Date(dateInput.value);
-              d.setDate(d.getDate() - 1);
-              const yesterdayStr = d.toISOString().split('T')[0];
-
-              // 從資料庫抓取昨天的所有班次底稿
-              const q = query(dispatchesCol, where("date", "==", yesterdayStr));
+              // 從資料庫撈出「來源日期」的所有班次
+              const q = query(dispatchesCol, where("date", "==", sourceDate));
               const snap = await getDocs(q);
               
               if(snap.empty) {
-                  alert(`找不到昨天 (${yesterdayStr}) 的發車紀錄，無法複製底稿！\n請先確保昨天有建立車趟。`);
+                  alert(`找不到 ${sourceDate} 的發車紀錄，無法複製底稿！\n(請確認該日期是否已有排定班次)`);
               } else {
                   const batch = writeBatch(db);
                   let count = 0;
-                  
                   snap.forEach(docSnap => {
                       const oldData = docSnap.data();
-                      // 創建新文件，只複製時刻與路線，狀態完美重置為「尚未指派」
                       const newTripRef = doc(collection(db, "daily_dispatches"));
+                      
+                      // 將舊資料拷貝至「目標日期」，並自動將司機/車輛還原為空缺狀態
                       batch.set(newTripRef, {
-                          date: dateInput.value, // 設定為畫面上當前選擇的日期
+                          date: targetDate, 
                           departure_time: oldData.departure_time,
                           arrival_time: oldData.arrival_time || "",
                           route: oldData.route,
                           start_point: oldData.start_point || "",
                           end_point: oldData.end_point || "",
-                          assigned_driver: "尚未指派",
-                          assigned_empid: "",
-                          assigned_vehicle: "尚未指派",
+                          assigned_driver: "尚未指派", 
+                          assigned_empid: "", 
+                          assigned_vehicle: "尚未指派", 
                           status: "pending"
                       });
                       count++;
                   });
                   await batch.commit();
-                  alert(`✅ 成功載入昨天 ${count} 筆發車時刻！\n請開始使用「自動調度」或手動指派今日的駕駛與車輛。`);
+                  alert(`✅ 成功拷貝 ${sourceDate} 的 ${count} 筆發車時刻！\n請接續使用「✨ 智慧調度」填補人車。`);
               }
-          } catch (err) {
+          } catch (err) { 
               console.error(err);
-              alert("複製失敗，請檢查網路連線！");
+              alert("複製失敗，請檢查網路狀態。"); 
           }
-          btn.innerText = "📋 載入昨日時刻";
-          btn.disabled = false;
+          
+          // 恢復按鈕狀態
+          btn.innerText = "📋 複製時刻"; btn.disabled = false;
       });
 
       // ==========================================
-      // ✨ 自動調度 (只調度畫面上當前日期的空缺)
+      // 🧹 一鍵清空 (只清空畫面上所選日期的資料)
+      // ==========================================
+      document.getElementById('btnClearDispatch').addEventListener('click', async () => {
+          const selectElements = document.querySelectorAll('#dispatchBody .driver-select');
+          if(selectElements.length === 0) return alert("畫面上無車趟可清空！");
+          if(!confirm(`⚠️ 確定要清空這 ${selectElements.length} 筆車趟的駕駛與車輛嗎？\n(只會清空您現在正在處理的這個日期：${dateInput.value})`)) return;
+
+          try {
+              const batch = writeBatch(db);
+              selectElements.forEach(select => {
+                  batch.update(doc(db, "daily_dispatches", select.getAttribute('data-id')), { 
+                      assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派" 
+                  });
+              });
+              await batch.commit();
+              alert("✅ 畫面上排班已全數清空還原！");
+          } catch (err) { alert("清空失敗。"); }
+      });
+
+      // ==========================================
+      // ✨ 終極版智慧調度 (具備法規與人體工學 AI 防呆)
       // ==========================================
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           const tripRows = Array.from(document.querySelectorAll('#dispatchBody tr')).filter(tr => tr.querySelector('.driver-select'));
           if (tripRows.length === 0) return alert("畫面中無車趟可調度！");
           
+          let driverSchedules = {}; 
+          let vehicleSchedules = {}; 
           const batch = writeBatch(db);
           let changes = 0;
-          
-          tripRows.forEach(tr => {
+
+          // 模擬時間排序，確保順序正確
+          tripRows.sort((a, b) => timeToMins(a.cells[0].innerText.split('~')[0].trim()) - timeToMins(b.cells[0].innerText.split('~')[0].trim()));
+
+          for (let tr of tripRows) {
               const driverSelect = tr.querySelector('.driver-select');
               const vehicleSelect = tr.querySelector('.vehicle-select');
               const tripId = driverSelect.getAttribute('data-id');
-              
+
               let assigned_driver = driverSelect.value;
               let assigned_empid = driverSelect.options[driverSelect.selectedIndex]?.dataset?.empid || "";
               let assigned_vehicle = vehicleSelect.value;
 
+              let timeStr = tr.cells[0].innerText; 
+              let [startStr, endStr] = timeStr.split('~').map(s => s.trim());
+              if (!endStr) endStr = startStr; 
+              let tStart = timeToMins(startStr);
+              let tEnd = timeToMins(endStr) + 20; // 💡 強制預留 20 分鐘收班/整備/上廁所緩衝時間
+
+              // 尋找最佳駕駛
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
-                  const d = currentAvailableDrivers[Math.floor(Math.random() * currentAvailableDrivers.length)];
-                  assigned_driver = d.name; 
-                  assigned_empid = d.empId; 
-                  changes++;
+                  let bestDriver = null;
+                  for (let d of currentAvailableDrivers) {
+                      // 1. 檢查是否有重疊車趟
+                      let sched = driverSchedules[d.empId] || [];
+                      let hasOverlap = sched.some(s => (tStart < s.end && tEnd > s.start));
+                      if (hasOverlap) continue;
+
+                      // 2. 班別生態防呆檢查
+                      let shift = d.shift; 
+                      let isMatch = false;
+
+                      if (shift.includes("M")) {
+                          if (tEnd <= 15 * 60) isMatch = true; // 早班：拒絕 15:00 後的車趟
+                      } else if (shift.includes("E")) {
+                          if (tStart >= 13 * 60) isMatch = true; // 晚班：拒絕 13:00 前的車趟
+                      } else if (shift.includes("AB")) {
+                          // AB班：強制鎖定 11:00 ~ 15:00 中間不得派車，確保休息碎片化不會發生
+                          if (tEnd <= 11 * 60 || tStart >= 15 * 60) isMatch = true;
+                      } else if (shift.includes("S") || shift.includes("STB")) {
+                          isMatch = true; // 單班/待命
+                      }
+                      if (!isMatch) continue;
+
+                      // 3. 勞基法 12 小時總工時天花板檢查
+                      if (sched.length > 0) {
+                          let firstStart = Math.min(tStart, ...sched.map(s => s.start));
+                          let lastEnd = Math.max(tEnd, ...sched.map(s => s.end));
+                          if ((lastEnd - firstStart) > 12 * 60) continue; 
+                      }
+
+                      // 4. 勞務均分：優先派給今天跑比較少的人
+                      if (!bestDriver || (driverSchedules[d.empId]?.length || 0) < (driverSchedules[bestDriver.empId]?.length || 0)) {
+                          bestDriver = d;
+                      }
+                  }
+
+                  if (bestDriver) {
+                      assigned_driver = bestDriver.name;
+                      assigned_empid = bestDriver.empId;
+                      if (!driverSchedules[assigned_empid]) driverSchedules[assigned_empid] = [];
+                      driverSchedules[assigned_empid].push({start: tStart, end: tEnd});
+                      changes++;
+                  }
               }
+
+              // 尋找最佳車輛 (考慮 20 分鐘緩衝)
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
-                  assigned_vehicle = currentAvailableVehicles[Math.floor(Math.random() * currentAvailableVehicles.length)].plate; 
-                  changes++;
+                  let bestVehicle = null;
+                  for (let v of currentAvailableVehicles) {
+                      let sched = vehicleSchedules[v.plate] || [];
+                      let hasOverlap = sched.some(s => (tStart < s.end && tEnd > s.start));
+                      if (!hasOverlap) { bestVehicle = v; break; }
+                  }
+                  if (bestVehicle) {
+                      assigned_vehicle = bestVehicle.plate;
+                      if (!vehicleSchedules[assigned_vehicle]) vehicleSchedules[assigned_vehicle] = [];
+                      vehicleSchedules[assigned_vehicle].push({start: tStart, end: tEnd});
+                      changes++;
+                  }
               }
-              
-              batch.update(doc(db, "daily_dispatches", tripId), { 
-                  assigned_driver, 
-                  assigned_empid, 
-                  assigned_vehicle 
-              });
-          });
+
+              if (assigned_driver !== driverSelect.value || assigned_vehicle !== vehicleSelect.value) {
+                  batch.update(doc(db, "daily_dispatches", tripId), { assigned_driver, assigned_empid, assigned_vehicle });
+              }
+          }
           
           if (changes > 0) { 
               await batch.commit(); 
-              alert(`✨ 自動調度完成，共指派了 ${changes} 個空缺！`); 
+              alert(`✨ 智慧調度完成！已自動指派 ${changes} 個空缺。\n(已過濾班別衝突、重疊車次並限制 12H 總工時)`); 
           } else {
-              alert("目前無空缺車趟需要調度。");
+              alert("目前無合適的空缺車趟，或無符合勞基法規範之駕駛/車輛可供調度。");
           }
       });
 
       // ==========================================
-      // 🖨️ 批次列印憑單 (完美排版：含 LOGO 與即時印製時間)
+      // 🖨️ 批次列印憑單 (含 LOGO 與精準列印時間)
       // ==========================================
       document.getElementById('btnPrintAll').addEventListener('click', () => {
           if (currentDayTrips.length === 0) return alert("本日尚無車趟可列印！");
           
-          // 自動取得當下時間並格式化 (例如：2026/06/02 PM 09:57)
           const now = new Date();
           const year = now.getFullYear();
           const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -355,7 +408,6 @@
               const printDate = dateInput.value.replace(/-/g, '/');
 
               html += `<div class="print-page">
-                  <!-- 完美客製化表頭 -->
                   <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; border-bottom: 3px solid #000; padding-bottom: 8px;">
                       <div style="display: flex; align-items: center;">
                           <img src="./豐東客運 LOGO.png" alt="LOGO" style="height: 48px; margin-right: 15px; filter: grayscale(100%);">
@@ -365,7 +417,6 @@
                           (${printTimestamp} 印製)
                       </div>
                   </div>
-                  
                   <table class="p-table">
                       <tr>
                           <th style="width:12%">駕駛姓名</th><td style="width:13%; font-weight: 900; font-size: 15px;">${d.name}</td>
@@ -379,7 +430,6 @@
                           <td style="font-weight: 900;">${printDate}</td>
                       </tr>
                   </table>
-                  
                   <table class="p-table" style="border-top:none;">
                       <tr>
                           <th style="width:15%">駕照檢驗</th><td class="text-left" style="width:20%">□ 合格　□ 不合格</td>
@@ -400,7 +450,6 @@
                       </tr>
                       <tr><td colspan="5" style="color: #000; font-weight: 900; text-align: center; font-size: 14px; background-color: #fce7f3 !important;">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td></tr>
                   </table>
-                  
                   <table class="p-table" style="margin-top:5px;">
                       <tr>
                           <th style="width:5%">班次</th><th style="width:25%">出發站/端點</th><th style="width:13%">排定時間</th>
@@ -417,13 +466,11 @@
                       <td class="text-left" style="font-size: 12px;">${trip.end_point}</td>
                       <td></td><td></td>
                   </tr>`;
-                  // 單班與 AB 班的法定休息分隔線
                   if (idx < d.trips.length - 1) {
                       html += `<tr><td colspan="8" style="letter-spacing:10px; background-color:#f4f4f4; font-weight: 900; color: #555;">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
                   }
               });
 
-              // 補足空欄位，維持版面高度
               for(let i=d.trips.length; i<4; i++) {
                   html += `<tr style="height:50px;"><td style="font-weight: 900;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
               }
@@ -433,7 +480,6 @@
                       <tr><th style="width:30%">補票紀錄</th><th style="width:40%">油耗記錄 (加油公升/時間)</th><th style="width:30%">趟次中拋錨、肇事情形</th></tr>
                       <tr><td style="height:50px;"></td><td class="text-left">加油量：_ _ _ 公升　簽章：_ _ _ _</td><td></td></tr>
                   </table>
-
                   <div style="border: 2px solid #000; padding: 12px; margin-top:5px; font-size:13px; font-weight:700;">
                       <div style="text-align:center; font-weight:900; margin-bottom:8px; font-size: 16px;">路口轉彎停看行、禮讓行人優先行</div>
                       <div style="display:flex; justify-content:space-between; line-height: 1.6;">
@@ -441,7 +487,6 @@
                           <div>2. 遠離機車，遠離危險。<br>4. 行車中嚴禁使用手機及平板。<br>6. 候車亭服務燈亮起一定暫停確認。</div>
                       </div>
                   </div>
-                  
                   <table class="p-table" style="border-top:none;">
                       <tr><th style="width:16%">鍵入人員簽章</th><th style="width:28%">調度員簽章</th><th style="width:28%">站主管審核章</th><th style="width:14%">收回張數</th><th style="width:14%">票值合計</th></tr>
                       <tr>
