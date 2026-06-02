@@ -67,22 +67,23 @@ export function logout() {
 }
 
 /**
- * 動態渲染導覽列 (根據 5 大中文權限分流)
+ * 動態渲染導覽列 (整合 8 大系統導覽與公開查詢通道)
  */
 export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
 
-    // 定義各模組允許進入的角色 (統一使用中文)
+    // 依據您的要求，完美精準對齊表頭文字與圖示
     const menuItems = [
         { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['總公司', '站長', '調度員'] },
         { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['總公司', '站長', '調度員'] },
         { id: 'drivers', name: '👨‍✈️ 人事管理', href: 'drivers.html', roles: ['總公司', '站長'] },
         { id: 'leaves', name: '📅 差假簽核', href: 'leaves.html', roles: ['總公司', '站長', '調度員'] },
-        { id: 'vehicles', name: '🚍 車輛資訊', href: 'vehicles.html', roles: ['總公司', '站長', '調度員'] },
-        { id: 'repairs', name: '🛠️ 報修系統', href: 'repairs.html', roles: ['總公司', '站長', '調度員', '維修保養班'] },
+        { id: 'vehicles', name: '🚍 車輛資訊', href: 'vehicles.html', roles: ['總公司', '站長', '調度員', '維修保養班', '駕駛長'] },
+        { id: 'repairs', name: '🛠️ 報修系統', href: 'repairs.html', roles: ['總公司', '站長', '調度員', '維修保養班', '駕駛長'] },
         { id: 'routes', name: '🗺️ 路線管理', href: 'routes.html', roles: ['總公司', '站長'] },
-        { id: 'personal', name: '📱 個人作業台', href: 'personal.html', roles: ['駕駛長'] } // 讓駕駛長也能在導覽列看到自己專屬的按鈕
+        { id: 'query', name: '🔍公開班表查詢', href: 'query.html', roles: ['總公司', '站長', '調度員', '維修保養班', '駕駛長'] },
+        { id: 'personal', name: '📱 個人作業台', href: 'personal.html', roles: ['駕駛長'] }
     ];
 
     let html = `
