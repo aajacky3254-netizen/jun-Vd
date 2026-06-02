@@ -4,31 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 車輛資產與保養管理</title>
-  <link rel="stylesheet" href="./output.css">
+  
+  <meta name="robots" content="noindex, nofollow">
+  <meta property="og:title" content="豐東交通客運 | 車輛資產系統">
+  <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
+    /* 💡 修正：移除了導致白畫面的 display: none; */
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
     h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
+    
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center;}
     .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+    
     .content-area { padding: 0 20px; max-width: 1200px; margin: 0 auto;}
     .control-panel { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 24px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0; }
     .input-group { display: flex; flex-direction: column; gap: 6px; }
     .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
     .input-group input, .input-group select { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none; background-color: #f8fafc; }
     .input-group input:focus, .input-group select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background-color: #fff;}
+    
     table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
     th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; transition: background-color 0.2s; }
     th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
     tr:hover { background-color: #f8fafc; }
     tr.status-maintenance { background-color: #fefce8; } 
     tr.status-breakdown { background-color: #fef2f2; }   
+    
     .badge { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; display: inline-block;}
     .badge-ready { background-color: #dcfce7; color: #166534; }
     .badge-maintenance { background-color: #fef08a; color: #854d0e; }
     .badge-breakdown { background-color: #fecdd3; color: #9f1239; }
+    
     /* 📱 手機版表格轉換為卡片式設計 */
     @media screen and (max-width: 768px) {
       table, thead, tbody, th, td, tr { display: block; }
@@ -42,16 +53,13 @@
 </head>
 <body>
 
-  <nav class="navbar">
-    <a href="index.html" class="navbar-brand">
-        <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
-        豐東交通客運 | 智慧車輛調度系統
-    </a>
-    <a href="schedule.html" class="nav-link">🗓️ 週班表管理</a>
-    <a href="dispatch.html" class="nav-link">🚦 每日發車控制台</a>
-    <a href="drivers.html" class="nav-link">👨‍✈️ 人事管理系統</a>
-    <a href="vehicles.html" class="nav-link active">🚍 車輛資訊系統</a>
-  </nav>
+  <div id="global-loader" class="fixed inset-0 bg-[#f4f6f9] z-[9999] flex flex-col items-center justify-center transition-opacity duration-500">
+      <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="豐東客運" class="h-20 mb-6 animate-pulse object-contain">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600 mb-4"></div>
+      <p class="text-gray-600 font-bold tracking-widest text-sm">車隊資料載入中...</p>
+  </div>
+
+  <nav class="navbar" id="main-nav"></nav>
 
   <div class="content-area">
     <div class="flex justify-between items-center mt-6 mb-2">
@@ -90,12 +98,14 @@
         </button>
       </div>
     </div>
-<div class="flex gap-2 mb-4" id="vehicleFilters">
-  <button class="filter-btn active bg-gray-800 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-sm" data-filter="all">全車隊</button>
-  <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="ready">🟢 正常營運</button>
-  <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="maintenance">🟡 定保中</button>
-  <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="breakdown">🔴 故障維修</button>
-</div>
+    
+    <div class="flex gap-2 mb-4" id="vehicleFilters">
+      <button class="filter-btn active bg-gray-800 text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-sm" data-filter="all">全車隊</button>
+      <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="ready">🟢 正常營運</button>
+      <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="maintenance">🟡 定保中</button>
+      <button class="filter-btn bg-white text-gray-600 border px-4 py-1.5 rounded-full text-sm font-bold hover:bg-gray-50" data-filter="breakdown">🔴 故障維修</button>
+    </div>
+    
     <table>
       <thead>
         <tr>
@@ -111,44 +121,37 @@
       </tbody>
     </table>
   </div>
-<script type="module">
-    import { checkAuthAndGetRole, renderNavbar } from './auth.js';
+
+  <script type="module">
+    // 💡 修正：乾淨的匯入，移除所有重複項目
     import { db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js';
+    import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
 
-  // 執行權限檢查，並傳入該頁面允許的角色（例如車輛頁面允許這三個角色）
-    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員'])
-        .then((user) => {
-            // 1. 成功後渲染導覽列，並將 'vehicles' 設為高亮 active
-            renderNavbar(user, 'vehicles');
-            
-            // 2. 在這裡寫你原本在 vehicles.html 裡抓取 Firestore 資料庫的邏輯...
-            console.log("驗證成功，開始載入車輛資料...");
-        })
-        .catch((err) => {
-            console.error("驗證失敗：", err);
-        });
     const escapeHTML = (str) => {
         return str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
     };
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長'];
 
+    // 💡 修正：只執行一次身分驗證
     checkAuthAndGetRole(allowedRoles).then((user) => {
-        document.body.style.display = 'block'; 
-        const nav = document.querySelector('.navbar');
-        nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
-                <span>👤 ${escapeHTML(user.name)} (${escapeHTML(user.role)})</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
-            </div>
-        `;
-        document.getElementById('btnLogout').addEventListener('click', logout);
+        
+        // 移除載入動畫
+        const loader = document.getElementById('global-loader');
+        if(loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.remove(), 500);
+        }
 
+        // 渲染導覽列
+        renderNavbar(user, 'vehicles');
+
+        // 權限分流：如果是駕駛長，隱藏控制面板與操作欄位
         if (user.role === '駕駛長') {
             const adminPanel = document.getElementById('adminControlPanel');
             if (adminPanel) adminPanel.style.display = 'none';
+            // 因為部分 class 是動態生成的，這裡先隱藏表頭的
             document.querySelectorAll('.admin-action-col').forEach(el => el.style.display = 'none');
         }
 
@@ -188,14 +191,13 @@
             if (user.role !== '駕駛長') {
                 actionHtml = `
                 <td class="admin-action-col" data-label="操作" style="text-align: center;">
-                  <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" data-id="${escapeHTML(data.id)}" data-plate="${escapeHTML(data.plate_number)}" data-model="${escapeHTML(data.model)}" data-status="${escapeHTML(data.status)}" data-notes="${escapeHTML(data.notes || '')}">編輯</button>
-                  <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${escapeHTML(data.id)}">報廢</button>
+                  <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white min-h-[44px] px-4 py-2 rounded text-base font-bold mr-2 transition-colors" data-id="${escapeHTML(data.id)}" data-plate="${escapeHTML(data.plate_number)}" data-model="${escapeHTML(data.model)}" data-status="${escapeHTML(data.status)}" data-notes="${escapeHTML(data.notes || '')}">編輯</button>
+                  <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white min-h-[44px] px-4 py-2 rounded text-base font-bold transition-colors" data-id="${escapeHTML(data.id)}">報廢</button>
                 </td>`;
             } else {
                 actionHtml = `<td class="admin-action-col" data-label="操作" style="text-align: center;">-</td>`;
             }
 
-            // 💡 修正：移除多餘的重複 <td>
             tr.innerHTML = `
               <td data-label="車牌號碼" style="font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #334155;">${escapeHTML(data.plate_number || data.id)}</td>
               <td data-label="車輛型號" style="font-weight: 600; color: #475569;">${escapeHTML(data.model)}</td>
@@ -205,6 +207,11 @@
             `;
             tbody.appendChild(tr);
           });
+
+          // 如果是駕駛長，動態生成的內容也要隱藏操作欄
+          if (user.role === '駕駛長') {
+             document.querySelectorAll('.admin-action-col').forEach(el => el.style.display = 'none');
+          }
 
           dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
           dbStatusEl.innerText = "資料庫已連線";
@@ -271,34 +278,35 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
+    
+    // 狀態篩選器按鈕邏輯
     document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        // 切換按鈕樣式
-        document.querySelectorAll('.filter-btn').forEach(b => {
-            b.classList.remove('active', 'bg-gray-800', 'text-white');
-            b.classList.add('bg-white', 'text-gray-600');
-        });
-        e.target.classList.remove('bg-white', 'text-gray-600');
-        e.target.classList.add('active', 'bg-gray-800', 'text-white');
-        
-        // 執行表格過濾
-        const filterVal = e.target.getAttribute('data-filter');
-        document.querySelectorAll('#vehiclesBody tr').forEach(tr => {
-            // 如果是空資料提示行，不要隱藏
-            if (tr.children.length === 1) return;
-            
-            const isMaintenance = tr.classList.contains('status-maintenance');
-            const isBreakdown = tr.classList.contains('status-breakdown');
-            const isReady = !isMaintenance && !isBreakdown;
+      btn.addEventListener('click', (e) => {
+          // 切換按鈕樣式
+          document.querySelectorAll('.filter-btn').forEach(b => {
+              b.classList.remove('active', 'bg-gray-800', 'text-white');
+              b.classList.add('bg-white', 'text-gray-600');
+          });
+          e.target.classList.remove('bg-white', 'text-gray-600');
+          e.target.classList.add('active', 'bg-gray-800', 'text-white');
+          
+          // 執行表格過濾
+          const filterVal = e.target.getAttribute('data-filter');
+          document.querySelectorAll('#vehiclesBody tr').forEach(tr => {
+              if (tr.children.length === 1) return; // 空資料提示行不隱藏
+              
+              const isMaintenance = tr.classList.contains('status-maintenance');
+              const isBreakdown = tr.classList.contains('status-breakdown');
+              const isReady = !isMaintenance && !isBreakdown;
 
-            if (filterVal === 'all') tr.style.display = '';
-            else if (filterVal === 'ready' && isReady) tr.style.display = '';
-            else if (filterVal === 'maintenance' && isMaintenance) tr.style.display = '';
-            else if (filterVal === 'breakdown' && isBreakdown) tr.style.display = '';
-            else tr.style.display = 'none';
-        });
+              if (filterVal === 'all') tr.style.display = '';
+              else if (filterVal === 'ready' && isReady) tr.style.display = '';
+              else if (filterVal === 'maintenance' && isMaintenance) tr.style.display = '';
+              else if (filterVal === 'breakdown' && isBreakdown) tr.style.display = '';
+              else tr.style.display = 'none';
+          });
+      });
     });
-});
   </script>
 </body>
 </html>

@@ -4,11 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 每日發車時刻表</title>
+  
+  <!-- 防止搜尋引擎建立索引 -->
   <meta name="robots" content="noindex, nofollow">
-    
-    <meta property="og:title" content="豐東交通客運 | 智慧車輛調度與個人作業台">
-    <meta property="og:description" content="豐東客運專屬營運入口網，請登入以查看最新班表、派車資訊與差勤紀錄。">
-    <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
+  <!-- LINE 或社群軟體分享時的預覽畫面設定 -->
+  <meta property="og:title" content="豐東交通客運 | 智慧車輛調度與個人作業台">
+  <meta property="og:description" content="豐東客運專屬營運入口網，請登入以查看最新班表、派車資訊與差勤紀錄。">
+  <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
@@ -59,15 +62,15 @@
     @media print {
         @page { margin: 5mm; size: A4 portrait; }
         
-        /* 💡 修正 1：改用 display: none 隱藏原本的網頁介面，而不是用 absolute，這樣強制換頁才會生效！ */
+        /* 隱藏原本的網頁介面 */
         nav, h2, .content-area { display: none !important; } 
         
         #print-zone { display: block !important; position: static !important; width: 100%; }
         
         .voucher-page { 
             display: block; width: 100%; 
-            break-after: page; /* 現代瀏覽器換頁語法 */
-            page-break-after: always; /* 兼容舊版換頁語法 */
+            break-after: page; 
+            page-break-after: always; 
             color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; margin-bottom: 0;
         }
 
@@ -86,22 +89,28 @@
     /* 📱 手機版表格轉換為卡片式設計 */
     @media screen and (max-width: 768px) {
       table, thead, tbody, th, td, tr { display: block; }
-      thead tr { display: none; /* 手機版隱藏傳統表頭 */ }
+      thead tr { display: none; }
       tr { background: white; margin-bottom: 1rem; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; padding: 12px; }
       td { border: none; border-bottom: 1px solid #f1f5f9; position: relative; padding: 12px 10px 12px 40%; text-align: right; min-height: 45px; display: flex; justify-content: flex-end; align-items: center;}
       td:last-child { border-bottom: none; justify-content: center; padding: 15px 10px 5px; }
-      /* 利用 data-label 產生手機版的前綴標題 */
       td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
     }
     #dispatchTable th { 
-  background-color: #1e293b; color: #f8fafc; font-weight: 600; 
-  letter-spacing: 1px; position: sticky; top: 0; z-index: 10; 
-}
-/* 衝突高亮的 CSS */
-tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
+      background-color: #1e293b; color: #f8fafc; font-weight: 600; 
+      letter-spacing: 1px; position: sticky; top: 0; z-index: 10; 
+    }
+    /* 衝突高亮的 CSS */
+    tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
   </style>
 </head>
 <body>
+
+  <!-- 全螢幕載入動畫遮罩 -->
+  <div id="global-loader" class="fixed inset-0 bg-[#f4f6f9] z-[9999] flex flex-col items-center justify-center transition-opacity duration-500">
+      <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="豐東客運" class="h-20 mb-6 animate-pulse object-contain">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600 mb-4"></div>
+      <p class="text-gray-600 font-bold tracking-widest text-sm">系統安全驗證與資料載入中...</p>
+  </div>
 
   <nav class="navbar" id="main-nav"></nav>
 
@@ -196,6 +205,13 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
   const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
   checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then(async (user) => {
+      // 驗證成功後，淡出移除 Loader
+      const loader = document.getElementById('global-loader');
+      if(loader) {
+          loader.style.opacity = '0';
+          setTimeout(() => loader.remove(), 500);
+      }
+      
       document.getElementById('main-content').style.display = 'block';
       renderNavbar(user, 'dispatch');
       
@@ -261,6 +277,7 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
 
       function listenToDispatches(selectedDate) {
           if (unsubscribeDispatch) unsubscribeDispatch();
+          
           unsubscribeDispatch = onSnapshot(query(dispatchesCol, where("date", "==", selectedDate), orderBy("departure_time", "asc")), async (snapshot) => {
               await loadAvailableDrivers(selectedDate);
               await loadAvailableVehicles();
@@ -285,23 +302,23 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
 
                   tbody.innerHTML += `
                     <tr class="${rowClass}">
-                      <td class="font-bold text-lg">${escapeHTML(data.departure_time)}</td>
-                      <td><span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold">${escapeHTML(data.route)}</span></td>
-                      <td>${escapeHTML(data.start_point)}</td>
-                      <td>${escapeHTML(data.end_point)}</td>
-                      <td><select class="driver-select" data-id="${data.id}">${driverOpts}</select></td>
-                      <td><select class="vehicle-select" data-id="${data.id}">${vehicleOpts}</select></td>
-                      <td>${statusBtn}</td>
+                      <td class="font-bold text-lg" data-label="時間">${escapeHTML(data.departure_time)}</td>
+                      <td data-label="路線"><span class="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold">${escapeHTML(data.route)}</span></td>
+                      <td data-label="起始點">${escapeHTML(data.start_point)}</td>
+                      <td data-label="終點站">${escapeHTML(data.end_point)}</td>
+                      <td data-label="駕駛"><select class="driver-select" data-id="${data.id}">${driverOpts}</select></td>
+                      <td data-label="車輛"><select class="vehicle-select" data-id="${data.id}">${vehicleOpts}</select></td>
+                      <td data-label="狀態">${statusBtn}</td>
                       <td>
-                         <button class="btn-edit-trip bg-blue-500 text-white min-h-[44px] px-4 py-2 rounded text-base font-medium" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point}">編輯</button>
-                         <button class="btn-delete-trip bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold" data-id="${data.id}">刪除</button>
+                         <button class="btn-edit-trip bg-sky-500 text-white min-h-[44px] px-4 py-2 rounded text-base font-medium mr-1" data-id="${data.id}" data-time="${data.departure_time}" data-route="${data.route}" data-start="${data.start_point}" data-end="${data.end_point}">編輯</button>
+                         <button class="btn-delete-trip bg-rose-500 text-white min-h-[44px] px-4 py-2 rounded text-base font-medium" data-id="${data.id}">刪除</button>
                       </td>
                     </tr>`;
               });
           });
       }
 
-      // 控制台點擊與選擇配置監聽
+      // 控制台點擊與刪除監聽
       tbody.addEventListener('click', async (e) => {
           const t = e.target;
           if (t.classList.contains('status-toggle')) await updateDoc(doc(db, "daily_dispatches", t.dataset.id), { status: t.dataset.next });
@@ -315,14 +332,44 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
           }
       });
 
+      // 防衝突與選擇配置監聽
       tbody.addEventListener('change', async (e) => {
-          const t = e.target; const tripId = t.dataset.id;
-          if (t.classList.contains('driver-select')) {
-              const empid = t.options[t.selectedIndex].dataset.empid || "";
-              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: t.value, assigned_empid: empid });
+          const target = e.target;
+          const tripId = target.dataset.id;
+
+          if (target.classList.contains('driver-select')) {
+              const newDriver = target.value;
+              const selectedOption = target.options[target.selectedIndex];
+              const newEmpId = selectedOption.dataset.empid || "";
+
+              const currentTrip = currentDayTrips.find(t => t.id === tripId);
+
+              if (newDriver !== "尚未指派") {
+                  const start1 = timeToMins(currentTrip.departure_time);
+                  const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
+                  
+                  const hasConflict = currentDayTrips.some(t => {
+                      if (t.id === tripId || t.assigned_empid !== newEmpId || t.status === 'done') return false;
+                      const start2 = timeToMins(t.departure_time);
+                      const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                      return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
+                  });
+
+                  if (hasConflict) {
+                      if (!confirm(`⚠️ 警告！【${newDriver}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) {
+                          target.value = currentTrip.assigned_driver; // 恢復原狀
+                          return;
+                      }
+                  }
+              }
+              // 更新資料庫
+              await updateDoc(doc(db, "daily_dispatches", tripId), { 
+                  assigned_driver: newDriver, 
+                  assigned_empid: newEmpId 
+              });
           }
-          if (t.classList.contains('vehicle-select')) {
-              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: t.value });
+          if (target.classList.contains('vehicle-select')) {
+              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: target.value });
           }
       });
 
