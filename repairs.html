@@ -89,7 +89,7 @@ import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, order
 import { checkAuthAndGetRole, logout } from './auth.js';
 
     // 💡 傳入空陣列 []，代表「只要有登入的人」都可以進來這個網頁
-    checkAuthAndGetRole([]).then((user) => {
+    checkAuthAndGetRole(['總公司', '站長', '調度員', '維修保養班']).then((user) => {
         document.body.style.display = 'block'; 
         
         // 渲染右上角個人資訊與登出按鈕

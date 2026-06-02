@@ -1,8 +1,5 @@
 // auth.js
-// 1. 從你原本就寫好的初始化檔案中匯入 db 與 auth
 import { db, auth } from './firebase-init.js';
-
-// 2. 引入需要的 Firebase 原生功能方法
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -13,7 +10,7 @@ import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            unsubscribe(); // 取得一次狀態後立即取消監聽，避免重複觸發
+            unsubscribe(); 
             
             if (!user) {
                 window.location.href = 'login.html';
@@ -21,14 +18,14 @@ export function checkAuthAndGetRole(allowedRoles = []) {
             }
 
             try {
-                // 💡 將 Firebase 的小寫信箱強制轉回大寫，才能對應資料庫的員工工號（如 A001）
+                // 將信箱前綴轉大寫作為員工編號
                 const empId = user.email.split('@')[0].toUpperCase();
                 
-                // 讀取人事資料庫中的角色資料
+                // 去 Firestore 的 Drivers 集合尋找該員工
                 const docSnap = await getDoc(doc(db, "Drivers", empId));
                 
                 if (!docSnap.exists()) {
-                    alert(`登入異常：在人事資料庫中找不到員工編號 ${empId}`);
+                    alert(`登入異常：在人事資料庫中找不到員工編號 ${empId}，請聯絡站長建立資料。`);
                     await signOut(auth); 
                     window.location.href = 'login.html';
                     return reject("員工資料異常");
@@ -37,7 +34,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                 const userData = docSnap.data();
                 const userRole = userData.role || "駕駛長";
 
-                // 權限檢查
+                // 權限檢查 (如果 allowedRoles 有設定，且登入者的角色不在裡面，就擋下)
                 if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
                     alert(`權限不足！您的職稱為「${userRole}」，無法存取此頁面。`);
                     window.location.href = 'index.html'; 
@@ -45,7 +42,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                 }
 
                 const safeUser = { empId: empId, name: userData.name, role: userRole };
-                window.currentUser = safeUser; // 掛載到全域方便頁面調用
+                window.currentUser = safeUser; 
                 resolve(safeUser);
 
             } catch (error) {
@@ -70,22 +67,22 @@ export function logout() {
 }
 
 /**
- * 動態渲染導覽列
- * @param {Object} user 登入的使用者物件
- * @param {String} activePageId 當前頁面的 ID
+ * 動態渲染導覽列 (根據 5 大中文權限分流)
  */
 export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
 
+    // 定義各模組允許進入的角色 (統一使用中文)
     const menuItems = [
-        { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
-        { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
-        { id: 'drivers', name: '👨‍✈️ 人事管理', href: 'drivers.html', roles: ['SuperAdmin', 'StationManager'] },
-        { id: 'leaves', name: '📅 差假簽核', href: 'leaves.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
-        { id: 'vehicles', name: '🚍 車輛資訊', href: 'vehicles.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
-        { id: 'repairs', name: '🛠️ 報修系統', href: 'repairs.html', roles: ['SuperAdmin', 'StationManager', '調度員', '維修人員'] },
-        { id: 'routes', name: '🗺️ 路線管理', href: 'routes.html', roles: ['SuperAdmin', 'StationManager'] }
+        { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['總公司', '站長', '調度員'] },
+        { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['總公司', '站長', '調度員'] },
+        { id: 'drivers', name: '👨‍✈️ 人事管理', href: 'drivers.html', roles: ['總公司', '站長'] },
+        { id: 'leaves', name: '📅 差假簽核', href: 'leaves.html', roles: ['總公司', '站長', '調度員'] },
+        { id: 'vehicles', name: '🚍 車輛資訊', href: 'vehicles.html', roles: ['總公司', '站長', '調度員'] },
+        { id: 'repairs', name: '🛠️ 報修系統', href: 'repairs.html', roles: ['總公司', '站長', '調度員', '維修保養班'] },
+        { id: 'routes', name: '🗺️ 路線管理', href: 'routes.html', roles: ['總公司', '站長'] },
+        { id: 'personal', name: '📱 個人作業台', href: 'personal.html', roles: ['駕駛長'] } // 讓駕駛長也能在導覽列看到自己專屬的按鈕
     ];
 
     let html = `
@@ -104,14 +101,13 @@ export function renderNavbar(user, activePageId) {
 
     html += `
         <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
-            <span>👤 ${user.name} (${user.role})</span>
+            <span class="bg-slate-700 px-3 py-1 rounded-full shadow-inner border border-slate-600">👤 ${user.name} (${user.role})</span>
             <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
         </div>
     `;
 
     nav.innerHTML = html;
     
-    // 確保按鈕渲染完成後再行監聽
     const btnLogout = document.getElementById('btnLogout');
     if (btnLogout) {
         btnLogout.addEventListener('click', logout);

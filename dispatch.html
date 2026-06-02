@@ -5,17 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 每日發車時刻表</title>
   
-  <!-- 防止搜尋引擎建立索引 -->
   <meta name="robots" content="noindex, nofollow">
-  <!-- LINE 或社群軟體分享時的預覽畫面設定 -->
   <meta property="og:title" content="豐東交通客運 | 智慧車輛調度與個人作業台">
-  <meta property="og:description" content="豐東客運專屬營運入口網，請登入以查看最新班表、派車資訊與差勤紀錄。">
   <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
   
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
-    h2 { color: #1e293b; margin: 20px; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
     
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
@@ -39,12 +35,13 @@
 
     table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
     th, td { border: 1px solid #e2e8f0; padding: 14px; transition: background-color 0.2s; }
-    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; position: sticky; top: 0; z-index: 10; }
     tr:hover { background-color: #f8fafc; }
 
     tr.active-row { background-color: #ecfdf5; } 
     tr.done-row { background-color: #f1f5f9; color: #94a3b8; } 
     tr.done-row select { opacity: 0.5; pointer-events: none; } 
+    tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
 
     .btn-status { padding: 6px 14px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; width: 100%; color: white; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
     .btn-pending { background-color: #f59e0b; color: #fff; } 
@@ -60,33 +57,22 @@
     @media screen { #print-zone { display: none; } }
 
     @media print {
-        @page { margin: 5mm; size: A4 portrait; }
-        
-        /* 隱藏原本的網頁介面 */
-        nav, h2, .content-area { display: none !important; } 
+        @page { margin: 10mm; size: A4 portrait; }
+        /* 隱藏不想被印出來的介面 */
+        .no-print { display: none !important; } 
         
         #print-zone { display: block !important; position: static !important; width: 100%; }
         
-        .voucher-page { 
-            display: block; width: 100%; 
-            break-after: page; 
-            page-break-after: always; 
-            color: #000; font-family: "Microsoft JhengHei", sans-serif; box-sizing: border-box; padding: 5px; margin-bottom: 0;
+        .voucher-card { 
+            border: 2px solid #000; padding: 15px; margin-bottom: 20px; border-radius: 8px;
+            page-break-inside: avoid; /* 避免單張憑單被切換到兩頁 */
         }
-
-        .voucher-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 9pt; }
-        .voucher-table th, .voucher-table td { border: 2px solid #000 !important; padding: 3px 4px; text-align: center; } 
-        .voucher-table th { background-color: #f0f4f8 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; } 
-        .text-left { text-align: left !important; padding-left: 8px !important; }
-        .font-bold { font-weight: bold !important; }
-        .red-text { color: #dc2626 !important; -webkit-print-color-adjust: exact; color-adjust: exact; font-weight: bold; }
-        
-        .trips-section { display: block; margin-bottom: 2px; }
-        .trips-table-wrapper { display: block; }
-        .trips-table { height: auto; margin-bottom: 0;} 
+        .voucher-title { font-size: 20px; font-weight: bold; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+        .voucher-table-print { width: 100%; border-collapse: collapse; font-size: 14pt; }
+        .voucher-table-print th, .voucher-table-print td { border: 1px solid #000; padding: 8px; text-align: left; }
+        .voucher-table-print th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; width: 20%;}
     }
     
-    /* 📱 手機版表格轉換為卡片式設計 */
     @media screen and (max-width: 768px) {
       table, thead, tbody, th, td, tr { display: block; }
       thead tr { display: none; }
@@ -95,27 +81,29 @@
       td:last-child { border-bottom: none; justify-content: center; padding: 15px 10px 5px; }
       td::before { content: attr(data-label); position: absolute; left: 15px; width: 35%; text-align: left; font-weight: 800; color: #64748b; font-size: 13px; }
     }
-    #dispatchTable th { 
-      background-color: #1e293b; color: #f8fafc; font-weight: 600; 
-      letter-spacing: 1px; position: sticky; top: 0; z-index: 10; 
-    }
-    /* 衝突高亮的 CSS */
-    tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
   </style>
 </head>
 <body>
 
-  <!-- 全螢幕載入動畫遮罩 -->
   <div id="global-loader" class="fixed inset-0 bg-[#f4f6f9] z-[9999] flex flex-col items-center justify-center transition-opacity duration-500">
       <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="豐東客運" class="h-20 mb-6 animate-pulse object-contain">
       <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-600 mb-4"></div>
       <p class="text-gray-600 font-bold tracking-widest text-sm">系統安全驗證與資料載入中...</p>
   </div>
 
-  <nav class="navbar" id="main-nav"></nav>
+  <nav class="navbar no-print" id="main-nav"></nav>
 
- <div id="main-content">
-  <h2>🚦 每日發車時刻表控制台</h2>
+ <div id="main-content" class="no-print">
+  
+  <div class="flex items-center bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6 mx-5 mt-5">
+    <div class="bg-blue-50 p-4 rounded-full mr-5 shadow-inner flex items-center justify-center border border-blue-100">
+       <span class="text-4xl drop-shadow-md">🚦</span>
+    </div>
+    <div>
+      <h2 class="!m-0 text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-600 tracking-wider">每日發車時刻與調度控制台</h2>
+      <p class="text-gray-500 text-sm font-bold mt-2 tracking-wide">智慧化車輛派遣・衝突防呆・駛車憑單列印</p>
+    </div>
+  </div>
 
   <div class="content-area">
     <div class="control-panel">
@@ -154,7 +142,7 @@
       </button>
       
       <div class="flex items-center bg-slate-50 border border-slate-200 rounded-lg p-1 shadow-sm" style="height: 42px; margin-left: 8px;">
-        <span class="text-sm font-bold text-slate-600 px-2 border-r border-slate-300">載入歷史底稿:</span>
+        <span class="text-sm font-bold text-slate-600 px-2 border-r border-slate-300">載入底稿:</span>
         <input type="date" id="copySourceDate" class="bg-transparent font-bold text-slate-600 outline-none px-2 text-sm mr-1 cursor-pointer">
         <button id="btnCopyHistory" class="bg-teal-500 hover:bg-teal-600 text-white px-3 h-full rounded text-sm font-bold transition shadow-sm">
           📋 載入
@@ -192,9 +180,9 @@
       <tbody id="dispatchBody"></tbody>
     </table>
   </div>
-  
-  <div id="print-zone"></div>
  </div> 
+ 
+ <div id="print-zone"></div>
 
 <script type="module">
   import { db } from './firebase-init.js';
@@ -204,15 +192,13 @@
   const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
   const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
-  checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員']).then(async (user) => {
-      // 驗證成功後，淡出移除 Loader
+  checkAuthAndGetRole(['總公司', '站長', '調度員']).then(async (user) => {
       const loader = document.getElementById('global-loader');
       if(loader) {
           loader.style.opacity = '0';
           setTimeout(() => loader.remove(), 500);
       }
       
-      document.getElementById('main-content').style.display = 'block';
       renderNavbar(user, 'dispatch');
       
       const dispatchesCol = collection(db, "daily_dispatches");
@@ -231,7 +217,7 @@
       let editingDocId = null;
       let unsubscribeDispatch = null;
 
-      // 載入路線與站點快選清單
+      // 載入路線與站點
       onSnapshot(collection(db, "Routes"), (snap) => {
           const el = document.getElementById('routesList'); el.innerHTML = '';
           snap.forEach(d => { el.innerHTML += `<option value="${escapeHTML(d.data().name)}"></option>`; });
@@ -318,7 +304,6 @@
           });
       }
 
-      // 控制台點擊與刪除監聽
       tbody.addEventListener('click', async (e) => {
           const t = e.target;
           if (t.classList.contains('status-toggle')) await updateDoc(doc(db, "daily_dispatches", t.dataset.id), { status: t.dataset.next });
@@ -329,53 +314,38 @@
               document.getElementById('inputStart').value = t.dataset.start;
               document.getElementById('inputEnd').value = t.dataset.end;
               editingDocId = t.dataset.id; mainAddBtn.innerHTML = "💾 儲存修改"; cancelBtn.classList.remove('hidden');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
           }
       });
 
-      // 防衝突與選擇配置監聽
       tbody.addEventListener('change', async (e) => {
           const target = e.target;
           const tripId = target.dataset.id;
-
           if (target.classList.contains('driver-select')) {
               const newDriver = target.value;
-              const selectedOption = target.options[target.selectedIndex];
-              const newEmpId = selectedOption.dataset.empid || "";
-
+              const empid = target.options[target.selectedIndex].dataset.empid || "";
               const currentTrip = currentDayTrips.find(t => t.id === tripId);
-
               if (newDriver !== "尚未指派") {
                   const start1 = timeToMins(currentTrip.departure_time);
                   const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
-                  
                   const hasConflict = currentDayTrips.some(t => {
-                      if (t.id === tripId || t.assigned_empid !== newEmpId || t.status === 'done') return false;
+                      if (t.id === tripId || t.assigned_empid !== empid || t.status === 'done') return false;
                       const start2 = timeToMins(t.departure_time);
                       const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
                       return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
                   });
-
-                  if (hasConflict) {
-                      if (!confirm(`⚠️ 警告！【${newDriver}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) {
-                          target.value = currentTrip.assigned_driver; // 恢復原狀
-                          return;
-                      }
+                  if (hasConflict && !confirm(`⚠️ 警告！【${newDriver}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) {
+                      target.value = currentTrip.assigned_driver; return;
                   }
               }
-              // 更新資料庫
-              await updateDoc(doc(db, "daily_dispatches", tripId), { 
-                  assigned_driver: newDriver, 
-                  assigned_empid: newEmpId 
-              });
+              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: newDriver, assigned_empid: empid });
           }
-          if (target.classList.contains('vehicle-select')) {
-              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: target.value });
-          }
+          if (target.classList.contains('vehicle-select')) await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: target.value });
       });
 
       mainAddBtn.onclick = async () => {
           const payload = {
-              date: dateInput.value, departure_time: document.getElementById('inputTime').value,
+              date: dateInput.value, departure_time: document.getElementById('inputTime').value, arrival_time: document.getElementById('inputEndTime').value,
               route: document.getElementById('inputRoute').value.trim(), start_point: document.getElementById('inputStart').value.trim(), end_point: document.getElementById('inputEnd').value.trim()
           };
           if(!payload.departure_time || !payload.route) return alert("請填寫發車時間與路線！");
@@ -384,7 +354,147 @@
       };
 
       cancelBtn.onclick = resetForm;
-      function resetForm() { editingDocId = null; document.getElementById('inputTime').value = ''; document.getElementById('inputRoute').value = ''; document.getElementById('inputStart').value = ''; document.getElementById('inputEnd').value = ''; mainAddBtn.innerHTML = "＋ 新增車趟"; cancelBtn.classList.add('hidden'); }
+      function resetForm() { editingDocId = null; document.getElementById('inputTime').value = ''; document.getElementById('inputEndTime').value = ''; document.getElementById('inputRoute').value = ''; document.getElementById('inputStart').value = ''; document.getElementById('inputEnd').value = ''; mainAddBtn.innerHTML = "＋ 新增車趟"; cancelBtn.classList.add('hidden'); }
+
+      // ==========================================
+      // ✨ 全新實作的四大系統控制按鈕邏輯 ✨
+      // ==========================================
+
+      // 1. 歷史底稿載入
+      document.getElementById('btnCopyHistory').addEventListener('click', async () => {
+          const srcDate = document.getElementById('copySourceDate').value;
+          const targetDate = dateInput.value;
+          if (!srcDate) return alert("請選擇要載入的歷史日期！");
+          if (srcDate === targetDate) return alert("來源日期與目標日期不可相同！");
+          if (!confirm(`確定要將 ${srcDate} 的歷史車趟底稿載入到 ${targetDate} 嗎？（不會複製司機與車輛）`)) return;
+
+          const srcSnap = await getDocs(query(dispatchesCol, where("date", "==", srcDate)));
+          if (srcSnap.empty) return alert("該日沒有任何發車資料！");
+
+          const batch = writeBatch(db);
+          srcSnap.forEach(docSnap => {
+              const data = docSnap.data();
+              const newRef = doc(dispatchesCol);
+              batch.set(newRef, {
+                  date: targetDate, departure_time: data.departure_time, arrival_time: data.arrival_time || "",
+                  route: data.route, start_point: data.start_point, end_point: data.end_point,
+                  assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending"
+              });
+          });
+          await batch.commit();
+          alert("📋 歷史底稿載入完成！");
+      });
+
+      // 2. 一鍵清除
+      document.getElementById('btnClearAssign').addEventListener('click', async () => {
+          if (currentDayTrips.length === 0) return alert("本日尚無車趟！");
+          if (!confirm("⚠️ 警告：確定要清除本日【所有】已排定的駕駛與車輛嗎？這將無法復原！")) return;
+
+          const batch = writeBatch(db); 
+          currentDayTrips.forEach(trip => {
+              batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派" });
+          });
+          await batch.commit();
+          alert("🧹 已退回所有指派紀錄！");
+      });
+
+      // 3. 智慧自動調度
+      document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
+          if (currentDayTrips.length === 0) return alert("請先新增車趟後再執行自動調度！");
+          if (!confirm("✨ 將自動為「尚未指派」的車趟安排目前空閒的人員與車輛，確定執行？")) return;
+
+          const batch = writeBatch(db);
+          let changes = 0;
+          let tempTrips = JSON.parse(JSON.stringify(currentDayTrips)); // 用於計算重疊的虛擬暫存區
+
+          tempTrips.forEach((trip, i) => {
+              if (trip.assigned_driver !== "尚未指派" && trip.assigned_vehicle !== "尚未指派") return;
+
+              const start1 = timeToMins(trip.departure_time);
+              const end1 = trip.arrival_time ? timeToMins(trip.arrival_time) : start1 + 60;
+
+              // 指派駕駛
+              if (trip.assigned_driver === "尚未指派") {
+                  for (let d of currentAvailableDrivers) {
+                      if (d.onLeave) continue;
+                      const hasConflict = tempTrips.some(t => {
+                          if (t.id === trip.id || t.assigned_empid !== d.empId) return false;
+                          const start2 = timeToMins(t.departure_time);
+                          const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                          return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
+                      });
+                      if (!hasConflict) { trip.assigned_driver = d.name; trip.assigned_empid = d.empId; break; }
+                  }
+              }
+
+              // 指派車輛
+              if (trip.assigned_vehicle === "尚未指派") {
+                  for (let v of currentAvailableVehicles) {
+                      const hasConflict = tempTrips.some(t => {
+                          if (t.id === trip.id || t.assigned_vehicle !== v.plate) return false;
+                          const start2 = timeToMins(t.departure_time);
+                          const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                          return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
+                      });
+                      if (!hasConflict) { trip.assigned_vehicle = v.plate; break; }
+                  }
+              }
+
+              // 若有變更則加入更新批次
+              if (trip.assigned_driver !== currentDayTrips[i].assigned_driver || trip.assigned_vehicle !== currentDayTrips[i].assigned_vehicle) {
+                  batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: trip.assigned_driver, assigned_empid: trip.assigned_empid, assigned_vehicle: trip.assigned_vehicle });
+                  changes++;
+              }
+          });
+
+          if (changes > 0) {
+              await batch.commit();
+              alert(`✅ 智慧調度完成！系統成功為您補上了 ${changes} 筆空缺資料。`);
+          } else {
+              alert("⚠️ 目前找不到可指派的空閒人員/車輛，或所有車趟皆已額滿。");
+          }
+      });
+
+      // 4. 批次列印憑單
+      document.getElementById('btnPrintAll').addEventListener('click', () => {
+          if (currentDayTrips.length === 0) return alert("本日尚無車趟可列印！");
+          const printZone = document.getElementById('print-zone');
+          
+          let html = '';
+          currentDayTrips.forEach((trip) => {
+              // 產生每一張駛車憑單的 HTML
+              html += `
+              <div class="voucher-card">
+                  <div class="voucher-title">豐東交通客運 - 行車憑單</div>
+                  <table class="voucher-table-print">
+                      <tr>
+                          <th>行駛日期</th><td>${trip.date}</td>
+                          <th>營運路線</th><td style="font-weight:bold;">${trip.route}</td>
+                      </tr>
+                      <tr>
+                          <th>發車時間</th><td style="font-weight:bold;">${trip.departure_time}</td>
+                          <th>到達時間</th><td>${trip.arrival_time || '依實際路況'}</td>
+                      </tr>
+                      <tr>
+                          <th>起站點</th><td>${trip.start_point}</td>
+                          <th>終點站</th><td>${trip.end_point}</td>
+                      </tr>
+                      <tr>
+                          <th>駕駛長</th><td style="font-weight:bold;">${trip.assigned_driver}</td>
+                          <th>車牌號碼</th><td style="font-weight:bold;">${trip.assigned_vehicle}</td>
+                      </tr>
+                  </table>
+                  <div style="font-size: 10pt; color: #666; text-align: right; margin-top: 15px;">
+                      列印時間: ${new Date().toLocaleString()} &nbsp;&nbsp; 站長簽核: ____________
+                  </div>
+              </div>
+              `;
+          });
+          printZone.innerHTML = html;
+          
+          // 呼叫瀏覽器原生列印
+          window.print();
+      });
 
       listenToDispatches(today);
       dateInput.onchange = (e) => listenToDispatches(e.target.value);
