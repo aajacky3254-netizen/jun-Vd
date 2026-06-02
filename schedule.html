@@ -226,17 +226,24 @@ window.addEventListener('beforeunload', (e) => {
             }
         }
 
+        // ==========================================
+        // ✨ 智慧動態輪班 (結合人體工學與法規的良性循環)
+        // ==========================================
         document.getElementById('btn-auto').addEventListener('click', () => {
-            if(!confirm("確定要執行「智慧動態輪班」嗎？")) return;
-            const healthyPattern = ['S (單)', 'M (早)', 'AB (兩頭)', 'E (晚)', 'OFF (休)', 'STB (待命)', 'S (單)'];
+            if(!confirm("確定要執行「智慧動態輪班」嗎？\n系統將依據【早班➜早班➜單班➜兩頭班➜晚班➜晚班➜休假】的健康週期進行運算。")) return;
+            
+            // 💡 排班優化：採用固定生理時鐘的健康月/週循環，杜絕花班
+            const healthyPattern = ['M (早)', 'M (早)', 'S (單)', 'AB (兩頭)', 'E (晚)', 'E (晚)', 'OFF (休)'];
             const weekNum = parseInt(currentWeekId.split('W')[1], 10) || 0;
 
             currentDrivers.forEach((driver, driverIndex) => {
                 daysOfWeek.forEach((day, dayIndex) => {
+                    // 利用週數、駕駛員序號、星期幾，計算出錯開的動態輪值
                     const shiftIndex = (driverIndex + dayIndex + weekNum) % healthyPattern.length;
                     const assignedShift = healthyPattern[shiftIndex];
                     const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
                     const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    
                     if(selectEl) {
                         selectEl.value = assignedShift;
                         selectEl.className = window.getShiftClass(assignedShift);
@@ -245,6 +252,67 @@ window.addEventListener('beforeunload', (e) => {
             });
             isDirty = true;
             alert("✅ 動態輪班已套用至畫面！確認無誤後請務必點擊「儲存」。");
+        });
+
+        // ==========================================
+        // 💾 儲存並發布 (嚴格執行勞基法與職安防呆審核)
+        // ==========================================
+        document.getElementById('btn-save').addEventListener('click', async () => {
+            const rosterToSave = {};
+            let hasViolation = false;
+            let violationMsg = "";
+
+            currentDrivers.forEach(driver => {
+                rosterToSave[driver.empId] = { name: driver.name };
+                let prevShift = ""; 
+                
+                daysOfWeek.forEach(day => {
+                    const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    if (selectEl) {
+                        const currentShift = selectEl.value;
+                        rosterToSave[driver.empId][day] = currentShift;
+                        
+                        // 💡 排班優化防呆 1：晚班接早班 (嚴重違反 11 小時休息間隔)
+                        if (prevShift === "E (晚)" && currentShift === "M (早)") {
+                            hasViolation = true;
+                            violationMsg += `⚠️ [${driver.name}] 排班違規：前一日為「晚班(E)」，依勞基法輪班間隔規定，今日嚴禁接「早班(M)」。\n`;
+                        }
+                        // 💡 排班優化防呆 2：晚班接 AB 班 (夜間收班後休息不足)
+                        if (prevShift === "E (晚)" && currentShift === "AB (兩頭)") {
+                            hasViolation = true;
+                            violationMsg += `⚠️ [${driver.name}] 排班違規：前一日為「晚班(E)」，今日不宜緊接「AB 兩頭班」，請考量駕駛清晨出車精神狀態。\n`;
+                        }
+                        // 💡 排班優化防呆 3：AB 班接早班 (拉長工時後需充分休息)
+                        if (prevShift === "AB (兩頭)" && currentShift === "M (早)") {
+                             hasViolation = true;
+                             violationMsg += `⚠️ [${driver.name}] 疲勞示警：前一日為「AB 兩段班(拉長工時)」，今日請盡量避免緊接「早班(M)」。\n`;
+                        }
+
+                        prevShift = currentShift; 
+                    }
+                });
+            });
+
+            if (hasViolation) {
+                alert("❌ 儲存失敗！系統偵測到高風險排班情形：\n\n" + violationMsg);
+                return;
+            }
+
+            const btn = document.getElementById('btn-save');
+            btn.innerText = "⏳ 儲存中...";
+            btn.disabled = true;
+            try {
+                await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
+                isDirty = false; 
+                alert("✅ 班表已成功儲存並同步至駕駛員個人端！");
+                await loadSchedule(currentWeekId);
+            } catch (err) {
+                console.error("存檔錯誤:", err);
+                alert("❌ 儲存失敗！請確認資料庫權限或網路狀態。");
+            }
+            btn.innerText = "💾 儲存並發布";
+            btn.disabled = false;
         });
 
         document.getElementById('btn-copy-prev').addEventListener('click', async () => {
