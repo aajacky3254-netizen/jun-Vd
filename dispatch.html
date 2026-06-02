@@ -321,49 +321,55 @@
       tbody.addEventListener('change', async (e) => {
           const target = e.target;
           const tripId = target.dataset.id;
+          
           if (target.classList.contains('driver-select')) {
               const newDriver = target.value;
               const empid = target.options[target.selectedIndex].dataset.empid || "";
               const currentTrip = currentDayTrips.find(t => t.id === tripId);
+              
               if (newDriver !== "尚未指派") {
                   const start1 = timeToMins(currentTrip.departure_time);
-                  let end1 = trip.arrival_time ? timeToMins(trip.arrival_time) : start1 + 60;
-                // 關鍵修復：如果到達時間的分鐘數小於發車時間，代表跨越午夜，必須加上 24 小時的分鐘數
-                  if (end1 < start1) {
-                      end1 += 24 * 60;
-// 建立工時累計字典
-let driverDailyMinutes = {};
+                  let end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
+                  // 修正跨日子夜判斷
+                  if (end1 < start1) end1 += 24 * 60;
 
-// 遍歷當日車趟計算已指派工時
-tempTrips.forEach(t => {
-    if (t.assigned_empid) {
-        const s = timeToMins(t.departure_time);
-        let e = t.arrival_time ? timeToMins(t.arrival_time) : s + 60;
-        if (e < s) e += 24 * 60;
-        driverDailyMinutes[t.assigned_empid] = (driverDailyMinutes[t.assigned_empid] || 0) + (e - s);
-    }
-});
+                  // 1. 檢查工時上限防呆 (600分鐘 = 10小時)
+                  let currentTotalMins = 0;
+                  currentDayTrips.forEach(t => {
+                      if (t.id !== tripId && t.assigned_empid === empid && t.status !== 'done') {
+                          const s = timeToMins(t.departure_time);
+                          let e_time = t.arrival_time ? timeToMins(t.arrival_time) : s + 60;
+                          if (e_time < s) e_time += 24 * 60;
+                          currentTotalMins += (e_time - s);
+                      }
+                  });
 
-// 在指派迴圈中加入工時阻擋
-if (driverDailyMinutes[d.empId] + (end1 - start1) > 600) {
-    continue; // 超過每日 10 小時上限，跳過這位駕駛
-}
+                  if (currentTotalMins + (end1 - start1) > 600) {
+                      alert(`⚠️ 拒絕指派！\n【${newDriver}】當日累計排班工時將突破法定上限 (10 小時)。`);
+                      target.value = currentTrip.assigned_driver || "尚未指派";
+                      return;
+                  }
 
-                    
-                  const end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
+                  // 2. 檢查時間重疊
                   const hasConflict = currentDayTrips.some(t => {
                       if (t.id === tripId || t.assigned_empid !== empid || t.status === 'done') return false;
                       const start2 = timeToMins(t.departure_time);
-                      const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                      let end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                      if (end2 < start2) end2 += 24 * 60;
                       return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
                   });
+                  
                   if (hasConflict && !confirm(`⚠️ 警告！【${newDriver}】在此時段已有排定任務（時間重疊），確定要強制指派嗎？`)) {
-                      target.value = currentTrip.assigned_driver; return;
+                      target.value = currentTrip.assigned_driver || "尚未指派";
+                      return;
                   }
               }
               await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: newDriver, assigned_empid: empid });
           }
-          if (target.classList.contains('vehicle-select')) await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: target.value });
+          
+          if (target.classList.contains('vehicle-select')) {
+              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: target.value });
+          }
       });
 
       mainAddBtn.onclick = async () => {
@@ -421,32 +427,60 @@ if (driverDailyMinutes[d.empId] + (end1 - start1) > 600) {
           alert("🧹 已退回所有指派紀錄！");
       });
 
-      // 3. 智慧自動調度
+      // 3. 智慧自動調度 (已導入工時上限防呆)
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           if (currentDayTrips.length === 0) return alert("請先新增車趟後再執行自動調度！");
           if (!confirm("✨ 將自動為「尚未指派」的車趟安排目前空閒的人員與車輛，確定執行？")) return;
 
           const batch = writeBatch(db);
           let changes = 0;
-          let tempTrips = JSON.parse(JSON.stringify(currentDayTrips)); // 用於計算重疊的虛擬暫存區
+          let tempTrips = JSON.parse(JSON.stringify(currentDayTrips));
+
+          // 預先建立駕駛員的工時累計字典
+          let driverDailyMinutes = {};
+          tempTrips.forEach(t => {
+              if (t.assigned_empid) {
+                  const s = timeToMins(t.departure_time);
+                  let e = t.arrival_time ? timeToMins(t.arrival_time) : s + 60;
+                  if (e < s) e += 24 * 60;
+                  driverDailyMinutes[t.assigned_empid] = (driverDailyMinutes[t.assigned_empid] || 0) + (e - s);
+              }
+          });
 
           tempTrips.forEach((trip, i) => {
               if (trip.assigned_driver !== "尚未指派" && trip.assigned_vehicle !== "尚未指派") return;
 
               const start1 = timeToMins(trip.departure_time);
-              const end1 = trip.arrival_time ? timeToMins(trip.arrival_time) : start1 + 60;
+              let end1 = trip.arrival_time ? timeToMins(trip.arrival_time) : start1 + 60;
+              // 跨日修正
+              if (end1 < start1) end1 += 24 * 60;
 
               // 指派駕駛
               if (trip.assigned_driver === "尚未指派") {
                   for (let d of currentAvailableDrivers) {
                       if (d.onLeave) continue;
+                      
+                      // 工時上限判定 (10 小時 = 600 分鐘)
+                      let currentMins = driverDailyMinutes[d.empId] || 0;
+                      if (currentMins + (end1 - start1) > 600) {
+                          continue; // 如果加上此趟會超時，跳過這位駕駛
+                      }
+
+                      // 衝突判定
                       const hasConflict = tempTrips.some(t => {
                           if (t.id === trip.id || t.assigned_empid !== d.empId) return false;
                           const start2 = timeToMins(t.departure_time);
-                          const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                          let end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                          if (end2 < start2) end2 += 24 * 60;
                           return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
                       });
-                      if (!hasConflict) { trip.assigned_driver = d.name; trip.assigned_empid = d.empId; break; }
+                      
+                      if (!hasConflict) { 
+                          trip.assigned_driver = d.name; 
+                          trip.assigned_empid = d.empId; 
+                          driverDailyMinutes[d.empId] = currentMins + (end1 - start1); // 更新當日工時
+                          break; 
+                      }
                   }
               }
 
@@ -456,7 +490,8 @@ if (driverDailyMinutes[d.empId] + (end1 - start1) > 600) {
                       const hasConflict = tempTrips.some(t => {
                           if (t.id === trip.id || t.assigned_vehicle !== v.plate) return false;
                           const start2 = timeToMins(t.departure_time);
-                          const end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                          let end2 = t.arrival_time ? timeToMins(t.arrival_time) : start2 + 60;
+                          if (end2 < start2) end2 += 24 * 60;
                           return Math.max(start1, start2) < Math.min(end1 + 10, end2 + 10);
                       });
                       if (!hasConflict) { trip.assigned_vehicle = v.plate; break; }
@@ -474,7 +509,7 @@ if (driverDailyMinutes[d.empId] + (end1 - start1) > 600) {
               await batch.commit();
               alert(`✅ 智慧調度完成！系統成功為您補上了 ${changes} 筆空缺資料。`);
           } else {
-              alert("⚠️ 目前找不到可指派的空閒人員/車輛，或所有車趟皆已額滿。");
+              alert("⚠️ 目前找不到可指派的空閒人員/車輛，或剩餘人員工時已滿。");
           }
       });
 
