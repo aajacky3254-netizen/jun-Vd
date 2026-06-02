@@ -313,16 +313,18 @@
                         // 這裡已經換上您剛剛提供的專屬 URL！
                         const gasUrl = "https://script.google.com/macros/s/AKfycbwRelX_fQCleSmsLJQiOCoUU9mtrgTauSPh09D7c9qguFj6SWqr57ayM_hmqIY3U6oqLw/exec"; 
                         
+                        // drivers.html 內的 fetch 修正
                         await fetch(gasUrl, {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ 
-        empId: empId,
-        secretToken: "YOUR_CUSTOM_SECRET_KEY_HERE" // 前端加上金鑰
-    }) 
-});
+                            method: "POST",
+                            headers: {
+                                // 💡 將 application/json 改為 text/plain 避免觸發 GAS 的 CORS 預檢錯誤
+                                "Content-Type": "text/plain;charset=utf-8" 
+                            },
+                            body: JSON.stringify({ 
+                                empId: empId,
+                                secretToken: "YOUR_CUSTOM_SECRET_KEY_HERE" 
+                            }) 
+                        });
                         console.log("後端 Auth 帳號建立請求已送出");
                     } catch (apiErr) {
                         console.error("呼叫建立帳號 API 失敗:", apiErr);
