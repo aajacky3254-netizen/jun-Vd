@@ -1,10 +1,6 @@
 // auth.js
 import { db, auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db, auth } from './firebase-init.js';
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-// 💡 修正 1：這裡必須多匯入 setDoc，用來自動建立 ADMIN 資料
 import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export function checkAuthAndGetRole(allowedRoles = []) {
