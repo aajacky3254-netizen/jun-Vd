@@ -16,5 +16,3 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-// firebase-init.js 結尾加上這兩行
-export { db, auth };
