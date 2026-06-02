@@ -7,35 +7,56 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; }
+    
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
     .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block;}
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+
     .content-area { padding: 0 20px; }
-    .control-panel { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0; }
+    
+    .control-panel {
+      background: #fff; padding: 20px; border-radius: 12px; 
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;
+      display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0;
+    }
     .input-group { display: flex; flex-direction: column; gap: 6px; }
     .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
     .input-group input, .input-group select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; outline: none; }
+    
     table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; border-radius: 8px; overflow: hidden;}
     th, td { border: 1px solid #e2e8f0; padding: 14px; }
     th { background-color: #1e293b; color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
     
     @media screen { #print-zone { display: none; } }
+
+    /* ========== 駛車憑單列印專屬樣式 (100% 完美還原愛巴士排版) ========== */
     @media print {
         @page { margin: 8mm; size: A4 portrait; }
         .no-print { display: none !important; } 
         body { background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: "微軟正黑體", sans-serif;}
+        
         #main-content { display: none !important; }
         #print-zone, #print-zone * { color: #000 !important; visibility: visible !important; }
-        .print-page { width: 100%; height: 98vh; page-break-after: always; box-sizing: border-box; color: #000; }
+
+        .print-page {
+            width: 100%;
+            height: 98vh;
+            page-break-after: always;
+            box-sizing: border-box;
+            color: #000;
+        }
         .print-page:last-child { page-break-after: auto; }
-        .p-table { width: 100%; border-collapse: collapse; border: 2px solid #000; margin-bottom: -2px; font-size: 13px; }
-        .p-table th, .p-table td { border: 1px solid #000; padding: 6px; text-align: center; vertical-align: middle; }
+        
+        .p-table { width: 100%; border-collapse: collapse; border: 2px solid #000; margin-bottom: -2px; font-size: 12px; }
+        .p-table th, .p-table td { border: 1px solid #000; padding: 5px; text-align: center; vertical-align: middle; }
         .p-table th { font-weight: 900; background-color: #f4f4f4 !important; }
-        .p-table td { font-weight: 700; }
+        .p-table td { font-weight: 900; }
+        
         .text-left { text-align: left !important; }
-        .stamp { border: 2px dashed #000; color: #000; display: inline-block; padding: 5px 15px; font-size: 14px; font-weight: 900; transform: rotate(-5deg); }
+        .text-red { color: #d32f2f !important; font-weight: 900; } /* 警語紅色 */
+        .stamp { border: 2px dashed #d32f2f; color: #d32f2f; display: inline-block; padding: 5px 15px; font-size: 14px; font-weight: 900; transform: rotate(-5deg); }
         .stamp-solid { border-style: solid; transform: rotate(0deg); }
     }
   </style>
@@ -46,7 +67,7 @@
  <div id="main-content" class="no-print">
   <div class="content-area mt-5">
     <div class="control-panel">
-      <div class="input-group"><label>日期</label><input type="date" id="inputDate"></div>
+      <div class="input-group"><label>排班日期</label><input type="date" id="inputDate" class="text-blue-700 font-bold border-blue-300 bg-blue-50"></div>
       <div class="input-group"><label>發車時間</label><input type="time" id="inputTime"></div>
       <div class="input-group"><label>到達時間(選)</label><input type="time" id="inputEndTime"></div>
       <div class="input-group"><label>路線</label><input type="text" id="inputRoute" list="routesList" style="width: 100px;"></div>
@@ -54,11 +75,13 @@
       <div class="input-group"><label>終點站</label><input type="text" id="inputEnd" list="stationsList" style="width: 150px;"></div>
       <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-700 transition">＋ 新增</button>
       
+      <!-- 📋 自訂複製日期模組 -->
       <div class="input-group ml-4 border-l-2 border-gray-200 pl-4">
           <label class="text-teal-700">複製來源日</label>
           <input type="date" id="inputCopySource" class="bg-teal-50 border-teal-300 text-teal-800 font-bold" style="width: 140px;">
       </div>
       <button id="btnCopyFromDate" class="bg-teal-600 hover:bg-teal-700 text-white px-5 rounded-lg font-bold transition shadow-sm border border-teal-700">📋 複製時刻</button>
+      
       <div style="flex-grow: 1;"></div> 
       <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-5 rounded-lg font-bold transition shadow-sm">🧹 一鍵清空</button>
       <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-lg font-bold transition shadow-sm">✨ 智慧調度</button>
@@ -77,6 +100,7 @@
   </div>
  </div> 
  
+ <!-- 列印專區 -->
  <div id="print-zone"></div>
 
 <script type="module">
@@ -136,7 +160,11 @@
 
           unsubscribeDispatch = onSnapshot(q, async (snapshot) => {
               await loadResources(dateStr);
-              currentDayTrips = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+              // 💡 雙重防呆：就算 Firebase 緩存異常，前端也強制只抓出「當前選擇日期」的資料！
+              currentDayTrips = snapshot.docs
+                  .map(d => ({ id: d.id, ...d.data() }))
+                  .filter(d => d.date === dateStr); 
+                  
               currentDayTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
               
               tbody.innerHTML = currentDayTrips.map(data => {
@@ -179,10 +207,8 @@
       });
 
       // ==========================================
-      // 📋 載入指定日期時刻表 (只複製路線與時間，清空人車)
+      // 📋 載入指定日期時刻表 (自訂日期複製引擎)
       // ==========================================
-      
-      // 初始化：自動將複製來源日期預設為「昨天」，節省操作時間
       const copySourceInput = document.getElementById('inputCopySource');
       const yesterdayInit = new Date();
       yesterdayInit.setDate(yesterdayInit.getDate() - 1);
@@ -195,7 +221,6 @@
           if (!sourceDate) return alert("請先選擇要複製的來源日期！");
           if (sourceDate === targetDate) return alert("來源日期與當前排班日期相同，無需複製！");
 
-          // 防呆警告
           if(currentDayTrips.length > 0) {
               if(!confirm(`⚠️ 畫面上已經有 ${targetDate} 的車趟了，載入 ${sourceDate} 的時刻表會「疊加」上去，確定要繼續嗎？`)) return;
           }
@@ -204,7 +229,6 @@
           btn.innerText = "⏳ 載入中..."; btn.disabled = true;
 
           try {
-              // 從資料庫撈出「來源日期」的所有班次
               const q = query(dispatchesCol, where("date", "==", sourceDate));
               const snap = await getDocs(q);
               
@@ -216,8 +240,6 @@
                   snap.forEach(docSnap => {
                       const oldData = docSnap.data();
                       const newTripRef = doc(collection(db, "daily_dispatches"));
-                      
-                      // 將舊資料拷貝至「目標日期」，並自動將司機/車輛還原為空缺狀態
                       batch.set(newTripRef, {
                           date: targetDate, 
                           departure_time: oldData.departure_time,
@@ -225,37 +247,31 @@
                           route: oldData.route,
                           start_point: oldData.start_point || "",
                           end_point: oldData.end_point || "",
-                          assigned_driver: "尚未指派", 
-                          assigned_empid: "", 
-                          assigned_vehicle: "尚未指派", 
-                          status: "pending"
+                          assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending"
                       });
                       count++;
                   });
                   await batch.commit();
                   alert(`✅ 成功拷貝 ${sourceDate} 的 ${count} 筆發車時刻！\n請接續使用「✨ 智慧調度」填補人車。`);
               }
-          } catch (err) { 
-              console.error(err);
-              alert("複製失敗，請檢查網路狀態。"); 
-          }
-          
-          // 恢復按鈕狀態
+          } catch (err) { alert("複製失敗，請檢查網路。"); }
           btn.innerText = "📋 複製時刻"; btn.disabled = false;
       });
 
       // ==========================================
-      // 🧹 一鍵清空 (只清空畫面上所選日期的資料)
+      // 🧹 一鍵清空 (100% 防呆，只清空被雙重過濾的今日資料)
       // ==========================================
       document.getElementById('btnClearDispatch').addEventListener('click', async () => {
-          const selectElements = document.querySelectorAll('#dispatchBody .driver-select');
-          if(selectElements.length === 0) return alert("畫面上無車趟可清空！");
-          if(!confirm(`⚠️ 確定要清空這 ${selectElements.length} 筆車趟的駕駛與車輛嗎？\n(只會清空您現在正在處理的這個日期：${dateInput.value})`)) return;
+          // 只操作 currentDayTrips 這個已經被嚴格綁定為 "當前日期" 的陣列
+          const tripsToClear = currentDayTrips.filter(t => t.assigned_driver !== "尚未指派" || t.assigned_vehicle !== "尚未指派");
+          
+          if(tripsToClear.length === 0) return alert("畫面上無已指派的車趟可清空！");
+          if(!confirm(`⚠️ 確定要清空畫面上這 ${tripsToClear.length} 筆車趟的駕駛與車輛嗎？\n(系統防呆機制已啟動：只會清空您現在正在處理的日期 ${dateInput.value})`)) return;
 
           try {
               const batch = writeBatch(db);
-              selectElements.forEach(select => {
-                  batch.update(doc(db, "daily_dispatches", select.getAttribute('data-id')), { 
+              tripsToClear.forEach(trip => {
+                  batch.update(doc(db, "daily_dispatches", trip.id), { 
                       assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派" 
                   });
               });
@@ -268,70 +284,54 @@
       // ✨ 終極版智慧調度 (具備法規與人體工學 AI 防呆)
       // ==========================================
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
-          const tripRows = Array.from(document.querySelectorAll('#dispatchBody tr')).filter(tr => tr.querySelector('.driver-select'));
-          if (tripRows.length === 0) return alert("畫面中無車趟可調度！");
+          // 同樣只對 currentDayTrips 進行調度
+          const tripsToDispatch = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
+          if (tripsToDispatch.length === 0) return alert("畫面中無空缺車趟可調度！");
           
           let driverSchedules = {}; 
           let vehicleSchedules = {}; 
           const batch = writeBatch(db);
           let changes = 0;
 
-          // 模擬時間排序，確保順序正確
-          tripRows.sort((a, b) => timeToMins(a.cells[0].innerText.split('~')[0].trim()) - timeToMins(b.cells[0].innerText.split('~')[0].trim()));
+          for (let trip of tripsToDispatch) {
+              let assigned_driver = trip.assigned_driver;
+              let assigned_empid = trip.assigned_empid;
+              let assigned_vehicle = trip.assigned_vehicle;
 
-          for (let tr of tripRows) {
-              const driverSelect = tr.querySelector('.driver-select');
-              const vehicleSelect = tr.querySelector('.vehicle-select');
-              const tripId = driverSelect.getAttribute('data-id');
-
-              let assigned_driver = driverSelect.value;
-              let assigned_empid = driverSelect.options[driverSelect.selectedIndex]?.dataset?.empid || "";
-              let assigned_vehicle = vehicleSelect.value;
-
-              let timeStr = tr.cells[0].innerText; 
-              let [startStr, endStr] = timeStr.split('~').map(s => s.trim());
-              if (!endStr) endStr = startStr; 
-              let tStart = timeToMins(startStr);
-              let tEnd = timeToMins(endStr) + 20; // 💡 強制預留 20 分鐘收班/整備/上廁所緩衝時間
+              let tStart = timeToMins(trip.departure_time);
+              let tEnd = timeToMins(trip.arrival_time || trip.departure_time) + 20; // 強制預留 20 分鐘緩衝
 
               // 尋找最佳駕駛
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
                   let bestDriver = null;
                   for (let d of currentAvailableDrivers) {
-                      // 1. 檢查是否有重疊車趟
                       let sched = driverSchedules[d.empId] || [];
                       let hasOverlap = sched.some(s => (tStart < s.end && tEnd > s.start));
                       if (hasOverlap) continue;
 
-                      // 2. 班別生態防呆檢查
                       let shift = d.shift; 
                       let isMatch = false;
-
                       if (shift.includes("M")) {
-                          if (tEnd <= 15 * 60) isMatch = true; // 早班：拒絕 15:00 後的車趟
+                          if (tEnd <= 15 * 60) isMatch = true; 
                       } else if (shift.includes("E")) {
-                          if (tStart >= 13 * 60) isMatch = true; // 晚班：拒絕 13:00 前的車趟
+                          if (tStart >= 13 * 60) isMatch = true; 
                       } else if (shift.includes("AB")) {
-                          // AB班：強制鎖定 11:00 ~ 15:00 中間不得派車，確保休息碎片化不會發生
                           if (tEnd <= 11 * 60 || tStart >= 15 * 60) isMatch = true;
                       } else if (shift.includes("S") || shift.includes("STB")) {
-                          isMatch = true; // 單班/待命
+                          isMatch = true; 
                       }
                       if (!isMatch) continue;
 
-                      // 3. 勞基法 12 小時總工時天花板檢查
                       if (sched.length > 0) {
                           let firstStart = Math.min(tStart, ...sched.map(s => s.start));
                           let lastEnd = Math.max(tEnd, ...sched.map(s => s.end));
                           if ((lastEnd - firstStart) > 12 * 60) continue; 
                       }
 
-                      // 4. 勞務均分：優先派給今天跑比較少的人
                       if (!bestDriver || (driverSchedules[d.empId]?.length || 0) < (driverSchedules[bestDriver.empId]?.length || 0)) {
                           bestDriver = d;
                       }
                   }
-
                   if (bestDriver) {
                       assigned_driver = bestDriver.name;
                       assigned_empid = bestDriver.empId;
@@ -341,7 +341,7 @@
                   }
               }
 
-              // 尋找最佳車輛 (考慮 20 分鐘緩衝)
+              // 尋找最佳車輛
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
                   let bestVehicle = null;
                   for (let v of currentAvailableVehicles) {
@@ -357,8 +357,8 @@
                   }
               }
 
-              if (assigned_driver !== driverSelect.value || assigned_vehicle !== vehicleSelect.value) {
-                  batch.update(doc(db, "daily_dispatches", tripId), { assigned_driver, assigned_empid, assigned_vehicle });
+              if (assigned_driver !== trip.assigned_driver || assigned_vehicle !== trip.assigned_vehicle) {
+                  batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver, assigned_empid, assigned_vehicle });
               }
           }
           
@@ -371,7 +371,7 @@
       });
 
       // ==========================================
-      // 🖨️ 批次列印憑單 (含 LOGO 與精準列印時間)
+      // 🖨️ 批次列印憑單 (完美復刻「愛巴士行車日報表」版面)
       // ==========================================
       document.getElementById('btnPrintAll').addEventListener('click', () => {
           if (currentDayTrips.length === 0) return alert("本日尚無車趟可列印！");
@@ -407,95 +407,145 @@
               const plates = Array.from(d.vList).join(', ') || "無";
               const printDate = dateInput.value.replace(/-/g, '/');
 
+              // 生成班次 HTML (包含 LED 模擬與休息線)
+              let tripsHtml = '';
+              d.trips.forEach((trip, idx) => {
+                  tripsHtml += `<tr style="height:55px;">
+                      <td>${idx + 1}</td>
+                      <td class="text-left" style="line-height: 1.4;">
+                          <span style="color:#1d4ed8;">${trip.route}</span> ${trip.start_point}<br>
+                          <span style="font-size: 10px; color: #555;">[LED: Hanover: *${trip.route}# | Mobitec: ${trip.route}0]</span>
+                      </td>
+                      <td>${trip.departure_time} ~<br>${trip.arrival_time || ''}</td>
+                      <td></td><td></td>
+                      <td class="text-left">${trip.end_point}</td>
+                      <td></td><td></td><td></td>
+                  </tr>`;
+                  // 休息分隔線
+                  if (idx < d.trips.length - 1) {
+                      tripsHtml += `<tr><td colspan="9" style="letter-spacing:10px; background-color:#f4f4f4;">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
+                  }
+              });
+
+              // 補足至少 4 個欄位維持版面
+              for(let i=d.trips.length; i<4; i++) {
+                  tripsHtml += `<tr style="height:55px;"><td>${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+              }
+
               html += `<div class="print-page">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; border-bottom: 3px solid #000; padding-bottom: 8px;">
-                      <div style="display: flex; align-items: center;">
-                          <img src="./豐東客運 LOGO.png" alt="LOGO" style="height: 48px; margin-right: 15px; filter: grayscale(100%);">
-                          <div style="font-size: 26px; font-weight: 900; letter-spacing: 2px;">豐東汽車客運 每日行車憑單</div>
-                      </div>
-                      <div style="font-size: 13px; font-weight: 900; color: #555;">
-                          (${printTimestamp} 印製)
-                      </div>
+                  
+                  <!-- 標題與 LOGO 區塊 -->
+                  <div style="display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 5px;">
+                      <img src="./豐東客運 LOGO.png" style="height: 55px; position: absolute; left: 0; filter: grayscale(100%);">
+                      <div style="font-size: 26px; font-weight: 900; letter-spacing: 2px;">豐東汽車客運 駛車憑單(行車日報表)</div>
                   </div>
+                  <div style="text-align: right; font-size: 12px; font-weight: 900; margin-bottom: 5px;">
+                      列印時間：${printTimestamp}
+                  </div>
+                  
+                  <!-- 基本資料表 -->
                   <table class="p-table">
                       <tr>
-                          <th style="width:12%">駕駛姓名</th><td style="width:13%; font-weight: 900; font-size: 15px;">${d.name}</td>
-                          <th style="width:12%">員工編號</th><td style="width:13%; font-weight: 900; font-size: 15px;">${d.empId}</td>
-                          <th style="width:12%">車號</th><td style="width:23%; font-weight: 900; font-size: 16px; font-family:monospace;">${plates}</td>
-                          <th style="width:15%">日期</th>
+                          <th style="width: 12%">駕駛姓名</th><td style="width: 18%">${d.name}</td>
+                          <th style="width: 12%">員工編號</th><td style="width: 13%">${d.empId}</td>
+                          <th style="width: 10%">車 號</th><td style="width: 15%; font-family:monospace;">${plates}</td>
+                          <th style="width: 10%">日 期</th>
                       </tr>
                       <tr>
-                          <th>路線班別</th><td colspan="3" style="font-weight: 900; font-size: 15px;">${d.shift}</td>
-                          <th colspan="2">行車系統時間： □ 正確　□ 不正確</th>
+                          <th>路線班別</th><td style="font-weight: 900;">${d.shift}</td>
+                          <td colspan="4" class="text-left" style="padding-left: 10px;">行車系統時間： □ 正確　□ 不正確</td>
                           <td style="font-weight: 900;">${printDate}</td>
                       </tr>
                   </table>
+                  
+                  <!-- 檢測表 -->
                   <table class="p-table" style="border-top:none;">
                       <tr>
-                          <th style="width:15%">駕照檢驗</th><td class="text-left" style="width:20%">□ 合格　□ 不合格</td>
-                          <th style="width:15%">體溫檢測</th><td class="text-left" style="width:25%">□ 合格 ( _ _._ 度 )</td>
-                          <td rowspan="3" class="text-left" style="width:25%; vertical-align:top;">
-                              出車前里程數：<br><br><div style="text-align:right; font-weight:900;">公里</div>
-                              <hr style="margin:5px 0; border-top:1px solid #000;">
-                              返場接續里程數：<br><br><div style="text-align:right; font-weight:900;">公里</div>
+                          <th style="width: 15%">駕照檢驗</th><td style="width: 20%" class="text-left">□ 合格　□ 不合格</td>
+                          <th style="width: 15%">體溫檢測</th><td style="width: 25%" class="text-left">□ 合格 ( _ _._ 度 )</td>
+                          <td rowspan="3" class="text-left" style="width: 25%; vertical-align: top; line-height: 1.8;">
+                              出車前里程數：<br><div style="text-align:right">公里</div>
+                              返場接續里程數：<br><div style="text-align:right">公里</div>
                           </td>
                       </tr>
                       <tr>
                           <th>行照檢驗</th><td class="text-left">□ 合格　□ 不合格</td>
-                          <th>酒精檢測</th><td class="text-left">□ 合格 ( 數值: _._ _ )</td>
+                          <th>酒精檢測</th><td class="text-left">□ 合格 ( 值：_._ _ )</td>
                       </tr>
                       <tr>
-                          <th>教育訓練</th><td class="text-left">□ 合格　□ 不合格</td>
-                          <th>血壓檢測</th><td class="text-left">收縮 _ _ _ / 舒張 _ _ _</td>
+                          <th>教育訓練證明</th><td class="text-left">□ 合格　□ 不合格</td>
+                          <th>血壓檢測</th><td class="text-left">高 _ _ / 低 _ _</td>
                       </tr>
-                      <tr><td colspan="5" style="color: #000; font-weight: 900; text-align: center; font-size: 14px; background-color: #fce7f3 !important;">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td></tr>
+                      <tr>
+                          <td colspan="5" class="text-red" style="text-align: center;">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td>
+                      </tr>
                   </table>
+                  
+                  <!-- 班次表 -->
                   <table class="p-table" style="margin-top:5px;">
                       <tr>
-                          <th style="width:5%">班次</th><th style="width:25%">出發站/端點</th><th style="width:13%">排定時間</th>
-                          <th style="width:10%">實際發車</th><th style="width:8%">站務簽章</th>
-                          <th style="width:25%">到達站</th><th style="width:10%">實際到站</th><th style="width:4%">備註</th>
-                      </tr>`;
-
-              d.trips.forEach((trip, idx) => {
-                  html += `<tr style="height:50px;">
-                      <td style="font-weight: 900; font-size: 15px;">${idx + 1}</td>
-                      <td class="text-left"><span style="font-weight: 900; font-size: 14px;">${trip.route}</span> <br> <span style="font-size: 12px;">${trip.start_point}</span></td>
-                      <td style="font-weight: 900;">${trip.departure_time} ~ ${trip.arrival_time || ''}</td>
-                      <td></td><td></td>
-                      <td class="text-left" style="font-size: 12px;">${trip.end_point}</td>
-                      <td></td><td></td>
-                  </tr>`;
-                  if (idx < d.trips.length - 1) {
-                      html += `<tr><td colspan="8" style="letter-spacing:10px; background-color:#f4f4f4; font-weight: 900; color: #555;">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
-                  }
-              });
-
-              for(let i=d.trips.length; i<4; i++) {
-                  html += `<tr style="height:50px;"><td style="font-weight: 900;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-              }
-
-              html += `</table>
-                  <table class="p-table" style="margin-top:5px;">
-                      <tr><th style="width:30%">補票紀錄</th><th style="width:40%">油耗記錄 (加油公升/時間)</th><th style="width:30%">趟次中拋錨、肇事情形</th></tr>
-                      <tr><td style="height:50px;"></td><td class="text-left">加油量：_ _ _ 公升　簽章：_ _ _ _</td><td></td></tr>
+                          <th style="width: 4%">班次</th>
+                          <th style="width: 25%">出發站/端點</th>
+                          <th style="width: 10%">排定時間</th>
+                          <th style="width: 10%; font-size: 11px;">出發/管制時間<br>(實際發車)</th>
+                          <th style="width: 7%">站務簽章</th>
+                          <th style="width: 20%">到達站</th>
+                          <th style="width: 10%; font-size: 11px;">到達時間<br>(實際到站)</th>
+                          <th style="width: 7%">站務簽章</th>
+                          <th style="width: 7%">備註</th>
+                      </tr>
+                      ${tripsHtml}
                   </table>
-                  <div style="border: 2px solid #000; padding: 12px; margin-top:5px; font-size:13px; font-weight:700;">
-                      <div style="text-align:center; font-weight:900; margin-bottom:8px; font-size: 16px;">路口轉彎停看行、禮讓行人優先行</div>
+                  
+                  <!-- 底部附表 -->
+                  <table class="p-table" style="margin-top:5px;">
+                      <tr>
+                          <th style="width: 30%">補票紀錄</th>
+                          <th style="width: 40%">油耗記錄 (加油公升/時間)</th>
+                          <th style="width: 30%">趟次中拋錨、肇事情形</th>
+                      </tr>
+                      <tr>
+                          <td style="height: 40px;"></td>
+                          <td class="text-left" style="vertical-align: top;">加油量：_ _ _ 公升　簽章：_ _ _ _</td>
+                          <td></td>
+                      </tr>
+                  </table>
+                  
+                  <!-- 安全口訣 -->
+                  <div style="border: 2px solid #000; padding: 10px; margin-top:5px; font-size: 12px; font-weight: 900;">
+                      <div style="text-align:center; font-size: 14px; margin-bottom: 5px;">路口轉彎停看行、禮讓行人優先行</div>
                       <div style="display:flex; justify-content:space-between; line-height: 1.6;">
                           <div>1. 慢(慢開)、不急、不趕、路口減速。<br>3. 開關車門時務必廣播提醒乘客才可起步。<br>5. 「離開駕駛座拉好手剎車」。</div>
                           <div>2. 遠離機車，遠離危險。<br>4. 行車中嚴禁使用手機及平板。<br>6. 候車亭服務燈亮起一定暫停確認。</div>
                       </div>
+                      <div style="text-align: right; margin-top: 10px;">駕駛員確認簽名：____________________</div>
                   </div>
+                  
+                  <!-- 簽章區 -->
                   <table class="p-table" style="border-top:none;">
-                      <tr><th style="width:16%">鍵入人員簽章</th><th style="width:28%">調度員簽章</th><th style="width:28%">站主管審核章</th><th style="width:14%">收回張數</th><th style="width:14%">票值合計</th></tr>
                       <tr>
-                          <td style="height:65px;"></td>
+                          <th style="width: 10%">組別/班次</th>
+                          <th style="width: 20%">鍵入人員簽章</th>
+                          <th style="width: 20%">調度員簽章</th>
+                          <th style="width: 20%">站主管審核章</th>
+                          <th style="width: 15%">收回張數</th>
+                          <th style="width: 15%">票值合計</th>
+                      </tr>
+                      <tr>
+                          <td style="height: 50px;"></td>
+                          <td></td>
                           <td><div class="stamp">調度員 ${user.name}</div></td>
                           <td><div class="stamp stamp-solid">站長 辛資貴</div></td>
-                          <td></td><td></td>
+                          <td></td>
+                          <td></td>
                       </tr>
                   </table>
+                  
+                  <!-- 備註 -->
+                  <div style="font-size: 10px; color: #555; margin-top: 5px; line-height: 1.3; font-weight: bold;">
+                      註1：依控督導執行SOP標準作業程序相關規定。<br>
+                      註2：行車中不得撥打或持握式行動電話及無線電，如因接聽電話須使用免持聽筒，另過趟次中，接聽電話以三通為限，每通電話不得超過一分鐘。
+                  </div>
               </div>`;
           }
           document.getElementById('print-zone').innerHTML = html;
