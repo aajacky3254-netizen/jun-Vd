@@ -142,43 +142,26 @@
     </table>
   </div>
   <script type="module">
-   import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole } from './auth.js';
+    import { db } from './firebase-init.js';
+    // 💡 修正 1：補上遺漏的 getDoc
+    import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    // 💡 修正 2：補上遺漏的 logout
+    import { checkAuthAndGetRole, logout } from './auth.js';
+    // 💡 修正 3：補上遺漏的 initializeApp
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// 初始化一個隱藏的「第二連線」專門用來建帳號，這樣才不會把站長自己登出
-const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
-const secondaryAuth = getAuth(secondaryApp);
+    // 💡 修正 4：手動宣告 firebaseConfig，否則 SecondaryApp 初始化會直接崩潰
+    const firebaseConfig = {
+        apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
+        authDomain: "jun-bus-dispatch.firebaseapp.com",
+        projectId: "jun-bus-dispatch",
+        storageBucket: "jun-bus-dispatch.firebasestorage.app"
+    };
 
-document.getElementById('btnSaveDriver').addEventListener('click', async () => {
-    const empId = document.getElementById('inpEmpId').value.trim();
-    const name = document.getElementById('inpName').value.trim();
-    // ... 取出其他資料 ...
-
-    try {
-        // 1. 檢查這個員工是否是新建立的 (假設資料庫找不到就是新的)
-        const docRef = doc(db, "Drivers", empId);
-        const docSnap = await getDoc(docRef);
-
-        if (!docSnap.exists()) {
-            // 2. 如果是新員工，在 Auth 裡面幫他建帳號！
-            const virtualEmail = `${empId}@fengdong.com`;
-            const defaultPassword = "123"; // 預設密碼 123
-            
-            // 在背景建立帳號
-            await createUserWithEmailAndPassword(secondaryAuth, virtualEmail, defaultPassword);
-            await signOut(secondaryAuth); // 建完馬上登出這個背景連線
-        }
-
-        // 3. 繼續把他的姓名、職稱存進 Firestore (您原本的寫法)
-        await setDoc(docRef, { name, role: '駕駛長' /* ... */ }, { merge: true });
-        
-        alert(`建立成功！帳號：${empId}，預設密碼：123`);
-    } catch (error) {
-        console.error("建立失敗", error);
-    }
-});
+    // 初始化一個隱藏的「第二連線」專門用來建帳號，這樣才不會把當前登入的站長登出
+    const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+    const secondaryAuth = getAuth(secondaryApp);
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
@@ -193,6 +176,7 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
             </div>
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
+        
         const driversCol = collection(db, "Drivers");
         const dbStatusEl = document.getElementById('db-status');
 
@@ -235,6 +219,9 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
                 return;
             }
 
+            // XSS 簡單防護 (避免名字包含 HTML 標籤破壞版面)
+            const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
+
             currentDrivers.forEach(driver => {
                 const tr = document.createElement('tr');
                 
@@ -242,7 +229,6 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
                     ? `<span class="status-badge status-active">● 在職中</span>` 
                     : `<span class="status-badge status-inactive">休假 / 離職</span>`;
 
-                // 專案進度標籤語法化
                 let milestoneText = "";
                 if ((driver.empRole === '駕駛長' || !driver.empRole) && driver.empMilestone && driver.empMilestone !== 'none') {
                     const milestoneMap = {
@@ -256,29 +242,28 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
                 }
 
                 tr.innerHTML = `
-                    <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${driver.id}</td>
-                    <td style="font-weight: bold; color: #0f172a; font-size: 16px;">${driver.name}</td>
-                    <td style="color: #475569; font-weight: 600;">${driver.station || '未指定'}</td>
-                    <td style="color: #047857; font-weight: 600; font-size: 15px;">${driver.empRole || '駕駛長'}${milestoneText}</td>
-                    <td style="color: #3b82f6; font-weight: 600;">${driver.role || '駕駛長'}</td>
+                    <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${escapeHTML(driver.id)}</td>
+                    <td style="font-weight: bold; color: #0f172a; font-size: 16px;">${escapeHTML(driver.name)}</td>
+                    <td style="color: #475569; font-weight: 600;">${escapeHTML(driver.station) || '未指定'}</td>
+                    <td style="color: #047857; font-weight: 600; font-size: 15px;">${escapeHTML(driver.empRole) || '駕駛長'}${milestoneText}</td>
+                    <td style="color: #3b82f6; font-weight: 600;">${escapeHTML(driver.role) || '駕駛長'}</td>
                     <td>${statusHtml}</td>
                     <td style="text-align: center;">
                         <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" 
-                                data-id="${driver.id}" 
-                                data-name="${driver.name}" 
-                                data-status="${driver.status}" 
-                                data-station="${driver.station}" 
-                                data-role="${driver.role}"
-                                data-emprole="${driver.empRole || '駕駛長'}"
-                                data-empmilestone="${driver.empMilestone || 'none'}">編輯</button>
-                        <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${driver.id}">刪除</button>
+                                data-id="${escapeHTML(driver.id)}" 
+                                data-name="${escapeHTML(driver.name)}" 
+                                data-status="${escapeHTML(driver.status)}" 
+                                data-station="${escapeHTML(driver.station)}" 
+                                data-role="${escapeHTML(driver.role)}"
+                                data-emprole="${escapeHTML(driver.empRole) || '駕駛長'}"
+                                data-empmilestone="${escapeHTML(driver.empMilestone) || 'none'}">編輯</button>
+                        <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${escapeHTML(driver.id)}">刪除</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
 
-          // 2. 綁定編輯點擊事件
-          document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', (e) => {
                 const btnData = e.target.dataset;
                 document.getElementById('inpEmpId').value = btnData.id;
                 document.getElementById('inpEmpId').disabled = true; 
@@ -288,12 +273,10 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
                 document.getElementById('inpStation').value = btnData.station || '東海站';
                 document.getElementById('inpRole').value = btnData.role || '駕駛長';
                 
-                // 讀取並填入新欄位資料
                 const loadedEmpRole = btnData.emprole;
                 document.getElementById('empRole').value = loadedEmpRole;
                 document.getElementById('empMilestone').value = btnData.empmilestone;
                 
-                // 控制里程碑顯示邏輯
                 const milestoneGroup = document.getElementById('milestoneGroup');
                 if (loadedEmpRole === '駕駛長') {
                     milestoneGroup.style.display = 'flex';
@@ -305,7 +288,6 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
                 document.getElementById('btnSaveDriver').className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }));
 
-            // 綁定刪除點擊事件
             document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', async (e) => {
                 if(confirm(`⚠️ 警告！刪除員工將無法復原，確定要刪除編號 ${e.target.dataset.id} 嗎？`)) {
                     try {
@@ -318,8 +300,7 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
             }));
         }
 
-
-        // 儲存或更新員工資料
+        // 💡 修正 5：刪除原本重複的監聽器，將 Auth 背景建立與 Firestore 寫入完美合併
         document.getElementById('btnSaveDriver').addEventListener('click', async () => {
             const empId = document.getElementById('inpEmpId').value.trim();
             const name = document.getElementById('inpName').value.trim();
@@ -337,7 +318,22 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
                 btn.innerHTML = "⏳ 儲存中...";
                 btn.disabled = true;
 
-                // 建置寫入資料庫的完整物件 Payload
+                const docRef = doc(db, "Drivers", empId);
+                const docSnap = await getDoc(docRef);
+
+                // 如果是新員工，在背景 Auth 中建立帳號
+                if (!docSnap.exists()) {
+                    const virtualEmail = `${empId}@fengdong.com`;
+                    const defaultPassword = "123"; 
+                    try {
+                        await createUserWithEmailAndPassword(secondaryAuth, virtualEmail, defaultPassword);
+                        await signOut(secondaryAuth); // 建立完成後立即登出，避免干擾主要連線
+                    } catch (authErr) {
+                        console.error("Auth 帳號建立失敗 (可能已存在):", authErr);
+                    }
+                }
+
+                // 💡 修正 6：徹底移除 driverData.password = "123"; 的明文密碼屬性
                 const driverData = {
                     name: name,
                     status: status,
@@ -347,15 +343,9 @@ document.getElementById('btnSaveDriver').addEventListener('click', async () => {
                     empMilestone: empMilestone
                 };
 
-                const docRef = doc(db, "Drivers", empId);
-                const docSnap = await getDoc(docRef);
-                if (!docSnap.exists() || !docSnap.data().password) {
-                    driverData.password = "123"; // 新建帳號之預設密碼
-                }
-
                 await setDoc(docRef, driverData, { merge: true });
 
-                // 清空表單並重設為初始狀態
+                // 成功後重設表單狀態
                 document.getElementById('inpEmpId').value = '';
                 document.getElementById('inpEmpId').disabled = false;
                 document.getElementById('inpEmpId').style.backgroundColor = '#f8fafc';
