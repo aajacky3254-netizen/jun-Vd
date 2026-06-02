@@ -145,9 +145,8 @@
     import { db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
-    
-    // 🗑️ 已經移除原本的 initializeApp, getAuth, secondaryApp 等多餘的設定
 
+    // 允許進入此頁面的權限
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
@@ -306,10 +305,10 @@
                 const docRef = doc(db, "Drivers", empId);
                 const docSnap = await getDoc(docRef);
 
-                // 如果是新員工，呼叫 GAS API 在後端建立帳號
+                // ✅ 整合：如果是新員工，呼叫您的 GAS API 在後端建立帳號
                 if (!docSnap.exists()) {
                     try {
-                        // ✅ 已替換為您專屬的 GAS Web App URL
+                        // 這裡已經換上您剛剛提供的專屬 URL！
                         const gasUrl = "https://script.google.com/macros/s/AKfycbwRelX_fQCleSmsLJQiOCoUU9mtrgTauSPh09D7c9qguFj6SWqr57ayM_hmqIY3U6oqLw/exec"; 
                         
                         await fetch(gasUrl, {
@@ -322,7 +321,7 @@
                     }
                 }
 
-                // 準備要寫入 Firestore 的員工資料 (完全移除密碼明文)
+                // 準備要寫入 Firestore 的員工資料 (已完全移除不安全的明文密碼)
                 const driverData = {
                     name: name,
                     status: status,
@@ -345,6 +344,7 @@
                 document.getElementById('milestoneGroup').style.display = 'flex';
                 
                 if (!docSnap.exists()) {
+                    // ✅ 將新增成功的提示改為 123456
                     alert(`✅ 員工帳號建立成功！\n員工編號: ${empId}\n預設登入密碼: 123456\n所屬場站: ${station}\n編制職稱: ${empRole}`);
                 } else {
                     alert(`✅ 員工資料已成功更新！`);
