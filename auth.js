@@ -3,7 +3,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 共用的 Firebase 設定檔 (建議未來可以抽離成獨立的 config.js)
 const firebaseConfig = {
     apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
     authDomain: "jun-bus-dispatch.firebaseapp.com",
@@ -19,25 +18,24 @@ const db = getFirestore(app);
 
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
-        // 使用 Firebase 官方的狀態監聽，取代 localStorage
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            unsubscribe(); // 檢查一次後就解除監聽，避免重複觸發
+            unsubscribe(); 
             
             if (!user) {
-                // 如果 Firebase 說沒有登入，就踢回登入頁
                 window.location.href = 'login.html';
                 return reject("未登入");
             }
 
             try {
-                // 從信箱反推員工編號 (例如 001@fengdong.com -> 001)
-                const empId = user.email.split('@')[0];
+                // 💡 關鍵修復：將被 Firebase 轉成小寫的 email 帳號，強制轉回「大寫」，以吻合資料庫的 A001
+                const empId = user.email.split('@')[0].toUpperCase();
                 
-                // 去資料庫抓取他真正的權限，這部分駭客無法從前端竄改
                 const docSnap = await getDoc(doc(db, "Drivers", empId));
                 
                 if (!docSnap.exists()) {
-                    await signOut(auth); // 若資料庫查無此人，強制登出
+                    // 💡 加上錯誤跳窗，未來如果再發生異常，就不會死得不明不白
+                    alert(`登入異常：在人事資料庫中找不到員工編號 ${empId}`);
+                    await signOut(auth); 
                     window.location.href = 'login.html';
                     return reject("員工資料異常");
                 }
@@ -45,14 +43,12 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                 const userData = docSnap.data();
                 const userRole = userData.role || "駕駛長";
 
-                // 權限審查
                 if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
                     alert(`權限不足！您的職稱為「${userRole}」，無法存取此頁面。`);
                     window.location.href = 'index.html'; 
                     return reject("權限不足");
                 }
 
-                // 回傳安全的 User 物件供頁面渲染
                 const safeUser = { empId: empId, name: userData.name, role: userRole };
                 window.currentUser = safeUser;
                 resolve(safeUser);
@@ -65,7 +61,6 @@ export function checkAuthAndGetRole(allowedRoles = []) {
     });
 }
 
-// 安全登出功能
 export function logout() {
     if(confirm("確定要登出系統嗎？")) {
         signOut(auth).then(() => {
@@ -75,12 +70,11 @@ export function logout() {
         });
     }
 }
-// 新增於 auth.js 檔案底部
+
 export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
 
-    // 定義所有可能的選單項目與其可見權限
     const menuItems = [
         { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
         { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['SuperAdmin', 'StationManager', '調度員'] },
@@ -98,7 +92,6 @@ export function renderNavbar(user, activePageId) {
         </a>
     `;
 
-    // 根據權限過濾並生成選單
     menuItems.forEach(item => {
         if (item.roles.includes(user.role)) {
             const isActive = activePageId === item.id ? 'active' : '';
@@ -106,7 +99,6 @@ export function renderNavbar(user, activePageId) {
         }
     });
 
-    // 加入右側使用者資訊與登出按鈕
     html += `
         <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
             <span>👤 ${user.name} (${user.role})</span>
@@ -115,7 +107,5 @@ export function renderNavbar(user, activePageId) {
     `;
 
     nav.innerHTML = html;
-    
-    // 綁定登出按鈕事件 (這裡直接呼叫 auth.js 裡的 logout 函數)
     document.getElementById('btnLogout').addEventListener('click', logout);
 }
