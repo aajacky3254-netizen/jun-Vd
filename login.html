@@ -56,7 +56,7 @@
 
     // 登入按鈕邏輯
     document.getElementById('btnLogin').addEventListener('click', async () => {
-        // 🚨 這裡就是報錯的地方，請直接複製這句，它會準確抓取輸入框的值並強制轉大寫
+        // 💡 關鍵修復：正確抓取輸入框的值並強制轉大寫
         const empId = document.getElementById('empId').value.trim().toUpperCase();
         const password = document.getElementById('password').value.trim();
         

@@ -27,13 +27,12 @@ export function checkAuthAndGetRole(allowedRoles = []) {
             }
 
             try {
-                // 💡 關鍵修復：將被 Firebase 轉成小寫的 email 帳號，強制轉回「大寫」，以吻合資料庫的 A001
+                // 💡 關鍵修復：將 Firebase 的小寫信箱強制轉回大寫，才能對應資料庫的 A001
                 const empId = user.email.split('@')[0].toUpperCase();
                 
                 const docSnap = await getDoc(doc(db, "Drivers", empId));
                 
                 if (!docSnap.exists()) {
-                    // 💡 加上錯誤跳窗，未來如果再發生異常，就不會死得不明不白
                     alert(`登入異常：在人事資料庫中找不到員工編號 ${empId}`);
                     await signOut(auth); 
                     window.location.href = 'login.html';
