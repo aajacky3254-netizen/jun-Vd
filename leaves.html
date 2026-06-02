@@ -126,19 +126,55 @@ import { checkAuthAndGetRole } from './auth.js';
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
             dbStatusEl.innerText = "資料庫已連線";
 
-            // 綁定核准與退回按鈕
+            // 綁定核准按鈕防連點
             document.querySelectorAll('.btn-approve').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
+                    const currentBtn = e.target;
+                    // 如果按鈕已經被禁用，就不理會
+                    if (currentBtn.disabled) return; 
+
                     if (confirm("確定要【核准】此排休申請嗎？\n核准後，該員當日將無法被調度員排班。")) {
-                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), { status: "已核准", reviewedBy: user.name });
+                        // 點擊後立刻禁用按鈕並改變外觀
+                        const originalText = currentBtn.innerText;
+                        currentBtn.innerText = "處理中...";
+                        currentBtn.disabled = true;
+                        currentBtn.style.opacity = "0.5";
+                        
+                        try {
+                            await updateDoc(doc(db, "leave_requests", currentBtn.dataset.id), { status: "已核准", reviewedBy: user.name });
+                            // 成功後 onSnapshot 會自動重新渲染表格，不需手動恢復按鈕
+                        } catch (err) {
+                            console.error("核准失敗", err);
+                            alert("處理失敗，請檢查網路！");
+                            currentBtn.innerText = originalText;
+                            currentBtn.disabled = false;
+                            currentBtn.style.opacity = "1";
+                        }
                     }
                 });
             });
 
+            // 綁定退回按鈕防連點
             document.querySelectorAll('.btn-reject').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
+                    const currentBtn = e.target;
+                    if (currentBtn.disabled) return;
+
                     if (confirm("確定要【退回】此申請嗎？")) {
-                        await updateDoc(doc(db, "leave_requests", e.target.dataset.id), { status: "退回", reviewedBy: user.name });
+                        const originalText = currentBtn.innerText;
+                        currentBtn.innerText = "處理中...";
+                        currentBtn.disabled = true;
+                        currentBtn.style.opacity = "0.5";
+                        
+                        try {
+                            await updateDoc(doc(db, "leave_requests", currentBtn.dataset.id), { status: "退回", reviewedBy: user.name });
+                        } catch (err) {
+                            console.error("退回失敗", err);
+                            alert("處理失敗，請檢查網路！");
+                            currentBtn.innerText = originalText;
+                            currentBtn.disabled = false;
+                            currentBtn.style.opacity = "1";
+                        }
                     }
                 });
             });
