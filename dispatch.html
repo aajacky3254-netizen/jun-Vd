@@ -58,19 +58,22 @@
 
     @media print {
         @page { margin: 10mm; size: A4 portrait; }
-        /* 隱藏不想被印出來的介面 */
         .no-print { display: none !important; } 
-        
         #print-zone { display: block !important; position: static !important; width: 100%; }
         
+        /* 💡 修正：強制憑單一人一頁獨立列印 */
         .voucher-card { 
-            border: 2px solid #000; padding: 15px; margin-bottom: 20px; border-radius: 8px;
-            page-break-inside: avoid; /* 避免單張憑單被切換到兩頁 */
+            border: 2px solid #000; padding: 25px; margin-bottom: 0; border-radius: 8px;
+            page-break-inside: avoid;
+            page-break-after: always; 
         }
-        .voucher-title { font-size: 20px; font-weight: bold; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+        .voucher-card:last-child {
+            page-break-after: auto; 
+        }
+        .voucher-title { font-size: 24px; font-weight: bold; text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; letter-spacing: 2px; }
         .voucher-table-print { width: 100%; border-collapse: collapse; font-size: 14pt; }
-        .voucher-table-print th, .voucher-table-print td { border: 1px solid #000; padding: 8px; text-align: left; }
-        .voucher-table-print th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; width: 20%;}
+        .voucher-table-print th, .voucher-table-print td { border: 1px solid #000; padding: 12px; text-align: left; }
+        .voucher-table-print th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; width: 25%; font-weight: bold; }
     }
     
     @media screen and (max-width: 768px) {
@@ -218,11 +221,11 @@
       let unsubscribeDispatch = null;
 
       // 載入路線與站點
-      onSnapshot(collection(db, "Routes"), (snap) => {
+      onSnapshot(query(collection(db, "Routes")), (snap) => {
           const el = document.getElementById('routesList'); el.innerHTML = '';
           snap.forEach(d => { el.innerHTML += `<option value="${escapeHTML(d.data().name)}"></option>`; });
       });
-      onSnapshot(collection(db, "Stations"), (snap) => {
+      onSnapshot(query(collection(db, "Stations")), (snap) => {
           const el = document.getElementById('stationsList'); el.innerHTML = '';
           snap.forEach(d => { el.innerHTML += `<option value="${escapeHTML(d.data().name)}"></option>`; });
       });
@@ -330,10 +333,8 @@
               if (newDriver !== "尚未指派") {
                   const start1 = timeToMins(currentTrip.departure_time);
                   let end1 = currentTrip.arrival_time ? timeToMins(currentTrip.arrival_time) : start1 + 60;
-                  // 修正跨日子夜判斷
                   if (end1 < start1) end1 += 24 * 60;
 
-                  // 1. 檢查工時上限防呆 (600分鐘 = 10小時)
                   let currentTotalMins = 0;
                   currentDayTrips.forEach(t => {
                       if (t.id !== tripId && t.assigned_empid === empid && t.status !== 'done') {
@@ -350,7 +351,6 @@
                       return;
                   }
 
-                  // 2. 檢查時間重疊
                   const hasConflict = currentDayTrips.some(t => {
                       if (t.id === tripId || t.assigned_empid !== empid || t.status === 'done') return false;
                       const start2 = timeToMins(t.departure_time);
@@ -385,11 +385,6 @@
       cancelBtn.onclick = resetForm;
       function resetForm() { editingDocId = null; document.getElementById('inputTime').value = ''; document.getElementById('inputEndTime').value = ''; document.getElementById('inputRoute').value = ''; document.getElementById('inputStart').value = ''; document.getElementById('inputEnd').value = ''; mainAddBtn.innerHTML = "＋ 新增車趟"; cancelBtn.classList.add('hidden'); }
 
-      // ==========================================
-      // ✨ 全新實作的四大系統控制按鈕邏輯 ✨
-      // ==========================================
-
-      // 1. 歷史底稿載入
       document.getElementById('btnCopyHistory').addEventListener('click', async () => {
           const srcDate = document.getElementById('copySourceDate').value;
           const targetDate = dateInput.value;
@@ -414,7 +409,6 @@
           alert("📋 歷史底稿載入完成！");
       });
 
-      // 2. 一鍵清除
       document.getElementById('btnClearAssign').addEventListener('click', async () => {
           if (currentDayTrips.length === 0) return alert("本日尚無車趟！");
           if (!confirm("⚠️ 警告：確定要清除本日【所有】已排定的駕駛與車輛嗎？這將無法復原！")) return;
@@ -427,7 +421,6 @@
           alert("🧹 已退回所有指派紀錄！");
       });
 
-      // 3. 智慧自動調度 (已導入工時上限防呆)
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           if (currentDayTrips.length === 0) return alert("請先新增車趟後再執行自動調度！");
           if (!confirm("✨ 將自動為「尚未指派」的車趟安排目前空閒的人員與車輛，確定執行？")) return;
@@ -436,7 +429,6 @@
           let changes = 0;
           let tempTrips = JSON.parse(JSON.stringify(currentDayTrips));
 
-          // 預先建立駕駛員的工時累計字典
           let driverDailyMinutes = {};
           tempTrips.forEach(t => {
               if (t.assigned_empid) {
@@ -452,21 +444,15 @@
 
               const start1 = timeToMins(trip.departure_time);
               let end1 = trip.arrival_time ? timeToMins(trip.arrival_time) : start1 + 60;
-              // 跨日修正
               if (end1 < start1) end1 += 24 * 60;
 
-              // 指派駕駛
               if (trip.assigned_driver === "尚未指派") {
                   for (let d of currentAvailableDrivers) {
                       if (d.onLeave) continue;
                       
-                      // 工時上限判定 (10 小時 = 600 分鐘)
                       let currentMins = driverDailyMinutes[d.empId] || 0;
-                      if (currentMins + (end1 - start1) > 600) {
-                          continue; // 如果加上此趟會超時，跳過這位駕駛
-                      }
+                      if (currentMins + (end1 - start1) > 600) continue;
 
-                      // 衝突判定
                       const hasConflict = tempTrips.some(t => {
                           if (t.id === trip.id || t.assigned_empid !== d.empId) return false;
                           const start2 = timeToMins(t.departure_time);
@@ -478,13 +464,13 @@
                       if (!hasConflict) { 
                           trip.assigned_driver = d.name; 
                           trip.assigned_empid = d.empId; 
-                          driverDailyMinutes[d.empId] = currentMins + (end1 - start1); // 更新當日工時
+                          driverDailyMinutes[d.empId] = currentMins + (end1 - start1);
                           break; 
                       }
                   }
               }
 
-              // 指派車輛
+              if (trip.assigned_vehicle === "Transient") return;
               if (trip.assigned_vehicle === "尚未指派") {
                   for (let v of currentAvailableVehicles) {
                       const hasConflict = tempTrips.some(t => {
@@ -498,7 +484,6 @@
                   }
               }
 
-              // 若有變更則加入更新批次
               if (trip.assigned_driver !== currentDayTrips[i].assigned_driver || trip.assigned_vehicle !== currentDayTrips[i].assigned_vehicle) {
                   batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: trip.assigned_driver, assigned_empid: trip.assigned_empid, assigned_vehicle: trip.assigned_vehicle });
                   changes++;
@@ -513,24 +498,22 @@
           }
       });
 
-      // 4. 批次列印憑單
       document.getElementById('btnPrintAll').addEventListener('click', () => {
           if (currentDayTrips.length === 0) return alert("本日尚無車趟可列印！");
           const printZone = document.getElementById('print-zone');
           
           let html = '';
           currentDayTrips.forEach((trip) => {
-              // 產生每一張駛車憑單的 HTML
               html += `
               <div class="voucher-card">
                   <div class="voucher-title">豐東交通客運 - 行車憑單</div>
                   <table class="voucher-table-print">
                       <tr>
                           <th>行駛日期</th><td>${trip.date}</td>
-                          <th>營運路線</th><td style="font-weight:bold;">${trip.route}</td>
+                          <th>營運路線</th><td style="font-weight:bold; color:#1e3a8a;">${trip.route}</td>
                       </tr>
                       <tr>
-                          <th>發車時間</th><td style="font-weight:bold;">${trip.departure_time}</td>
+                          <th>發車時間</th><td style="font-weight:bold; font-size:16pt;">${trip.departure_time}</td>
                           <th>到達時間</th><td>${trip.arrival_time || '依實際路況'}</td>
                       </tr>
                       <tr>
@@ -539,18 +522,16 @@
                       </tr>
                       <tr>
                           <th>駕駛長</th><td style="font-weight:bold;">${trip.assigned_driver}</td>
-                          <th>車牌號碼</th><td style="font-weight:bold;">${trip.assigned_vehicle}</td>
+                          <th>車牌號碼</th><td style="font-weight:bold; font-family:monospace;">${trip.assigned_vehicle}</td>
                       </tr>
                   </table>
-                  <div style="font-size: 10pt; color: #666; text-align: right; margin-top: 15px;">
-                      列印時間: ${new Date().toLocaleString()} &nbsp;&nbsp; 站長簽核: ____________
+                  <div style="font-size: 11pt; color: #4b5563; text-align: right; margin-top: 30px;">
+                      列印時間: ${new Date().toLocaleString()} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 站長簽核欄: __________________
                   </div>
               </div>
               `;
           });
           printZone.innerHTML = html;
-          
-          // 呼叫瀏覽器原生列印
           window.print();
       });
 
