@@ -119,9 +119,11 @@ export function renderNavbar(user, activePageId) {
 
     let html = `
         <a href="index.html" class="navbar-brand flex items-center">
-            <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
+        // 將原本很長的 GitHub URL 替換為相對路徑
+<img src="./豐東客運 LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
             豐東交通客運
         </a>
+        
     `;
 
     menuItems.forEach(item => {
