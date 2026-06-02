@@ -25,8 +25,8 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                     return reject("無有效信箱");
                 }
 
-                // 將信箱前綴轉大寫作為員工編號
-                const empId = user.email.split('@')[0].toUpperCase();
+               // 將信箱前綴轉大寫作為員工編號，並強制去除前後空白 (防呆)
+                const empId = user.email.split('@')[0].toUpperCase().trim();
                 
                 let safeUser = null;
 
