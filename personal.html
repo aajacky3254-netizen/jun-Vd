@@ -358,16 +358,25 @@ document.getElementById('btnChangePassword').addEventListener('click', async () 
         });
     }
 
-    // --- 排休系統邏輯 (包含連點防護) ---
+    // --- 排休系統邏輯 (包含嚴謹連點防護) ---
+    // 💡 宣告一個全域鎖定變數，防止連續觸發
+    let isSubmitting = false; 
+
     const leaveForm = document.getElementById('leaveForm');
     leaveForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // 如果正在傳送中，直接阻斷，不讓程式繼續往下跑
+        if (isSubmitting) return; 
+
         const lDate = document.getElementById('leaveDate').value;
         const lType = document.getElementById('leaveType').value;
         const lReason = document.getElementById('leaveReason').value;
 
         if (!lDate) return alert('請選擇日期');
 
+        // 鎖上防護鎖，並改變按鈕狀態
+        isSubmitting = true; 
         const submitBtn = leaveForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerText;
         submitBtn.innerText = "⏳ 傳送中...";
@@ -375,6 +384,8 @@ document.getElementById('btnChangePassword').addEventListener('click', async () 
         submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
         try {
+            // 💡 注意：由於您的程式碼頂部可能沒有 import serverTimestamp，
+            // 這裡直接使用原生的 new Date().toISOString() 來記錄時間，避免報錯
             await addDoc(collection(db, "leave_requests"), {
                 empId: currentUser.empId,
                 name: currentUser.name,
@@ -382,17 +393,22 @@ document.getElementById('btnChangePassword').addEventListener('click', async () 
                 type: lType,
                 reason: lReason,
                 status: "審核中",
-                createdAt: serverTimestamp()
+                createdAt: new Date().toISOString() 
             });
             alert("✅ 排休申請已送出，請靜候調度或站長審核。");
-            leaveForm.reset();
+            
+            // 成功後直接讓畫面重新整理，徹底杜絕同一個畫面再按一次的可能性
+            window.location.reload(); 
+            
         } catch (error) {
             console.error(error);
-            alert("送出失敗");
-        } finally {
+            alert("送出失敗，請檢查網路連線");
+            
+            // 只有在「失敗」的時候，才把按鈕恢復原狀讓駕駛重試
             submitBtn.innerText = originalText;
             submitBtn.disabled = false;
             submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            isSubmitting = false; // 解除防護鎖
         }
     });
 
