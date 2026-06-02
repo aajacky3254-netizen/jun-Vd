@@ -173,65 +173,92 @@
     <button class="long-press-confirm bg-blue-600 ...">確認出車</button>
   </nav>
 
-</div> <script type="module">
-  import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole } from './auth.js';
-import { getAuth, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+</div> 
+  <script type="module">
+    import { db } from './firebase-init.js';
+    import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, addDoc, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    // 💡 修正 1：補上 logout 匯入
+    import { checkAuthAndGetRole, logout } from './auth.js';
+    import { getAuth, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-const btnChangePassword = document.getElementById('btnChangePassword');
-// 加上 if 判斷，確保按鈕存在時才綁定事件，避免整個網頁當機
-if (btnChangePassword) {
-    btnChangePassword.addEventListener('click', async () => {
-        const newPassword = prompt("請輸入您的新密碼 (至少6碼)：");
-        
-        if (newPassword && newPassword.length >= 6) {
-            const auth = getAuth();
-            const user = auth.currentUser;
-            
-            if (user) {
-                try {
-                    await updatePassword(user, newPassword);
-                    alert("✅ 密碼修改成功！下次請使用新密碼登入。");
-                } catch (error) {
-                    if (error.code === 'auth/requires-recent-login') {
-                        alert("為了安全起見，請先登出並重新登入後，再執行修改密碼。");
-                    } else {
-                        alert("修改失敗：" + error.message);
+    // 密碼修改邏輯
+    const btnChangePassword = document.getElementById('btnChangePassword');
+    if (btnChangePassword) {
+        btnChangePassword.addEventListener('click', async () => {
+            const newPassword = prompt("請輸入您的新密碼 (至少6碼)：");
+            if (newPassword && newPassword.length >= 6) {
+                const auth = getAuth();
+                const user = auth.currentUser;
+                if (user) {
+                    try {
+                        await updatePassword(user, newPassword);
+                        alert("✅ 密碼修改成功！下次請使用新密碼登入。");
+                    } catch (error) {
+                        if (error.code === 'auth/requires-recent-login') {
+                            alert("為了安全起見，請先登出並重新登入後，再執行修改密碼。");
+                        } else {
+                            alert("修改失敗：" + error.message);
+                        }
                     }
                 }
+            } else {
+                alert("密碼長度不足或取消修改。");
             }
-        } else {
-            alert("密碼長度不足或取消修改。");
-        }
-    });
-}
+        });
+    }
+
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
-
     let currentUser = null;
-    let currentScheduleDate = new Date(); // 🆕 儲存目前畫面上選擇的日期物件
-    let unsubscribeSchedule = null;       // 🆕 用來清除舊日期的 Firebase 監聽器
-  checkAuthAndGetRole(['駕駛長', '站長', '調度員', '總公司']).then((user) => {
+    let unsubscribeSchedule = null;
+    const datePicker = document.getElementById('scheduleDatePicker');
+    const dayLabel = document.getElementById('dayOfWeekLabel');
+
+    checkAuthAndGetRole(['駕駛長', '站長', '調度員', '總公司']).then((user) => {
         currentUser = user;
         document.getElementById('displayEmpId').innerText = escapeHTML(user.empId);
         document.getElementById('displayName').innerText = escapeHTML(user.name);
         
+        // 💡 修正 2：修復日期顯示的 Bug
         const now = new Date();
-        const yyyy = now.getFullYear();
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const dd = String(now.getDate()).padStart(2, '0');
-        const today = `${yyyy}-${mm}-${dd}`;
-        
-        const dateStr = today.replace(/-/g, '/');
-        const days = ['日', '一', '二', '三', '四', '五', '六'];
-        document.getElementById('todayDateDisplay').innerText = `${dateStr} (${days[now.getDay()]})`;
+        updateDateUI(now);
 
-        loadMySchedule(today);
         loadLeaveHistory();
-    });
+    }).catch(console.error);
 
     document.getElementById('btnLogout').addEventListener('click', logout);
+
+    // --- 日期切換與顯示邏輯 ---
+    function updateDateUI(dateObj) {
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        
+        const days = ['日', '一', '二', '三', '四', '五', '六'];
+        dayLabel.innerText = `星期${days[dateObj.getDay()]}`;
+        datePicker.value = dateStr;
+
+        loadMySchedule(dateStr);
+    }
+
+    document.getElementById('btnPrevDay').addEventListener('click', () => {
+        const d = new Date(datePicker.value);
+        d.setDate(d.getDate() - 1);
+        updateDateUI(d);
+    });
+
+    document.getElementById('btnNextDay').addEventListener('click', () => {
+        const d = new Date(datePicker.value);
+        d.setDate(d.getDate() + 1);
+        updateDateUI(d);
+    });
+
+    datePicker.addEventListener('change', (e) => {
+        if(e.target.value) {
+            updateDateUI(new Date(e.target.value));
+        }
+    });
 
     // --- 視圖切換邏輯 ---
     document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -253,17 +280,13 @@ if (btnChangePassword) {
         const container = document.getElementById('scheduleContainer');
         container.innerHTML = '<div class="text-center text-gray-400 py-6 font-bold text-sm">載入班表中...</div>';
         
-        // 🆕 如果已經有正在監聽的班表，先取消它，避免資料重複渲染
-        if (unsubscribeSchedule) {
-            unsubscribeSchedule();
-        }
+        if (unsubscribeSchedule) unsubscribeSchedule();
         
         const q = query(collection(db, "daily_dispatches"), 
             where("date", "==", dateStr),
             where("assigned_empid", "==", currentUser.empId)
         );
 
-        // 🆕 將 onSnapshot 指派給 unsubscribeSchedule 變數
         unsubscribeSchedule = onSnapshot(q, (snapshot) => {
             if (snapshot.empty) {
                 container.innerHTML = `<div class="text-center text-gray-400 py-10 font-bold text-sm">本日無排定車趟，請確認是否為例行休假。</div>`;
@@ -295,7 +318,7 @@ if (btnChangePassword) {
                     </div>
                     
                     <div class="slide-confirm ${isAck ? 'confirmed' : 'ack-btn'}" data-id="${tripId}">
-    <div class="slide-progress"></div> <span class="slide-text">${isAck ? '✓ 班表已確認' : '長按 1 秒確認班表'}</span> </div>
+                      <div class="slide-progress"></div> <span class="slide-text">${isAck ? '✓ 班表已確認' : '長按 1 秒確認班表'}</span> 
                     </div>
                   </div>
                 </div>`;
@@ -303,66 +326,58 @@ if (btnChangePassword) {
             container.innerHTML = html;
 
             document.querySelectorAll('.ack-btn').forEach(btn => {
-    let pressTimer;
-    let progress = 0;
-    let progressInterval;
-    const bar = btn.querySelector('.slide-progress');
-    const text = btn.querySelector('.slide-text');
+                let progress = 0;
+                let progressInterval;
+                const bar = btn.querySelector('.slide-progress');
+                const text = btn.querySelector('.slide-text');
 
-    const startPress = (e) => {
-        // 防止手機長按選取文字或跳出選單
-        e.preventDefault(); 
-        clearInterval(progressInterval);
-        progress = 0;
-        text.innerText = "確認中...";
-        progressInterval = setInterval(() => {
-            progress += 10; // 每 100ms 增加 10%，1秒填滿
-            bar.style.width = progress + '%';
-            if (progress >= 100) {
-                clearInterval(progressInterval);
-                executeConfirm(btn.dataset.id, btn);
-            }
-        }, 100);
-    };
+                const startPress = (e) => {
+                    e.preventDefault(); 
+                    clearInterval(progressInterval);
+                    progress = 0;
+                    text.innerText = "確認中...";
+                    progressInterval = setInterval(() => {
+                        progress += 10;
+                        bar.style.width = progress + '%';
+                        if (progress >= 100) {
+                            clearInterval(progressInterval);
+                            executeConfirm(btn.dataset.id, btn);
+                        }
+                    }, 100);
+                };
 
-    const endPress = () => {
-        clearInterval(progressInterval);
-        if (progress < 100) {
-            bar.style.width = '0%';
-            text.innerText = "長按 1 秒確認班表";
-        }
-    };
+                const endPress = () => {
+                    clearInterval(progressInterval);
+                    if (progress < 100) {
+                        bar.style.width = '0%';
+                        text.innerText = "長按 1 秒確認班表";
+                    }
+                };
 
-    async function executeConfirm(tripId, element) {
-        element.classList.remove('ack-btn');
-        element.classList.add('confirmed');
-        element.querySelector('.slide-text').innerText = "✓ 班表已確認";
-        // 移除所有長按監聽
-        element.replaceWith(element.cloneNode(true)); 
-        await updateDoc(doc(db, "daily_dispatches", tripId), { driver_acknowledged: true });
-    }
+                async function executeConfirm(tripId, element) {
+                    element.classList.remove('ack-btn');
+                    element.classList.add('confirmed');
+                    element.querySelector('.slide-text').innerText = "✓ 班表已確認";
+                    element.replaceWith(element.cloneNode(true)); 
+                    await updateDoc(doc(db, "daily_dispatches", tripId), { driver_acknowledged: true });
+                }
 
-    // 支援手機觸控與電腦滑鼠
-    btn.addEventListener('touchstart', startPress);
-    btn.addEventListener('touchend', endPress);
-    btn.addEventListener('mousedown', startPress);
-    btn.addEventListener('mouseup', endPress);
-    btn.addEventListener('mouseleave', endPress);
-    // 防止選單干擾
-    btn.addEventListener('contextmenu', (e) => e.preventDefault()); 
-});
+                btn.addEventListener('touchstart', startPress);
+                btn.addEventListener('touchend', endPress);
+                btn.addEventListener('mousedown', startPress);
+                btn.addEventListener('mouseup', endPress);
+                btn.addEventListener('mouseleave', endPress);
+                btn.addEventListener('contextmenu', (e) => e.preventDefault()); 
+            });
         });
     }
 
-    // --- 排休系統邏輯 (包含嚴謹連點防護) ---
-    // 💡 宣告一個全域鎖定變數，防止連續觸發
+    // --- 排休系統邏輯 ---
     let isSubmitting = false; 
 
     const leaveForm = document.getElementById('leaveForm');
     leaveForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        // 如果正在傳送中，直接阻斷，不讓程式繼續往下跑
         if (isSubmitting) return; 
 
         const lDate = document.getElementById('leaveDate').value;
@@ -371,7 +386,6 @@ if (btnChangePassword) {
 
         if (!lDate) return alert('請選擇日期');
 
-        // 鎖上防護鎖，並改變按鈕狀態
         isSubmitting = true; 
         const submitBtn = leaveForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerText;
@@ -380,8 +394,6 @@ if (btnChangePassword) {
         submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
 
         try {
-            // 💡 注意：由於您的程式碼頂部可能沒有 import serverTimestamp，
-            // 這裡直接使用原生的 new Date().toISOString() 來記錄時間，避免報錯
             await addDoc(collection(db, "leave_requests"), {
                 empId: currentUser.empId,
                 name: currentUser.name,
@@ -392,23 +404,18 @@ if (btnChangePassword) {
                 createdAt: new Date().toISOString() 
             });
             alert("✅ 排休申請已送出，請靜候調度或站長審核。");
-            
-            // 成功後直接讓畫面重新整理，徹底杜絕同一個畫面再按一次的可能性
             window.location.reload(); 
-            
         } catch (error) {
             console.error(error);
             alert("送出失敗，請檢查網路連線");
-            
-            // 只有在「失敗」的時候，才把按鈕恢復原狀讓駕駛重試
             submitBtn.innerText = originalText;
             submitBtn.disabled = false;
             submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            isSubmitting = false; // 解除防護鎖
+            isSubmitting = false;
         }
     });
 
-    // --- 載入歷史排休紀錄 (前端安全排序) ---
+    // --- 載入歷史排休紀錄 ---
     function loadLeaveHistory() {
         const q = query(collection(db, "leave_requests"), 
             where("empId", "==", currentUser.empId)
@@ -446,13 +453,11 @@ if (btnChangePassword) {
         });
     }
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').then(reg => {
-      console.log('PWA ServiceWorker 註冊成功: ', reg.scope);
-    }).catch(err => console.log('ServiceWorker 註冊失敗: ', err));
-  });
-}
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW err: ', err));
+      });
+    }
   </script>
 </body>
 </html>
