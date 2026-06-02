@@ -143,25 +143,10 @@
   </div>
   <script type="module">
     import { db } from './firebase-init.js';
-    // 💡 修正 1：補上遺漏的 getDoc
     import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    // 💡 修正 2：補上遺漏的 logout
     import { checkAuthAndGetRole, logout } from './auth.js';
-    // 💡 修正 3：補上遺漏的 initializeApp
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-    // 💡 修正 4：手動宣告 firebaseConfig，否則 SecondaryApp 初始化會直接崩潰
-    const firebaseConfig = {
-        apiKey: "AIzaSyAnhhaiWXn5KFtU1YdB0oR_S9E0qhAlJuI",
-        authDomain: "jun-bus-dispatch.firebaseapp.com",
-        projectId: "jun-bus-dispatch",
-        storageBucket: "jun-bus-dispatch.firebasestorage.app"
-    };
-
-    // 初始化一個隱藏的「第二連線」專門用來建帳號，這樣才不會把當前登入的站長登出
-    const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
-    const secondaryAuth = getAuth(secondaryApp);
+    
+    // 🗑️ 已經移除原本的 initializeApp, getAuth, secondaryApp 等多餘的設定
 
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
 
@@ -300,7 +285,7 @@
             }));
         }
 
-        // 💡 修正 5：刪除原本重複的監聽器，將 Auth 背景建立與 Firestore 寫入完美合併
+        // 儲存按鈕邏輯
         document.getElementById('btnSaveDriver').addEventListener('click', async () => {
             const empId = document.getElementById('inpEmpId').value.trim();
             const name = document.getElementById('inpName').value.trim();
@@ -321,19 +306,23 @@
                 const docRef = doc(db, "Drivers", empId);
                 const docSnap = await getDoc(docRef);
 
-                // 如果是新員工，在背景 Auth 中建立帳號
+                // 如果是新員工，呼叫 GAS API 在後端建立帳號
                 if (!docSnap.exists()) {
-                    const virtualEmail = `${empId}@fengdong.com`;
-                    const defaultPassword = "123"; 
                     try {
-                        await createUserWithEmailAndPassword(secondaryAuth, virtualEmail, defaultPassword);
-                        await signOut(secondaryAuth); // 建立完成後立即登出，避免干擾主要連線
-                    } catch (authErr) {
-                        console.error("Auth 帳號建立失敗 (可能已存在):", authErr);
+                        // ✅ 已替換為您專屬的 GAS Web App URL
+                        const gasUrl = "https://script.google.com/macros/s/AKfycbwRelX_fQCleSmsLJQiOCoUU9mtrgTauSPh09D7c9qguFj6SWqr57ayM_hmqIY3U6oqLw/exec"; 
+                        
+                        await fetch(gasUrl, {
+                            method: "POST",
+                            body: JSON.stringify({ empId: empId }) 
+                        });
+                        console.log("後端 Auth 帳號建立請求已送出");
+                    } catch (apiErr) {
+                        console.error("呼叫建立帳號 API 失敗:", apiErr);
                     }
                 }
 
-                // 💡 修正 6：徹底移除 driverData.password = "123"; 的明文密碼屬性
+                // 準備要寫入 Firestore 的員工資料 (完全移除密碼明文)
                 const driverData = {
                     name: name,
                     status: status,
