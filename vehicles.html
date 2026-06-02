@@ -250,20 +250,6 @@
 
           if (vehiclesData.length === 0) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6">無車輛</td></tr>';
           if (scrappedCount === 0) scrappedTbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500">無除役報廢車輛。</td></tr>';
-          } else {
-              scrappedVehicles.forEach((data) => {
-                  const tr = document.createElement('tr');
-                  tr.className = "bg-slate-950 text-slate-400 border-b border-slate-900";
-                  tr.innerHTML = `
-                      <td class="font-bold font-mono text-slate-300 py-4">${escapeHTML(data.plate_number || data.id)}</td>
-                      <td><span class="font-bold text-slate-400">${escapeHTML(data.model)}</span> <span class="text-xs text-slate-500">(${escapeHTML(data.notes || '無備註')})</span></td>
-                      <td class="font-mono text-amber-600/90">${escapeHTML(data.scrap_date || '-')}</td>
-                      <td class="font-mono text-emerald-600/90">${escapeHTML(data.plate_return_date || '-')}</td>
-                      <td><span class="badge badge-scrapped text-xs">已報廢</span></td>
-                  `;
-                  scrappedTbody.appendChild(tr);
-              });
-          }
 
           if (user.role === '駕駛長') {
              document.querySelectorAll('.admin-action-col').forEach(el => el.style.display = 'none');
