@@ -124,13 +124,15 @@
     </div>
   </div>
 
-</div> <script type="module">
+</div> 
+
+<script type="module">
     import { db } from './firebase-init.js';
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole } from './auth.js';
+    // 💡 修正：補上 where 與 orderBy 函數，並移除這頁用不到的寫入模組 (setDoc, deleteDoc 等)
+    import { collection, query, onSnapshot, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    // 💡 修正：移除未使用的 checkAuthAndGetRole 引入，確保純訪客模式不受影響
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
-
 
     let currentDayTrips = []; 
     let currentSelectedRoute = null;
@@ -150,7 +152,6 @@ import { checkAuthAndGetRole } from './auth.js';
     const today = new Date().toISOString().split('T')[0];
     dateInput.value = today;
 
-    // 💡 修正 1：移除會強制導向的 checkAuthAndGetRole，自行判斷登入狀態，以確保「訪客模式」能夠正常運作
     const userStr = localStorage.getItem('busSystemUser');
     if (userStr) {
         try {
@@ -421,7 +422,6 @@ import { checkAuthAndGetRole } from './auth.js';
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             e.currentTarget.classList.add('active');
             
-            // 💡 修正 2：增加底部導覽列切換回「路線總覽」的邏輯
             if (e.currentTarget.dataset.target === 'routes') {
                 currentSelectedRoute = null;
                 viewRoutes.classList.remove('hidden');
@@ -463,13 +463,14 @@ import { checkAuthAndGetRole } from './auth.js';
     document.querySelectorAll('.action-btn').forEach(btn => btn.addEventListener('click', closeSheet));
 
     loadDispatchData(dateInput.value);
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').then(reg => {
-      console.log('PWA ServiceWorker 註冊成功: ', reg.scope);
-    }).catch(err => console.log('ServiceWorker 註冊失敗: ', err));
-  });
-}
-  </script>
+    
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+          console.log('PWA ServiceWorker 註冊成功: ', reg.scope);
+        }).catch(err => console.log('ServiceWorker 註冊失敗: ', err));
+      });
+    }
+</script>
 </body>
 </html>
