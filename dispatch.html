@@ -192,7 +192,7 @@
           let changes = 0;
           currentDayTrips.forEach(trip => {
               if (trip.assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
-                  const d = currentAvailableDrivers[Math.floor(Math.random() * currentAvailableDrivers.length)];
+                const d = currentAvailableDrivers[Math.floor(Math.random() * currentAvailableDrivers.length)];
                   trip.assigned_driver = d.name; trip.assigned_empid = d.empId; changes++;
               }
               if (trip.assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
