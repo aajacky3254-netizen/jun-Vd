@@ -158,8 +158,7 @@
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
-    const allowedRoles = ['總公司', '站長', '調度員', '駕駛長'];
-
+    const allowedRoles = ['總公司', '站長', '調度員', '維修保養班', '駕駛長'];
     checkAuthAndGetRole(allowedRoles).then((user) => {
         const loader = document.getElementById('global-loader');
         if(loader) {
