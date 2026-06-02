@@ -122,7 +122,7 @@
   <script type="module">
    import { db } from './firebase-init.js';
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { checkAuthAndGetRole, logout } from './auth.js';
+import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
 
     checkAuthAndGetRole([]).then(async (user) => {
         // 1. 驗證成功後，先顯示網頁主體 
