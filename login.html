@@ -66,6 +66,16 @@ document.getElementById('btnLogin').addEventListener('click', async () => {
         alert("員工編號或密碼錯誤！");
     }
 });
+    document.getElementById('togglePwd').addEventListener('click', function() {
+    const pwdInput = document.getElementById('password');
+    if (pwdInput.type === 'password') {
+        pwdInput.type = 'text';
+        this.innerText = '🙈'; // 閉眼圖示
+    } else {
+        pwdInput.type = 'password';
+        this.innerText = '👁️'; // 睜眼圖示
+    }
+});
   </script>
 </body>
 </html>
