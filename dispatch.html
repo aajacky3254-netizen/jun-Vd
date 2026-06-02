@@ -104,8 +104,8 @@
 
 <script type="module">
   import { db } from './firebase-init.js';
-  // 💡 確保 writeBatch 被正確引入
-  import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  // 💡 補上了 where，確保只抓取特定日期的資料
+  import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
   const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
@@ -121,8 +121,10 @@
 
       let currentAvailableDrivers = [];
       let currentAvailableVehicles = [];
-      let currentDayTrips = []; // 💡 確保在這裡宣告，讓下方的所有按鈕都能讀取到
+      let currentDayTrips = []; 
+      let unsubscribeDispatch = null; 
 
+      // 監聽路線與站點
       onSnapshot(collection(db, "Routes"), snap => {
           document.getElementById('routesList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join('');
       });
@@ -130,6 +132,7 @@
           document.getElementById('stationsList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join('');
       });
 
+      // 載入當日可用資源 (班表與車輛)
       async function loadResources(selectedDate) {
           const d = new Date(selectedDate);
           const target = new Date(d.valueOf()); 
@@ -153,23 +156,40 @@
           }
       }
 
-      onSnapshot(query(dispatchesCol, orderBy("departure_time", "asc")), async (snapshot) => {
-          await loadResources(dateInput.value);
-          currentDayTrips = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.date === dateInput.value);
+      // 💡 核心修正：只抓取「特定日期」的派班資料，切換日期時重新載入，徹底防呆
+      function loadDispatchForDate(dateStr) {
+          if (unsubscribeDispatch) unsubscribeDispatch(); // 取消舊的監聽
           
-          tbody.innerHTML = currentDayTrips.map(data => {
-              let drvOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableDrivers.map(d => `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver===d.name?'selected':''}>${d.empId} ${d.name}</option>`).join('');
-              let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
-              
-              return `<tr>
-                  <td class="font-bold">${data.departure_time}</td><td>${data.route}</td><td>${data.start_point}</td><td>${data.end_point}</td>
-                  <td><select class="driver-select" data-id="${data.id}">${drvOpts}</select></td>
-                  <td><select class="vehicle-select" data-id="${data.id}">${vehOpts}</select></td>
-                  <td><button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition" data-id="${data.id}">刪除</button></td>
-              </tr>`;
-          }).join('') || '<tr><td colspan="7" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
-      });
+          const q = query(dispatchesCol, where("date", "==", dateStr));
 
+          unsubscribeDispatch = onSnapshot(q, async (snapshot) => {
+              await loadResources(dateStr);
+              currentDayTrips = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+              
+              // 💡 記憶體內排序，避免 Firebase 缺少複合索引報錯
+              currentDayTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
+              
+              tbody.innerHTML = currentDayTrips.map(data => {
+                  let drvOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableDrivers.map(d => `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver===d.name?'selected':''}>${d.empId} ${d.name}</option>`).join('');
+                  let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
+                  
+                  return `<tr>
+                      <td class="font-bold">${data.departure_time}</td><td>${data.route}</td><td>${data.start_point}</td><td>${data.end_point}</td>
+                      <td><select class="driver-select" data-id="${data.id}">${drvOpts}</select></td>
+                      <td><select class="vehicle-select" data-id="${data.id}">${vehOpts}</select></td>
+                      <td><button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition" data-id="${data.id}">刪除</button></td>
+                  </tr>`;
+              }).join('') || '<tr><td colspan="7" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
+          });
+      }
+
+      // 初始載入今日資料
+      loadDispatchForDate(dateInput.value);
+
+      // 💡 當使用者切換日期時，重新載入該日期的資料，防止畫面與資料庫脫鉤
+      dateInput.addEventListener('change', (e) => loadDispatchForDate(e.target.value));
+
+      // 新增車趟
       document.getElementById('addTripBtn').onclick = async () => {
           await addDoc(dispatchesCol, {
               date: dateInput.value, departure_time: document.getElementById('inputTime').value, arrival_time: document.getElementById('inputEndTime').value,
@@ -178,6 +198,7 @@
           });
       };
 
+      // 變更派班
       tbody.addEventListener('change', async (e) => {
           const tripId = e.target.dataset.id;
           if (e.target.classList.contains('driver-select')) {
@@ -186,58 +207,90 @@
           if (e.target.classList.contains('vehicle-select')) await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: e.target.value });
       });
 
+      // 刪除車趟
       tbody.addEventListener('click', async (e) => {
           if (e.target.classList.contains('btn-delete-trip')) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
       });
 
       // ==========================================
-      // 💡 一鍵清空排班 (移入區塊內，並確保 writeBatch 存在)
+      // 💡 一鍵清空排班 (100% 防呆，只清空畫面上所選日期的資料)
       // ==========================================
       document.getElementById('btnClearDispatch').addEventListener('click', async () => {
-          if(currentDayTrips.length === 0) return alert("本日尚無車趟可清空！");
-          if(!confirm("⚠️ 確定要清空本日所有的駕駛與車輛派班嗎？")) return;
+          const selectElements = document.querySelectorAll('#dispatchBody .driver-select');
+          if(selectElements.length === 0) return alert("畫面上無車趟可清空！");
+          
+          if(!confirm(`⚠️ 確定要清空這 ${selectElements.length} 筆車趟的駕駛與車輛嗎？\n(只會清空您現在正在處理的這個日期：${dateInput.value})`)) return;
 
           try {
               const batch = writeBatch(db);
-              currentDayTrips.forEach(trip => {
-                  batch.update(doc(db, "daily_dispatches", trip.id), { 
+              selectElements.forEach(select => {
+                  const tripId = select.getAttribute('data-id');
+                  batch.update(doc(db, "daily_dispatches", tripId), { 
                       assigned_driver: "尚未指派", 
                       assigned_empid: "", 
                       assigned_vehicle: "尚未指派" 
                   });
               });
               await batch.commit();
-              alert("✅ 本日排班已全數清空還原！");
+              alert("✅ 畫面上排班已全數清空還原！");
           } catch (err) {
               console.error(err);
               alert("清空失敗，請檢查網路連線。");
           }
       });
 
-      // 自動排班
+      // ==========================================
+      // ✨ 自動調度 (只調度畫面上當前日期的空缺)
+      // ==========================================
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
+          const tripRows = Array.from(document.querySelectorAll('#dispatchBody tr')).filter(tr => tr.querySelector('.driver-select'));
+          if (tripRows.length === 0) return alert("畫面中無車趟可調度！");
+          
           const batch = writeBatch(db);
           let changes = 0;
-          currentDayTrips.forEach(trip => {
-              if (trip.assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
-                const d = currentAvailableDrivers[Math.floor(Math.random() * currentAvailableDrivers.length)];
-                  trip.assigned_driver = d.name; trip.assigned_empid = d.empId; changes++;
+          
+          tripRows.forEach(tr => {
+              const driverSelect = tr.querySelector('.driver-select');
+              const vehicleSelect = tr.querySelector('.vehicle-select');
+              const tripId = driverSelect.getAttribute('data-id');
+              
+              let assigned_driver = driverSelect.value;
+              let assigned_empid = driverSelect.options[driverSelect.selectedIndex]?.dataset?.empid || "";
+              let assigned_vehicle = vehicleSelect.value;
+
+              if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
+                  const d = currentAvailableDrivers[Math.floor(Math.random() * currentAvailableDrivers.length)];
+                  assigned_driver = d.name; 
+                  assigned_empid = d.empId; 
+                  changes++;
               }
-              if (trip.assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
-                  trip.assigned_vehicle = currentAvailableVehicles[Math.floor(Math.random() * currentAvailableVehicles.length)].plate; changes++;
+              if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
+                  assigned_vehicle = currentAvailableVehicles[Math.floor(Math.random() * currentAvailableVehicles.length)].plate; 
+                  changes++;
               }
-              batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: trip.assigned_driver, assigned_empid: trip.assigned_empid, assigned_vehicle: trip.assigned_vehicle });
+              
+              batch.update(doc(db, "daily_dispatches", tripId), { 
+                  assigned_driver, 
+                  assigned_empid, 
+                  assigned_vehicle 
+              });
           });
-          if (changes > 0) { await batch.commit(); alert("✨ 自動調度完成"); }
+          
+          if (changes > 0) { 
+              await batch.commit(); 
+              alert(`✨ 自動調度完成，共指派了 ${changes} 個空缺！`); 
+          } else {
+              alert("目前無空缺車趟需要調度。");
+          }
       });
 
       // ==========================================
-      // 🖨️ 批次列印憑單 (完美升級版：含 LOGO 與即時印製時間)
+      // 🖨️ 批次列印憑單 (完美排版：含 LOGO 與即時印製時間)
       // ==========================================
       document.getElementById('btnPrintAll').addEventListener('click', () => {
           if (currentDayTrips.length === 0) return alert("本日尚無車趟可列印！");
           
-          // 💡 自動取得當下時間並格式化 (例如：2026/06/02 PM 09:57)
+          // 自動取得當下時間並格式化 (例如：2026/06/02 PM 09:57)
           const now = new Date();
           const year = now.getFullYear();
           const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -270,27 +323,28 @@
               const printDate = dateInput.value.replace(/-/g, '/');
 
               html += `<div class="print-page">
+                  <!-- 完美客製化表頭 -->
                   <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; border-bottom: 3px solid #000; padding-bottom: 8px;">
                       <div style="display: flex; align-items: center;">
-                          <img src="./豐東客運 LOGO.png" alt="LOGO" style="height: 42px; margin-right: 15px; filter: grayscale(100%);">
+                          <img src="./豐東客運 LOGO.png" alt="LOGO" style="height: 48px; margin-right: 15px; filter: grayscale(100%);">
                           <div style="font-size: 26px; font-weight: 900; letter-spacing: 2px;">豐東汽車客運 每日行車憑單</div>
                       </div>
-                      <div style="font-size: 14px; font-weight: 900;">
+                      <div style="font-size: 13px; font-weight: 900; color: #555;">
                           (${printTimestamp} 印製)
                       </div>
                   </div>
                   
                   <table class="p-table">
                       <tr>
-                          <th style="width:12%">駕駛姓名</th><td style="width:13%; color:#1d4ed8;">${d.name}</td>
-                          <th style="width:12%">員工編號</th><td style="width:13%; color:#1d4ed8;">${d.empId}</td>
-                          <th style="width:12%">車號</th><td style="width:23%; color:#1d4ed8; font-family:monospace;">${plates}</td>
+                          <th style="width:12%">駕駛姓名</th><td style="width:13%; font-weight: 900; font-size: 15px;">${d.name}</td>
+                          <th style="width:12%">員工編號</th><td style="width:13%; font-weight: 900; font-size: 15px;">${d.empId}</td>
+                          <th style="width:12%">車號</th><td style="width:23%; font-weight: 900; font-size: 16px; font-family:monospace;">${plates}</td>
                           <th style="width:15%">日期</th>
                       </tr>
                       <tr>
-                          <th>路線班別</th><td colspan="3" style="color:#b91c1c;">${d.shift}</td>
+                          <th>路線班別</th><td colspan="3" style="font-weight: 900; font-size: 15px;">${d.shift}</td>
                           <th colspan="2">行車系統時間： □ 正確　□ 不正確</th>
-                          <td>${printDate}</td>
+                          <td style="font-weight: 900;">${printDate}</td>
                       </tr>
                   </table>
                   
@@ -299,20 +353,20 @@
                           <th style="width:15%">駕照檢驗</th><td class="text-left" style="width:20%">□ 合格　□ 不合格</td>
                           <th style="width:15%">體溫檢測</th><td class="text-left" style="width:25%">□ 合格 ( _ _._ 度 )</td>
                           <td rowspan="3" class="text-left" style="width:25%; vertical-align:top;">
-                              出車前里程數：<br><br><div style="text-align:right">公里</div>
+                              出車前里程數：<br><br><div style="text-align:right; font-weight:900;">公里</div>
                               <hr style="margin:5px 0; border-top:1px solid #000;">
-                              返場接續里程數：<br><br><div style="text-align:right">公里</div>
+                              返場接續里程數：<br><br><div style="text-align:right; font-weight:900;">公里</div>
                           </td>
                       </tr>
                       <tr>
                           <th>行照檢驗</th><td class="text-left">□ 合格　□ 不合格</td>
-                          <th>酒精檢測</th><td class="text-left">□ 合格 ( 數值: 0.00 )</td>
+                          <th>酒精檢測</th><td class="text-left">□ 合格 ( 數值: _._ _ )</td>
                       </tr>
                       <tr>
                           <th>教育訓練</th><td class="text-left">□ 合格　□ 不合格</td>
                           <th>血壓檢測</th><td class="text-left">收縮 _ _ _ / 舒張 _ _ _</td>
                       </tr>
-                      <tr><td colspan="5" style="color: #000; font-weight: 900;">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td></tr>
+                      <tr><td colspan="5" style="color: #000; font-weight: 900; text-align: center; font-size: 14px; background-color: #fce7f3 !important;">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td></tr>
                   </table>
                   
                   <table class="p-table" style="margin-top:5px;">
@@ -323,34 +377,34 @@
                       </tr>`;
 
               d.trips.forEach((trip, idx) => {
-                  html += `<tr style="height:45px;">
-                      <td>${idx + 1}</td>
-                      <td class="text-left"><span style="color:#2563eb;">${trip.route}</span> <br> ${trip.start_point}</td>
-                      <td>${trip.departure_time} ~ ${trip.arrival_time || ''}</td>
+                  html += `<tr style="height:50px;">
+                      <td style="font-weight: 900; font-size: 15px;">${idx + 1}</td>
+                      <td class="text-left"><span style="font-weight: 900; font-size: 14px;">${trip.route}</span> <br> <span style="font-size: 12px;">${trip.start_point}</span></td>
+                      <td style="font-weight: 900;">${trip.departure_time} ~ ${trip.arrival_time || ''}</td>
                       <td></td><td></td>
-                      <td class="text-left">${trip.end_point}</td>
+                      <td class="text-left" style="font-size: 12px;">${trip.end_point}</td>
                       <td></td><td></td>
                   </tr>`;
-                  // PDF 中的「駕駛員中退休息」分隔線
+                  // 單班與 AB 班的法定休息分隔線
                   if (idx < d.trips.length - 1) {
-                      html += `<tr><td colspan="8" style="letter-spacing:10px; background-color:#f4f4f4;">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
+                      html += `<tr><td colspan="8" style="letter-spacing:10px; background-color:#f4f4f4; font-weight: 900; color: #555;">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
                   }
               });
 
-              // 補足至少 4 個欄位 (讓版面滿一點)
+              // 補足空欄位，維持版面高度
               for(let i=d.trips.length; i<4; i++) {
-                  html += `<tr style="height:45px;"><td>${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                  html += `<tr style="height:50px;"><td style="font-weight: 900;">${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
               }
 
               html += `</table>
                   <table class="p-table" style="margin-top:5px;">
                       <tr><th style="width:30%">補票紀錄</th><th style="width:40%">油耗記錄 (加油公升/時間)</th><th style="width:30%">趟次中拋錨、肇事情形</th></tr>
-                      <tr><td style="height:45px;"></td><td class="text-left">加油量：_ _ _ 公升　簽章：_ _ _ _</td><td></td></tr>
+                      <tr><td style="height:50px;"></td><td class="text-left">加油量：_ _ _ 公升　簽章：_ _ _ _</td><td></td></tr>
                   </table>
 
-                  <div style="border: 2px solid #000; padding: 10px; margin-top:5px; font-size:13px; font-weight:700;">
-                      <div style="text-align:center; font-weight:900; margin-bottom:5px; font-size: 15px;">路口轉彎停看行、禮讓行人優先行</div>
-                      <div style="display:flex; justify-content:space-between;">
+                  <div style="border: 2px solid #000; padding: 12px; margin-top:5px; font-size:13px; font-weight:700;">
+                      <div style="text-align:center; font-weight:900; margin-bottom:8px; font-size: 16px;">路口轉彎停看行、禮讓行人優先行</div>
+                      <div style="display:flex; justify-content:space-between; line-height: 1.6;">
                           <div>1. 慢(慢開)、不急、不趕、路口減速。<br>3. 開關車門時務必廣播提醒乘客才可起步。<br>5. 「離開駕駛座拉好手剎車」。</div>
                           <div>2. 遠離機車，遠離危險。<br>4. 行車中嚴禁使用手機及平板。<br>6. 候車亭服務燈亮起一定暫停確認。</div>
                       </div>
@@ -359,7 +413,7 @@
                   <table class="p-table" style="border-top:none;">
                       <tr><th style="width:16%">鍵入人員簽章</th><th style="width:28%">調度員簽章</th><th style="width:28%">站主管審核章</th><th style="width:14%">收回張數</th><th style="width:14%">票值合計</th></tr>
                       <tr>
-                          <td style="height:60px;"></td>
+                          <td style="height:65px;"></td>
                           <td><div class="stamp">調度員 ${user.name}</div></td>
                           <td><div class="stamp stamp-solid">站長 辛資貴</div></td>
                           <td></td><td></td>
