@@ -2,15 +2,15 @@
 import { db, auth } from './firebase-init.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db, auth } from './firebase-init.js';
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+// 💡 修正 1：這裡必須多匯入 setDoc，用來自動建立 ADMIN 資料
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/**
- * 驗證登入狀態與檢查角色權限 (導入 Session 快取機制，省下 90% 的 Firestore 讀取資費)
- * @param {Array} allowedRoles 允許存取該頁面的角色陣列
- */
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            unsubscribe(); // 取消監聽，轉為單次驗證
+            unsubscribe(); 
             
             if (!user) {
                 window.location.href = 'login.html';
@@ -18,32 +18,42 @@ export function checkAuthAndGetRole(allowedRoles = []) {
             }
 
             try {
-                // 安全防防呆：避免 email 為空時系統崩潰
                 if (!user.email) {
                     alert("登入異常：此帳號缺少電子郵件資訊。");
                     window.location.href = 'login.html';
                     return reject("無有效信箱");
                 }
 
-               // 將信箱前綴轉大寫作為員工編號，並強制去除前後空白 (防呆)
+                // 將信箱前綴轉大寫作為員工編號，並強制去除前後空白
                 const empId = user.email.split('@')[0].toUpperCase().trim();
                 
                 let safeUser = null;
-
-                // 💡 優化：優先從當前分頁快取（sessionStorage）讀取權限資料，避免跨網頁切換時重跑 Firestore 讀取
                 const cachedUser = sessionStorage.getItem(`fd_user_${empId}`);
                 
                 if (cachedUser) {
                     safeUser = JSON.parse(cachedUser);
                 } else {
-                    // 快取不存在，才向 Firestore 查詢（省錢、提速）
-                    const docSnap = await getDoc(doc(db, "Drivers", empId));
+                    let docSnap = await getDoc(doc(db, "Drivers", empId));
                     
+                    // 💡 修正 2：ADMIN 專屬緊急通道，如果沒資料就自動建立
                     if (!docSnap.exists()) {
-                        alert(`登入異常：在人事資料庫中找不到員工編號 ${empId}，請聯絡站長建立資料。`);
-                        await signOut(auth); 
-                        window.location.href = 'login.html';
-                        return reject("員工資料異常");
+                        if (empId === 'ADMIN') {
+                            console.log("偵測到管理員首次登入，自動建立權限資料...");
+                            await setDoc(doc(db, "Drivers", "ADMIN"), {
+                                name: "系統管理員",
+                                role: "總公司", // 給予最高權限
+                                empRole: "行政職員",
+                                station: "總公司",
+                                status: "active"
+                            });
+                            // 建立完後重新讀取一次
+                            docSnap = await getDoc(doc(db, "Drivers", empId));
+                        } else {
+                            alert(`登入異常：在人事資料庫中找不到員工編號 ${empId}，請聯絡站長建立資料。`);
+                            await signOut(auth); 
+                            window.location.href = 'login.html';
+                            return reject("員工資料異常");
+                        }
                     }
 
                     const userData = docSnap.data();
@@ -55,15 +65,11 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                         role: userRole 
                     };
 
-                    // 寫入當前分頁快取
                     sessionStorage.setItem(`fd_user_${empId}`, JSON.stringify(safeUser));
                 }
 
-                // 權限檢查 (如果 allowedRoles 有設定，且登入者的角色不在裡面，就擋下)
                 if (allowedRoles.length > 0 && !allowedRoles.includes(safeUser.role)) {
                     alert(`權限不足！您的職稱為「${safeUser.role}」，無法存取此頁面。`);
-                    
-                    // 防呆：如果連 index 都進不去，就導向到其權限允許的第一個頁面
                     window.location.href = safeUser.role === '駕駛長' ? 'personal.html' : 'index.html'; 
                     return reject("權限不足");
                 }
