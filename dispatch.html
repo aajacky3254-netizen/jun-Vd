@@ -33,21 +33,20 @@
 
     @media screen { #print-zone { display: none; } }
 
-    /* ========== 駛車憑單列印專屬樣式 ========== */
+    /* ========== 駛車憑單列印專屬樣式 (已依照 PDF 完美還原) ========== */
     @media print {
-    @page { margin: 8mm; size: A4 portrait; }
-    .no-print { display: none !important; } 
-    body { background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    /* 👇 補上這兩行，強制列印區塊全部顯示為黑色與可見 */
-    #main-content { display: none !important; }
-    #print-zone, #print-zone * { color: #000 !important; visibility: visible !important; }
+        @page { margin: 8mm; size: A4 portrait; }
+        .no-print { display: none !important; } 
+        body { background-color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: "微軟正黑體", sans-serif;}
+        
+        #main-content { display: none !important; }
+        #print-zone, #print-zone * { color: #000 !important; visibility: visible !important; }
 
-    .print-page {
+        .print-page {
             width: 100%;
             height: 98vh; /* 確保佔滿一頁 */
-            page-break-after: always; /* 強制換頁 */
+            page-break-after: always;
             box-sizing: border-box;
-            font-family: "微軟正黑體", sans-serif;
             color: #000;
         }
         .print-page:last-child { page-break-after: auto; }
@@ -60,8 +59,8 @@
         .p-table td { font-weight: 700; }
         
         .text-left { text-align: left !important; }
-        .text-red { color: #dc2626 !important; }
-        .stamp { border: 2px dashed #dc2626; color: #dc2626; display: inline-block; padding: 5px 15px; font-size: 14px; font-weight: 900; transform: rotate(-5deg); }
+        .text-red { color: #000 !important; font-weight: 900;} /* 黑白列印優化 */
+        .stamp { border: 2px dashed #000; color: #000; display: inline-block; padding: 5px 15px; font-size: 14px; font-weight: 900; transform: rotate(-5deg); }
         .stamp-solid { border-style: solid; transform: rotate(0deg); }
     }
   </style>
@@ -81,11 +80,13 @@
       <div class="input-group"><label>路線</label><input type="text" id="inputRoute" list="routesList" style="width: 100px;"></div>
       <div class="input-group"><label>起始點</label><input type="text" id="inputStart" list="stationsList" style="width: 150px;"></div>
       <div class="input-group"><label>終點站</label><input type="text" id="inputEnd" list="stationsList" style="width: 150px;"></div>
-      <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold">＋ 新增</button>
+      <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-700 transition">＋ 新增</button>
+      
       <div style="flex-grow: 1;"></div> 
-      <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-5 rounded-lg font-bold">🧹 一鍵清空</button>
-      <button id="btnAutoDispatch" class="bg-indigo-600 text-white px-5 rounded-lg font-bold">✨ 自動調度</button>
-      <button id="btnPrintAll" class="bg-orange-600 text-white px-5 rounded-lg font-bold">🖨️ 批次列印憑單</button>
+      <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-5 rounded-lg font-bold transition shadow-sm">🧹 一鍵清空</button>
+      <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-lg font-bold transition shadow-sm">✨ 自動調度</button>
+      <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-700 text-white px-5 rounded-lg font-bold transition shadow-sm border border-orange-700">🖨️ 批次列印憑單</button>
+      
       <datalist id="routesList"></datalist>
       <datalist id="stationsList"></datalist>
     </div>
@@ -99,12 +100,12 @@
   </div>
  </div> 
  
- <!-- 列印專區 -->
  <div id="print-zone"></div>
 
 <script type="module">
   import { db } from './firebase-init.js';
-  import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  // 💡 確保 writeBatch 被正確引入
+  import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
   const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
@@ -120,7 +121,7 @@
 
       let currentAvailableDrivers = [];
       let currentAvailableVehicles = [];
-      let currentDayTrips = [];
+      let currentDayTrips = []; // 💡 確保在這裡宣告，讓下方的所有按鈕都能讀取到
 
       onSnapshot(collection(db, "Routes"), snap => {
           document.getElementById('routesList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join('');
@@ -164,9 +165,9 @@
                   <td class="font-bold">${data.departure_time}</td><td>${data.route}</td><td>${data.start_point}</td><td>${data.end_point}</td>
                   <td><select class="driver-select" data-id="${data.id}">${drvOpts}</select></td>
                   <td><select class="vehicle-select" data-id="${data.id}">${vehOpts}</select></td>
-                  <td><button class="btn-delete-trip bg-red-500 text-white px-3 py-1 rounded" data-id="${data.id}">刪除</button></td>
+                  <td><button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition" data-id="${data.id}">刪除</button></td>
               </tr>`;
-          }).join('') || '<tr><td colspan="7">無車趟</td></tr>';
+          }).join('') || '<tr><td colspan="7" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
       });
 
       document.getElementById('addTripBtn').onclick = async () => {
@@ -189,6 +190,30 @@
           if (e.target.classList.contains('btn-delete-trip')) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
       });
 
+      // ==========================================
+      // 💡 一鍵清空排班 (移入區塊內，並確保 writeBatch 存在)
+      // ==========================================
+      document.getElementById('btnClearDispatch').addEventListener('click', async () => {
+          if(currentDayTrips.length === 0) return alert("本日尚無車趟可清空！");
+          if(!confirm("⚠️ 確定要清空本日所有的駕駛與車輛派班嗎？")) return;
+
+          try {
+              const batch = writeBatch(db);
+              currentDayTrips.forEach(trip => {
+                  batch.update(doc(db, "daily_dispatches", trip.id), { 
+                      assigned_driver: "尚未指派", 
+                      assigned_empid: "", 
+                      assigned_vehicle: "尚未指派" 
+                  });
+              });
+              await batch.commit();
+              alert("✅ 本日排班已全數清空還原！");
+          } catch (err) {
+              console.error(err);
+              alert("清空失敗，請檢查網路連線。");
+          }
+      });
+
       // 自動排班
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           const batch = writeBatch(db);
@@ -203,13 +228,28 @@
               }
               batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: trip.assigned_driver, assigned_empid: trip.assigned_empid, assigned_vehicle: trip.assigned_vehicle });
           });
-          if (changes > 0) { await batch.commit(); alert("自動調度完成"); }
+          if (changes > 0) { await batch.commit(); alert("✨ 自動調度完成"); }
       });
 
-      // 🖨️ 批次列印憑單 (一人一頁)
+      // ==========================================
+      // 🖨️ 批次列印憑單 (完美升級版：含 LOGO 與即時印製時間)
+      // ==========================================
       document.getElementById('btnPrintAll').addEventListener('click', () => {
           if (currentDayTrips.length === 0) return alert("本日尚無車趟可列印！");
           
+          // 💡 自動取得當下時間並格式化 (例如：2026/06/02 PM 09:57)
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          let hours = now.getHours();
+          const minutes = String(now.getMinutes()).padStart(2, '0');
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          hours = hours % 12;
+          hours = hours ? hours : 12;
+          const paddedHours = String(hours).padStart(2, '0');
+          const printTimestamp = `${year}/${month}/${day} ${ampm} ${paddedHours}:${minutes}`;
+
           let driverMap = {};
           currentDayTrips.forEach(trip => {
               const empId = trip.assigned_empid;
@@ -230,7 +270,15 @@
               const printDate = dateInput.value.replace(/-/g, '/');
 
               html += `<div class="print-page">
-                  <div class="print-title">豐東交通客運 駛車憑單(行車日報表)</div>
+                  <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; border-bottom: 3px solid #000; padding-bottom: 8px;">
+                      <div style="display: flex; align-items: center;">
+                          <img src="./豐東客運 LOGO.png" alt="LOGO" style="height: 42px; margin-right: 15px; filter: grayscale(100%);">
+                          <div style="font-size: 26px; font-weight: 900; letter-spacing: 2px;">豐東汽車客運 每日行車憑單</div>
+                      </div>
+                      <div style="font-size: 14px; font-weight: 900;">
+                          (${printTimestamp} 印製)
+                      </div>
+                  </div>
                   
                   <table class="p-table">
                       <tr>
@@ -264,43 +312,44 @@
                           <th>教育訓練</th><td class="text-left">□ 合格　□ 不合格</td>
                           <th>血壓檢測</th><td class="text-left">收縮 _ _ _ / 舒張 _ _ _</td>
                       </tr>
-                      <tr><td colspan="5" class="text-red">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td></tr>
+                      <tr><td colspan="5" style="color: #000; font-weight: 900;">※ 駕駛員未通過酒測及血壓值超出標準者，嚴禁出車！</td></tr>
                   </table>
                   
                   <table class="p-table" style="margin-top:5px;">
                       <tr>
-                          <th style="width:5%">班次</th><th style="width:22%">出發站/端點</th><th style="width:13%">排定時間</th>
-                          <th style="width:12%">實際發車</th><th style="width:8%">站務簽章</th>
-                          <th style="width:20%">到達站</th><th style="width:12%">實際到站</th><th style="width:8%">備註</th>
+                          <th style="width:5%">班次</th><th style="width:25%">出發站/端點</th><th style="width:13%">排定時間</th>
+                          <th style="width:10%">實際發車</th><th style="width:8%">站務簽章</th>
+                          <th style="width:25%">到達站</th><th style="width:10%">實際到站</th><th style="width:4%">備註</th>
                       </tr>`;
 
               d.trips.forEach((trip, idx) => {
                   html += `<tr style="height:45px;">
                       <td>${idx + 1}</td>
-                      <td class="text-left"><span style="color:#2563eb;">${trip.route}</span> ${trip.start_point}</td>
+                      <td class="text-left"><span style="color:#2563eb;">${trip.route}</span> <br> ${trip.start_point}</td>
                       <td>${trip.departure_time} ~ ${trip.arrival_time || ''}</td>
                       <td></td><td></td>
                       <td class="text-left">${trip.end_point}</td>
                       <td></td><td></td>
                   </tr>`;
+                  // PDF 中的「駕駛員中退休息」分隔線
                   if (idx < d.trips.length - 1) {
-                      html += `<tr><td colspan="8" style="letter-spacing:10px;">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
+                      html += `<tr><td colspan="8" style="letter-spacing:10px; background-color:#f4f4f4;">= = = 駕 駛 員 中 退 休 息 = = =</td></tr>`;
                   }
               });
 
-              // 補足至少 6 個欄位
-              for(let i=d.trips.length; i<6; i++) {
+              // 補足至少 4 個欄位 (讓版面滿一點)
+              for(let i=d.trips.length; i<4; i++) {
                   html += `<tr style="height:45px;"><td>${i+1}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
               }
 
               html += `</table>
                   <table class="p-table" style="margin-top:5px;">
                       <tr><th style="width:30%">補票紀錄</th><th style="width:40%">油耗記錄 (加油公升/時間)</th><th style="width:30%">趟次中拋錨、肇事情形</th></tr>
-                      <tr><td style="height:40px;"></td><td class="text-left">加油量：_ _ _ 公升　簽章：_ _ _ _</td><td></td></tr>
+                      <tr><td style="height:45px;"></td><td class="text-left">加油量：_ _ _ 公升　簽章：_ _ _ _</td><td></td></tr>
                   </table>
 
                   <div style="border: 2px solid #000; padding: 10px; margin-top:5px; font-size:13px; font-weight:700;">
-                      <div style="text-align:center; font-weight:900; margin-bottom:5px;">路口轉彎停看行、禮讓行人優先行</div>
+                      <div style="text-align:center; font-weight:900; margin-bottom:5px; font-size: 15px;">路口轉彎停看行、禮讓行人優先行</div>
                       <div style="display:flex; justify-content:space-between;">
                           <div>1. 慢(慢開)、不急、不趕、路口減速。<br>3. 開關車門時務必廣播提醒乘客才可起步。<br>5. 「離開駕駛座拉好手剎車」。</div>
                           <div>2. 遠離機車，遠離危險。<br>4. 行車中嚴禁使用手機及平板。<br>6. 候車亭服務燈亮起一定暫停確認。</div>
@@ -322,21 +371,6 @@
           window.print();
       });
   }).catch(err => console.error(err));
-  // 一鍵清空排班
-document.getElementById('btnClearDispatch').addEventListener('click', async () => {
-    if(!confirm("確定要清空本日所有的駕駛與車輛派班嗎？")) return;
-
-    const batch = writeBatch(db);
-    currentDayTrips.forEach(trip => {
-        batch.update(doc(db, "daily_dispatches", trip.id), { 
-            assigned_driver: "尚未指派", 
-            assigned_empid: "", 
-            assigned_vehicle: "尚未指派" 
-        });
-    });
-    await batch.commit();
-    alert("本日排班已全數清空！");
-});
 </script>
 </body>
 </html>
