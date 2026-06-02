@@ -253,7 +253,7 @@ tr.conflict-row { background-color: #fef2f2; border-left: 4px solid #ef4444; }
               snap.forEach(d => { if (d.data().status === 'ready') currentAvailableVehicles.push({ plate: d.data().plate_number || d.id, model: d.data().model }); });
           } catch (e) { console.error(e); }
       }
-
+    const routesContainer = document.getElementById('routesContainer'); // 請替換成實際的 ID
       function listenToDispatches(selectedDate) {
           if (unsubscribeDispatch) unsubscribeDispatch();
           routesContainer.innerHTML = ""; // 防錯

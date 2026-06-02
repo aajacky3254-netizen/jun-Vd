@@ -145,29 +145,7 @@
     import { db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
-    // 這行絕對要留著！用來引入驗證與登出函式
-    import { checkAuthAndGetRole, renderNavbar } from './auth.js'; 
-    // 註：如果你的網頁內聯腳本需要直接用到 logout 函式，才需要 import logout。
-    // 如果登出按鈕已經交給 renderNavbar 自動綁定，這裡甚至不用 import logout。
-
-    // 2. 執行驗證（以車輛管理頁為例，傳入允許存取的職稱）
-    checkAuthAndGetRole(['SuperAdmin', 'StationManager', '調度員'])
-        .then((user) => {
-            // 驗證成功後，渲染導覽列並高亮當前頁面
-            renderNavbar(user, 'vehicles'); 
-            
-            // 3. 這裡放你原本網頁抓取 Firestore 資料庫、渲染表格的邏輯
-            initPage(); 
-        })
-        .catch((err) => {
-            console.error("安全驗證失敗或未登入：", err);
-        });
-
-    function initPage() {
-        console.log("資料庫撈取與動態載入邏輯開始執行...");
-        // 你原本的 db 查詢程式碼放這裡...
-    }
-    
+        
 
     // 允許進入此頁面的權限
     const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
