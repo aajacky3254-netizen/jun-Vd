@@ -132,7 +132,7 @@
         return str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
     };
 
-    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員', '駕駛長'];
+    const allowedRoles = ['總公司', '站長', '調度員', '駕駛長'];
 
     // 💡 修正：只執行一次身分驗證
     checkAuthAndGetRole(allowedRoles).then((user) => {

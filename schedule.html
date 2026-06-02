@@ -88,7 +88,7 @@
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { checkAuthAndGetRole, logout } from './auth.js';
 
-    const allowedRoles = ['SuperAdmin', 'StationManager', '調度員']; 
+    const allowedRoles = ['總公司', '站長', '調度員']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
         
