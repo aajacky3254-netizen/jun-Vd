@@ -82,6 +82,8 @@
       <div class="input-group"><label>終點站</label><input type="text" id="inputEnd" list="stationsList" style="width: 150px;"></div>
       <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-700 transition">＋ 新增</button>
       
+      <button id="btnCopyYesterday" class="bg-teal-600 hover:bg-teal-700 text-white px-5 rounded-lg font-bold transition shadow-sm border border-teal-700">📋 載入昨日時刻</button>
+      
       <div style="flex-grow: 1;"></div> 
       <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-5 rounded-lg font-bold transition shadow-sm">🧹 一鍵清空</button>
       <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-lg font-bold transition shadow-sm">✨ 自動調度</button>
@@ -212,31 +214,61 @@
           if (e.target.classList.contains('btn-delete-trip')) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
       });
 
+     // ==========================================
+      // 📋 載入昨日時刻表 (只複製路線與時間，清空人車)
       // ==========================================
-      // 💡 一鍵清空排班 (100% 防呆，只清空畫面上所選日期的資料)
-      // ==========================================
-      document.getElementById('btnClearDispatch').addEventListener('click', async () => {
-          const selectElements = document.querySelectorAll('#dispatchBody .driver-select');
-          if(selectElements.length === 0) return alert("畫面上無車趟可清空！");
+      document.getElementById('btnCopyYesterday').addEventListener('click', async () => {
+          if(currentDayTrips.length > 0) {
+              if(!confirm("畫面上已經有今天的車趟了，載入昨日時刻表會「疊加」上去，確定要繼續嗎？")) return;
+          }
           
-          if(!confirm(`⚠️ 確定要清空這 ${selectElements.length} 筆車趟的駕駛與車輛嗎？\n(只會清空您現在正在處理的這個日期：${dateInput.value})`)) return;
+          const btn = document.getElementById('btnCopyYesterday');
+          btn.innerText = "⏳ 載入中...";
+          btn.disabled = true;
 
           try {
-              const batch = writeBatch(db);
-              selectElements.forEach(select => {
-                  const tripId = select.getAttribute('data-id');
-                  batch.update(doc(db, "daily_dispatches", tripId), { 
-                      assigned_driver: "尚未指派", 
-                      assigned_empid: "", 
-                      assigned_vehicle: "尚未指派" 
+              // 計算出「昨天」的精準日期
+              const d = new Date(dateInput.value);
+              d.setDate(d.getDate() - 1);
+              const yesterdayStr = d.toISOString().split('T')[0];
+
+              // 從資料庫抓取昨天的所有班次底稿
+              const q = query(dispatchesCol, where("date", "==", yesterdayStr));
+              const snap = await getDocs(q);
+              
+              if(snap.empty) {
+                  alert(`找不到昨天 (${yesterdayStr}) 的發車紀錄，無法複製底稿！\n請先確保昨天有建立車趟。`);
+              } else {
+                  const batch = writeBatch(db);
+                  let count = 0;
+                  
+                  snap.forEach(docSnap => {
+                      const oldData = docSnap.data();
+                      // 創建新文件，只複製時刻與路線，狀態完美重置為「尚未指派」
+                      const newTripRef = doc(collection(db, "daily_dispatches"));
+                      batch.set(newTripRef, {
+                          date: dateInput.value, // 設定為畫面上當前選擇的日期
+                          departure_time: oldData.departure_time,
+                          arrival_time: oldData.arrival_time || "",
+                          route: oldData.route,
+                          start_point: oldData.start_point || "",
+                          end_point: oldData.end_point || "",
+                          assigned_driver: "尚未指派",
+                          assigned_empid: "",
+                          assigned_vehicle: "尚未指派",
+                          status: "pending"
+                      });
+                      count++;
                   });
-              });
-              await batch.commit();
-              alert("✅ 畫面上排班已全數清空還原！");
+                  await batch.commit();
+                  alert(`✅ 成功載入昨天 ${count} 筆發車時刻！\n請開始使用「自動調度」或手動指派今日的駕駛與車輛。`);
+              }
           } catch (err) {
               console.error(err);
-              alert("清空失敗，請檢查網路連線。");
+              alert("複製失敗，請檢查網路連線！");
           }
+          btn.innerText = "📋 載入昨日時刻";
+          btn.disabled = false;
       });
 
       // ==========================================
