@@ -1,3 +1,8 @@
+// auth.js
+import { auth, db } from './firebase-init.js';
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
 /**
  * 動態渲染導覽列 (全站統一標籤)
  */
@@ -48,4 +53,64 @@ export function renderNavbar(user, activePageId) {
     if (btnLogout) {
         btnLogout.addEventListener('click', logout);
     }
+}
+
+/**
+ * 登出功能
+ */
+export function logout() {
+    signOut(auth).then(() => {
+        window.location.href = 'login.html'; // 登出後導回登入頁
+    }).catch((error) => {
+        console.error("登出失敗:", error);
+    });
+}
+
+/**
+ * 驗證登入狀態並取得使用者權限
+ * @param {Array} allowedRoles - 允許存取此頁面的角色陣列，留空代表登入即可
+ */
+export function checkAuthAndGetRole(allowedRoles = []) {
+    return new Promise((resolve, reject) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            unsubscribe(); // 檢查完就解除監聽，避免重複觸發
+            
+            if (firebaseUser) {
+                try {
+                    // 假設你的 Firestore 中有一個 'users' 集合用來存放員工資料與權限
+                    const userRef = doc(db, "users", firebaseUser.uid);
+                    const userSnap = await getDoc(userRef);
+                    
+                    if (userSnap.exists()) {
+                        const userData = userSnap.data();
+                        const user = {
+                            uid: firebaseUser.uid,
+                            name: userData.name || "未知員工",
+                            role: userData.role || "未授權"
+                        };
+
+                        // 權限防呆判斷
+                        if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+                            alert('權限不足，無法訪問此模組！');
+                            window.location.href = 'index.html';
+                            reject(new Error('權限不足'));
+                        } else {
+                            resolve(user); // 驗證成功，回傳使用者資料給前端
+                        }
+                    } else {
+                        console.error("在資料庫中找不到該員工資料");
+                        logout();
+                        reject(new Error('資料缺失'));
+                    }
+                } catch (error) {
+                    console.error("獲取權限時發生錯誤:", error);
+                    reject(error);
+                }
+            } else {
+                // 未登入，強制導向登入頁面
+                window.location.href = 'login.html';
+                reject(new Error('未登入'));
+            }
+        });
+    });
 }
