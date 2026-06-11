@@ -10,7 +10,7 @@ export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
 
-    // 💡 確保每一頁的標籤與權限皆統一由這裡控制
+    // 確保每一頁的標籤與權限皆統一由這裡控制
     const menuItems = [
         { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['總公司', '站長', '調度員'] },
         { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['總公司', '站長', '調度員'] },
@@ -22,7 +22,6 @@ export function renderNavbar(user, activePageId) {
         { id: 'query', name: '🔍公開班表查詢', href: 'query.html', roles: ['總公司', '站長', '調度員', '維修保養班', '駕駛長'] }
     ];
 
-    // 在 auth.js 中找到 renderNavbar 函式，並修改 html 變數賦值那段：
     let html = `
         <a href="index.html" class="navbar-brand flex items-center">
             <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
@@ -78,8 +77,11 @@ export function checkAuthAndGetRole(allowedRoles = []) {
             
             if (firebaseUser) {
                 try {
-                    // 假設你的 Firestore 中有一個 'users' 集合用來存放員工資料與權限
-                    const userRef = doc(db, "users", firebaseUser.uid);
+                    // 1. 從登入的虛擬信箱 (例如 001@fengdong.com) 中切出 @ 前面的員工編號
+                    const empId = firebaseUser.email.split('@')[0].toUpperCase();
+
+                    // 2. 直接去 'drivers' 集合，用員工編號來尋找對應的文件
+                    const userRef = doc(db, "drivers", empId);
                     const userSnap = await getDoc(userRef);
                     
                     if (userSnap.exists()) {
@@ -98,21 +100,19 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                             resolve(user); 
                         }
                     } else {
-                        // 💡 新增這行 Alert，如果資料庫沒建好，它會彈出視窗警告你
-                        alert("登入失敗：在 Firestore 的 users 集合中，找不到符合您 UID 的權限資料！請確認是否建檔錯誤。");
+                        // 💡 已修正：將提示文字改為 drivers 集合與員工編號
+                        alert(`登入失敗：在資料庫 (drivers) 中找不到員工編號 [${empId}] 的資料！請確認是否建檔錯誤。`);
                         console.error("在資料庫中找不到該員工資料");
                         logout();
                         reject(new Error('資料缺失'));
                     }
                 } catch (error) {
-                    // 💡 新增這行 Alert，如果是 Rules 權限沒開，就會跳這個警告
                     alert("讀取權限失敗（可能是 Firebase Rules 沒開）：" + error.message);
                     console.error("獲取權限時發生錯誤:", error);
-                    logout(); // 發生錯誤也強制清空狀態，避免卡死
+                    logout(); 
                     reject(error);
                 }
             } else {
-                // 未登入，強制導向登入頁面
                 window.location.href = 'login.html';
                 reject(new Error('未登入'));
             }
