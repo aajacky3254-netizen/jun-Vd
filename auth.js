@@ -77,7 +77,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
             
             if (firebaseUser) {
                 try {
-                    // 1. 從登入的虛擬信箱 (例如 001@fengdong.com) 中切出 @ 前面的員工編號
+                    // 1. 從登入的虛擬信箱中切出員工編號
                     const empId = firebaseUser.email.split('@')[0].toUpperCase();
 
                     // 2. 直接去 'drivers' 集合，用員工編號來尋找對應的文件
@@ -100,9 +100,24 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                             resolve(user); 
                         }
                     } else {
-                        // 💡 已修正：將提示文字改為 drivers 集合與員工編號
-                        alert(`登入失敗：在資料庫 (drivers) 中找不到員工編號 [${empId}] 的資料！請確認是否建檔錯誤。`);
-                        console.error("在資料庫中找不到該員工資料");
+                        // 💡 終極診斷功能：當找不到 ADMIN 時，全自動抓取後台所有 ID 印在控制台
+                        try {
+                            const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+                            const allDocs = await getDocs(collection(db, "drivers"));
+                            
+                            console.log("%c=== 智慧車場系統·資料庫全自動診斷報告 ===", "color: #1e40af; font-size: 14px; font-weight: bold;");
+                            console.log(`網頁正在尋找的文件 ID 為: [${empId}]`);
+                            console.log("目前您的 Firestore 'drivers' 集合中，實際存在的文件 ID 有以下幾筆：");
+                            
+                            allDocs.forEach(d => {
+                                console.log(`👉 實際文件 ID: "%c${d.id}%c"`, "color: red; font-weight: bold;", "color: black;", d.data());
+                            });
+                            console.log("=========================================");
+                        } catch (err) {
+                            console.error("診斷程式執行失敗:", err);
+                        }
+
+                        alert(`登入失敗：在資料庫 (drivers) 中找不到員工編號 [${empId}] 的資料！\n\n💡 請現在按下鍵盤的 F12 鍵開啟「主控台 (Console)」，裡面已經幫您抓出真正的資料對齊問題！`);
                         logout();
                         reject(new Error('資料缺失'));
                     }
