@@ -90,21 +90,25 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                             role: userData.role || "未授權"
                         };
 
-                        // 權限防呆判斷
                         if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
                             alert('權限不足，無法訪問此模組！');
                             window.location.href = 'index.html';
                             reject(new Error('權限不足'));
                         } else {
-                            resolve(user); // 驗證成功，回傳使用者資料給前端
+                            resolve(user); 
                         }
                     } else {
+                        // 💡 新增這行 Alert，如果資料庫沒建好，它會彈出視窗警告你
+                        alert("登入失敗：在 Firestore 的 users 集合中，找不到符合您 UID 的權限資料！請確認是否建檔錯誤。");
                         console.error("在資料庫中找不到該員工資料");
                         logout();
                         reject(new Error('資料缺失'));
                     }
                 } catch (error) {
+                    // 💡 新增這行 Alert，如果是 Rules 權限沒開，就會跳這個警告
+                    alert("讀取權限失敗（可能是 Firebase Rules 沒開）：" + error.message);
                     console.error("獲取權限時發生錯誤:", error);
+                    logout(); // 發生錯誤也強制清空狀態，避免卡死
                     reject(error);
                 }
             } else {
