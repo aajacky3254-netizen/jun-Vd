@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 員工登入</title>
   <meta name="robots" content="noindex, nofollow">
-    
-    <meta property="og:title" content="豐東交通客運 | 智慧車輛調度與個人作業台">
-    <meta property="og:description" content="豐東客運專屬營運入口網，請登入以查看最新班表、派車資訊與差勤紀錄。">
-    <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#1e293b">
+  
+  <meta property="og:title" content="豐東交通客運 | 智慧車輛調度與個人作業台">
+  <meta property="og:description" content="豐東客運專屬營運入口網，請登入以查看最新班表、派車資訊與差勤紀錄。">
+  <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
   <link rel="stylesheet" href="./output.css">
 </head>
 <body class="bg-gray-100 h-screen flex items-center justify-center bg-[url('https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=2069&auto=format&fit=crop')] bg-cover bg-center">
@@ -28,26 +30,25 @@
         <input type="text" id="empId" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-lg" placeholder="例如: 001">
       </div>
       <div>
-  <label class="block text-sm font-bold text-gray-700 mb-1">密碼</label>
-  <div class="relative">
-    <input type="password" id="password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg pr-12" placeholder="預設密碼為 123456">
-    <button type="button" id="togglePwd" class="absolute inset-y-0 right-0 px-3 flex items-center text-xl text-gray-500 hover:text-gray-700">
-      👁️
-    </button>
-  </div>
-</div>
+        <label class="block text-sm font-bold text-gray-700 mb-1">密碼</label>
+        <div class="relative">
+          <input type="password" id="password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg pr-12" placeholder="預設密碼為 123456">
+          <button type="button" id="togglePwd" class="absolute inset-y-0 right-0 px-3 flex items-center text-xl text-gray-500 hover:text-gray-700">
+            👁️
+          </button>
+        </div>
+      </div>
       <button id="btnLogin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-md mt-4 text-lg">
         登入系統
       </button>
-      <p id="errorMsg" class="text-red-500 text-sm text-center hidden mt-2 font-bold bg-red-50 py-2 rounded"></p>
+      <p id="errorMsg" class="text-red-600 text-sm text-center hidden mt-2 font-bold bg-red-50 py-2 rounded border border-red-200"></p>
     </div>
   </div>
 
-    <script type="module">
+  <script type="module">
     import { auth } from './firebase-init.js';
     import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-    // 密碼顯示/隱藏切換
     document.getElementById('togglePwd').addEventListener('click', function() {
         const pwdInput = document.getElementById('password');
         if (pwdInput.type === 'password') {
@@ -59,33 +60,39 @@
         }
     });
 
-    // 登入按鈕邏輯
+    // 💡 修正：支援按 Enter 鍵快速登入
+    const handleEnter = (e) => { if (e.key === 'Enter') document.getElementById('btnLogin').click(); };
+    document.getElementById('empId').addEventListener('keypress', handleEnter);
+    document.getElementById('password').addEventListener('keypress', handleEnter);
+
     document.getElementById('btnLogin').addEventListener('click', async () => {
-        // 💡 關鍵修復：正確抓取輸入框的值並強制轉大寫
         const empId = document.getElementById('empId').value.trim().toUpperCase();
         const password = document.getElementById('password').value.trim();
+        const errorMsg = document.getElementById('errorMsg');
         
+        errorMsg.classList.add('hidden'); // 每次點擊先隱藏錯誤
+
         if(!empId || !password) {
-            alert("請輸入員工編號與密碼！");
+            errorMsg.innerText = "請輸入員工編號與密碼！";
+            errorMsg.classList.remove('hidden');
             return;
         }
 
         const btn = document.getElementById('btnLogin');
         const originalText = btn.innerText;
-        btn.innerText = "驗證中...";
+        btn.innerText = "系統驗證中...";
         btn.disabled = true;
         btn.classList.add('opacity-75', 'cursor-not-allowed');
 
         try {
             const virtualEmail = `${empId}@fengdong.com`;
             await signInWithEmailAndPassword(auth, virtualEmail, password);
-            
-            // 登入成功，跳轉首頁
             window.location.href = 'index.html'; 
-            
         } catch (error) {
             console.error("登入錯誤:", error);
-            alert("登入失敗：員工編號或密碼錯誤！\n(請確認該員工是否已在人事系統中建立)");
+            // 💡 修正：移除 alert，改用畫面上的提示文字提升質感
+            errorMsg.innerText = "登入失敗：員工編號或密碼錯誤！";
+            errorMsg.classList.remove('hidden');
             
             btn.innerText = originalText;
             btn.disabled = false;
@@ -93,6 +100,5 @@
         }
     });
   </script>
-
 </body>
 </html>
