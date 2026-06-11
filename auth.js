@@ -22,9 +22,10 @@ export function renderNavbar(user, activePageId) {
         { id: 'query', name: '🔍公開班表查詢', href: 'query.html', roles: ['總公司', '站長', '調度員', '維修保養班', '駕駛長'] }
     ];
 
+    // 在 auth.js 中找到 renderNavbar 函式，並修改 html 變數賦值那段：
     let html = `
         <a href="index.html" class="navbar-brand flex items-center">
-            <img src="./豐東客運 LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
+            <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
             豐東交通客運
         </a>
     `;
