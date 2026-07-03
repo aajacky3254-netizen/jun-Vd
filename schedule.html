@@ -259,6 +259,7 @@ window.addEventListener('beforeunload', (e) => {
             currentDrivers.forEach(driver => {
                 rosterToSave[driver.empId] = { name: driver.name };
                 let prevShift = ""; 
+                let offCount = 0; // 💡 新增：計算本週休假天數
                 
                 daysOfWeek.forEach(day => {
                     const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
@@ -267,25 +268,27 @@ window.addEventListener('beforeunload', (e) => {
                         const currentShift = selectEl.value;
                         rosterToSave[driver.empId][day] = currentShift;
                         
-                        // 💡 排班優化防呆 1：晚班接早班 (嚴重違反 11 小時休息間隔)
+                        if (currentShift === "OFF (休)") offCount++;
+
+                        // 防呆 1：晚班接早班 (嚴重違反 11 小時休息間隔)
                         if (prevShift === "E (晚)" && currentShift === "M (早)") {
                             hasViolation = true;
-                            violationMsg += `⚠️ [${driver.name}] 排班違規：前一日為「晚班(E)」，依勞基法輪班間隔規定，今日嚴禁接「早班(M)」。\n`;
+                            violationMsg += `⚠️ [${driver.name}] 違規：前日「晚班(E)」接今日「早班(M)」，違反輪班間隔11小時。\n`;
                         }
-                        // 💡 排班優化防呆 2：晚班接 AB 班 (夜間收班後休息不足)
+                        // 防呆 2：晚班接 AB 班 (夜間收班後休息不足)
                         if (prevShift === "E (晚)" && currentShift === "AB (兩頭)") {
                             hasViolation = true;
-                            violationMsg += `⚠️ [${driver.name}] 排班違規：前一日為「晚班(E)」，今日不宜緊接「AB 兩頭班」，請考量駕駛清晨出車精神狀態。\n`;
+                            violationMsg += `⚠️ [${driver.name}] 違規：前日「晚班(E)」不宜緊接「AB 兩頭班」。\n`;
                         }
-                        // 💡 排班優化防呆 3：AB 班接早班 (拉長工時後需充分休息)
-                        if (prevShift === "AB (兩頭)" && currentShift === "M (早)") {
-                             hasViolation = true;
-                             violationMsg += `⚠️ [${driver.name}] 疲勞示警：前一日為「AB 兩段班(拉長工時)」，今日請盡量避免緊接「早班(M)」。\n`;
-                        }
-
                         prevShift = currentShift; 
                     }
                 });
+
+                // 💡 勞基法防呆：七休一檢查
+                if (offCount === 0) {
+                    hasViolation = true;
+                    violationMsg += `🛑 [${driver.name}] 嚴重違規：本週排班無任何「OFF (休)」，違反勞基法七休一規定！\n`;
+                }
             });
 
             if (hasViolation) {
