@@ -301,45 +301,28 @@
               let tStart = timeToMins(trip.departure_time);
               let tEnd = timeToMins(trip.arrival_time || trip.departure_time) + 20; // 強制預留 20 分鐘緩衝
 
-              // 尋找最佳駕駛
+             // 尋找最佳駕駛
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
                   let bestDriver = null;
                   for (let d of currentAvailableDrivers) {
                       let sched = driverSchedules[d.empId] || [];
                       let hasOverlap = sched.some(s => (tStart < s.end && tEnd > s.start));
-                      if (hasOverlap) continue;
+                      if (hasOverlap) continue; // 時段重疊，跳過
 
-                      let shift = d.shift; 
-                      let isMatch = false;
-                      if (shift.includes("M")) {
-                          if (tEnd <= 15 * 60) isMatch = true; 
-                      } else if (shift.includes("E")) {
-                          if (tStart >= 13 * 60) isMatch = true; 
-                      } else if (shift.includes("AB")) {
-                          if (tEnd <= 11 * 60 || tStart >= 15 * 60) isMatch = true;
-                      } else if (shift.includes("S") || shift.includes("STB")) {
-                          isMatch = true; 
-                      }
-                      if (!isMatch) continue;
-
-                      if (sched.length > 0) {
-                          let firstStart = Math.min(tStart, ...sched.map(s => s.start));
-                          let lastEnd = Math.max(tEnd, ...sched.map(s => s.end));
-                          if ((lastEnd - firstStart) > 12 * 60) continue; 
+                      // 💡 法規防呆：計算今日該駕駛已排定的總工時
+                      let totalMinutesAssigned = sched.reduce((total, s) => total + (s.end - s.start), 0);
+                      let newTripDuration = tEnd - tStart;
+                      
+                      // 單日總工時超過 10 小時 (600分鐘) 發出警告，超過 12 小時 (720分鐘) 強制阻擋
+                      if (totalMinutesAssigned + newTripDuration > 720) {
+                          continue; // 違反單日 12H 工時上限，換下一位司機
                       }
 
-                      if (!bestDriver || (driverSchedules[d.empId]?.length || 0) < (driverSchedules[bestDriver.empId]?.length || 0)) {
-                          bestDriver = d;
+                      // 💡 檢查是否有連續駕車達 4 小時 (240分鐘) 未休息 30 分鐘的情況
+                      // (此處以簡易判定：若單趟車程或緊湊接車大於 240 分鐘，將其排除)
+                      if (newTripDuration >= 240 || (sched.length > 0 && (tStart - sched[sched.length-1].end < 30) && (totalMinutesAssigned + newTripDuration >= 240))) {
+                           continue; 
                       }
-                  }
-                  if (bestDriver) {
-                      assigned_driver = bestDriver.name;
-                      assigned_empid = bestDriver.empId;
-                      if (!driverSchedules[assigned_empid]) driverSchedules[assigned_empid] = [];
-                      driverSchedules[assigned_empid].push({start: tStart, end: tEnd});
-                      changes++;
-                  }
-              }
 
               // 尋找最佳車輛
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
@@ -449,6 +432,10 @@
                           <th style="width: 12%">駕駛姓名</th><td style="width: 18%">${d.name}</td>
                           <th style="width: 12%">員工編號</th><td style="width: 13%">${d.empId}</td>
                           <th style="width: 10%">車 號</th><td style="width: 15%; font-family:monospace;">${plates}</td>
+                          <td colspan="4" class="text-left" style="padding-left: 10px;">
+    行車系統時間： □ 正確 □ 不正確 <br>
+    <span style="color:red; font-size:10px;">※ 本憑單請於下班時準時繳回站管人員</span>
+</td>
                           <th style="width: 10%">日 期</th>
                       </tr>
                       <tr>
