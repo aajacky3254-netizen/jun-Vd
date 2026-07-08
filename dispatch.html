@@ -207,7 +207,7 @@
       });
 
       // ==========================================
-      // 📋 載入指定日期時刻表 (自訂日期複製引擎)
+      // 📋 載入指定日期時刻表 (自訂日期複製引擎 - 含去重防呆)
       // ==========================================
       const copySourceInput = document.getElementById('inputCopySource');
       const yesterdayInit = new Date();
@@ -221,14 +221,22 @@
           if (!sourceDate) return alert("請先選擇要複製的來源日期！");
           if (sourceDate === targetDate) return alert("來源日期與當前排班日期相同，無需複製！");
 
+          // 💡 提示文字更新：告知使用者系統會自動過濾重複
           if(currentDayTrips.length > 0) {
-              if(!confirm(`⚠️ 畫面上已經有 ${targetDate} 的車趟了，載入 ${sourceDate} 的時刻表會「疊加」上去，確定要繼續嗎？`)) return;
+              if(!confirm(`⚠️ 畫面上已經有 ${targetDate} 的車趟。系統將自動比對並「跳過重複」的班次（同路線且同發車時間），確定要繼續載入嗎？`)) return;
           }
           
           const btn = document.getElementById('btnCopyFromDate');
           btn.innerText = "⏳ 載入中..."; btn.disabled = true;
 
           try {
+              // 1. 利用前端已有的 currentDayTrips 建立「今日已存在班次」的 Set 集合
+              const existingSchedules = new Set();
+              currentDayTrips.forEach(trip => {
+                  existingSchedules.add(`${trip.route}_${trip.departure_time}`);
+              });
+
+              // 2. 查詢來源日期的班次
               const q = query(dispatchesCol, where("date", "==", sourceDate));
               const snap = await getDocs(q);
               
@@ -236,25 +244,47 @@
                   alert(`找不到 ${sourceDate} 的發車紀錄，無法複製底稿！\n(請確認該日期是否已有排定班次)`);
               } else {
                   const batch = writeBatch(db);
-                  let count = 0;
+                  let count = 0;      // 記錄成功新增的筆數
+                  let skipCount = 0;  // 記錄跳過的重複筆數
+
                   snap.forEach(docSnap => {
                       const oldData = docSnap.data();
-                      const newTripRef = doc(collection(db, "daily_dispatches"));
-                      batch.set(newTripRef, {
-                          date: targetDate, 
-                          departure_time: oldData.departure_time,
-                          arrival_time: oldData.arrival_time || "",
-                          route: oldData.route,
-                          start_point: oldData.start_point || "",
-                          end_point: oldData.end_point || "",
-                          assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending"
-                      });
-                      count++;
+                      const uniqueKey = `${oldData.route}_${oldData.departure_time}`;
+
+                      // 💡 去重邏輯：只有在「目標日沒有這個路線與發車時間」時，才加入寫入排程
+                      if (!existingSchedules.has(uniqueKey)) {
+                          const newTripRef = doc(collection(db, "daily_dispatches"));
+                          batch.set(newTripRef, {
+                              date: targetDate, 
+                              departure_time: oldData.departure_time,
+                              arrival_time: oldData.arrival_time || "",
+                              route: oldData.route,
+                              start_point: oldData.start_point || "",
+                              end_point: oldData.end_point || "",
+                              assigned_driver: "尚未指派", 
+                              assigned_empid: "", 
+                              assigned_vehicle: "尚未指派", 
+                              status: "pending"
+                          });
+                          count++;
+                      } else {
+                          skipCount++; // 發現重複，跳過計數
+                      }
                   });
-                  await batch.commit();
-                  alert(`✅ 成功拷貝 ${sourceDate} 的 ${count} 筆發車時刻！\n請接續使用「✨ 智慧調度」填補人車。`);
+
+                  // 3. 執行批次寫入並顯示結果
+                  if (count > 0) {
+                      await batch.commit();
+                      alert(`✅ 成功拷貝 ${sourceDate} 的 ${count} 筆發車時刻！\n(已自動跳過 ${skipCount} 筆重複班次)\n請接續使用「✨ 智慧調度」填補人車。`);
+                  } else {
+                      alert(`目標日期的班表已經與 ${sourceDate} 完全同步，沒有新增任何新班次。\n(自動跳過 ${skipCount} 筆重複)`);
+                  }
               }
-          } catch (err) { alert("複製失敗，請檢查網路。"); }
+          } catch (err) { 
+              console.error("複製發生錯誤:", err);
+              alert("複製失敗，請檢查網路連線。"); 
+          }
+          
           btn.innerText = "📋 複製時刻"; btn.disabled = false;
       });
 
