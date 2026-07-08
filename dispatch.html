@@ -307,24 +307,30 @@
                   for (let d of currentAvailableDrivers) {
                       let sched = driverSchedules[d.empId] || [];
                       let hasOverlap = sched.some(s => (tStart < s.end && tEnd > s.start));
-                      if (hasOverlap) continue; // 時段重疊，跳過
-
-                      // 💡 法規防呆：計算今日該駕駛已排定的總工時
+                      if (hasOverlap) continue;
+              
                       let totalMinutesAssigned = sched.reduce((total, s) => total + (s.end - s.start), 0);
                       let newTripDuration = tEnd - tStart;
                       
-                      // 單日總工時超過 10 小時 (600分鐘) 發出警告，超過 12 小時 (720分鐘) 強制阻擋
-                      if (totalMinutesAssigned + newTripDuration > 720) {
-                          continue; // 違反單日 12H 工時上限，換下一位司機
-                      }
-
-                      // 💡 檢查是否有連續駕車達 4 小時 (240分鐘) 未休息 30 分鐘的情況
-                      // (此處以簡易判定：若單趟車程或緊湊接車大於 240 分鐘，將其排除)
-                      if (newTripDuration >= 240 || (sched.length > 0 && (tStart - sched[sched.length-1].end < 30) && (totalMinutesAssigned + newTripDuration >= 240))) {
-                           continue; 
-                      }
-
-              // 尋找最佳車輛
+                      if (totalMinutesAssigned + newTripDuration > 720) continue;
+                      if (newTripDuration >= 240 || (sched.length > 0 && (tStart - sched[sched.length-1].end < 30) && (totalMinutesAssigned + newTripDuration >= 240))) continue;
+              
+                      // 💡 [修正] 找到符合條件的駕駛後，必須賦值並跳出迴圈！
+                      bestDriver = d;
+                      break; 
+                  }
+              
+                  // 💡 [修正] 紀錄已指派的駕駛排班，避免後續車趟重複派給同一個人
+                  if (bestDriver) {
+                      assigned_driver = bestDriver.name;
+                      assigned_empid = bestDriver.empId;
+                      if (!driverSchedules[bestDriver.empId]) driverSchedules[bestDriver.empId] = [];
+                      driverSchedules[bestDriver.empId].push({start: tStart, end: tEnd});
+                      changes++; // 只要有指派駕駛或車輛就算有異動
+                  }
+              } // 💡 [修正] 這裡必須閉合駕駛迴圈！
+              
+              // 尋找最佳車輛 (應該與尋找駕駛平行)
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
                   let bestVehicle = null;
                   for (let v of currentAvailableVehicles) {
