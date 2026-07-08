@@ -216,8 +216,10 @@
         }
 
     }).catch((err) => {
-        console.error("未登入，已退回登入頁面", err);
-    });
+    console.error("未登入，已退回登入頁面", err);
+    const loader = document.getElementById('global-loader');
+    if (loader) loader.remove(); // 確保發生錯誤時也能解除卡死狀態
+});
   </script>
 </body>
 </html>
