@@ -123,9 +123,17 @@
 
   <script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, doc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { collection, query, doc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
 
+    // 計算本週第一天 (假設週一為一週開始)
+    const today = new Date();
+    const firstDay = new Date(today.setDate(today.getDate() - today.getDay() + 1)).toISOString().split('T')[0];
+    
+    // 只抓取本週以後的車趟
+    const q = query(collection(db, "daily_dispatches"), where("date", ">=", firstDay));
+    const snap = await getDocs(q);
+    
     // 💡 修正：補上計算工時必須用到的時間轉換函數
     const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
