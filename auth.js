@@ -67,52 +67,26 @@ export function logout() {
 }
 
 /**
- * 驗證登入狀態並取得使用者權限
- * @param {Array} allowedRoles - 允許存取此頁面的角色陣列，留空代表登入即可
+ * 暫時修改登出功能
+ */
+export function logout() {
+    alert("目前為免登入測試模式，無需登出。");
+    // window.location.href = 'index.html';
+}
+
+/**
+ * 暫時移除登入：假造一個最高權限的使用者物件
  */
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            unsubscribe(); // 檢查完就解除監聽，避免重複觸發
-            
-            if (firebaseUser) {
-                try {
-                    // 💡 退回標準做法：使用 Firebase 驗證的 UID，去 'users' 集合找權限
-                    const userRef = doc(db, "users", firebaseUser.uid);
-                    const userSnap = await getDoc(userRef);
-                    
-                    if (userSnap.exists()) {
-                        const userData = userSnap.data();
-                        const user = {
-                            uid: firebaseUser.uid,
-                            name: userData.name || "未知員工",
-                            role: userData.role || "未授權"
-                        };
-
-                        if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-                            alert('權限不足，無法訪問此模組！');
-                            window.location.href = 'index.html';
-                            reject(new Error('權限不足'));
-                        } else {
-                            resolve(user); 
-                        }
-                    } else {
-                        // 提示文字也改回 users 集合
-                        alert("登入失敗：在資料庫 (users) 中找不到符合您 UID 的權限資料！請確認是否建檔錯誤。");
-                        console.error("在資料庫中找不到該員工資料");
-                        logout();
-                        reject(new Error('資料缺失'));
-                    }
-                } catch (error) {
-                    alert("讀取權限失敗（可能是 Firebase Rules 沒開）：" + error.message);
-                    console.error("獲取權限時發生錯誤:", error);
-                    logout(); 
-                    reject(error);
-                }
-            } else {
-                window.location.href = 'login.html';
-                reject(new Error('未登入'));
-            }
-        });
+        // 直接回傳一個虛擬的最高權限帳號，不呼叫 Firebase 驗證
+        const mockUser = {
+            uid: "bypass-test-uid-001",
+            name: "開發測試員",
+            role: "總公司" // 設定為最高權限，確保所有模組皆可見
+        };
+        
+        console.warn("⚠️ 目前為免登入測試模式");
+        resolve(mockUser); 
     });
 }
