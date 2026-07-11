@@ -311,10 +311,9 @@
       });
 
       // ==========================================
-      // ✨ 終極版智慧調度 (具備法規與人體工學 AI 防呆)
+      // ✨ 終極版智慧調度 (嚴格落實：8H駕駛、12H總工時、無兩頭班)
       // ==========================================
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
-          // 同樣只對 currentDayTrips 進行調度
           const tripsToDispatch = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
           if (tripsToDispatch.length === 0) return alert("畫面中無空缺車趟可調度！");
           
@@ -329,38 +328,58 @@
               let assigned_vehicle = trip.assigned_vehicle;
 
               let tStart = timeToMins(trip.departure_time);
-              let tEnd = timeToMins(trip.arrival_time || trip.departure_time) + 20; // 強制預留 20 分鐘緩衝
+              let tEnd = timeToMins(trip.arrival_time || trip.departure_time) + 20; // 強制預留 20 分鐘折返緩衝
 
-             // 尋找最佳駕駛
+              // 🚗 尋找合法駕駛 (最核心演算法)
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
                   let bestDriver = null;
                   for (let d of currentAvailableDrivers) {
                       let sched = driverSchedules[d.empId] || [];
+                      
+                      // 1. 時間重疊防呆
                       let hasOverlap = sched.some(s => (tStart < s.end && tEnd > s.start));
                       if (hasOverlap) continue;
               
-                      let totalMinutesAssigned = sched.reduce((total, s) => total + (s.end - s.start), 0);
+                      // 2. 核心法規 A：純駕駛時間 <= 8 小時 (480 mins)
+                      let totalDrivingMinutes = sched.reduce((total, s) => total + (s.end - s.start), 0);
                       let newTripDuration = tEnd - tStart;
-                      
-                      if (totalMinutesAssigned + newTripDuration > 720) continue;
-                      if (newTripDuration >= 240 || (sched.length > 0 && (tStart - sched[sched.length-1].end < 30) && (totalMinutesAssigned + newTripDuration >= 240))) continue;
+                      if (totalDrivingMinutes + newTripDuration > 480) continue; 
               
-                      // 💡 [修正] 找到符合條件的駕駛後，必須賦值並跳出迴圈！
+                      // 3. 核心法規 B：單日最高總工時跨度 <= 12 小時 (720 mins)
+                      let minStart = sched.length > 0 ? Math.min(...sched.map(s => s.start), tStart) : tStart;
+                      let maxEnd = sched.length > 0 ? Math.max(...sched.map(s => s.end), tEnd) : tEnd;
+                      let totalWorkSpan = maxEnd - minStart;
+                      if (totalWorkSpan > 720) continue;
+
+                      // 4. 人性化核心 C：徹底廢除兩頭班 (防止大空班)
+                      // 將已排定趟次與當前這趟合併排序，計算中斷時間。若任一中斷超過 3 小時 (180 mins)，則視為違法兩頭班，拒絕派車。
+                      let isValidContinuous = true;
+                      if (sched.length > 0) {
+                          let combinedTrips = [...sched, {start: tStart, end: tEnd}].sort((a, b) => a.start - b.start);
+                          for (let i = 0; i < combinedTrips.length - 1; i++) {
+                              let gap = combinedTrips[i+1].start - combinedTrips[i].end;
+                              if (gap > 180) { // 空班超過 3 小時
+                                  isValidContinuous = false;
+                                  break;
+                              }
+                          }
+                      }
+                      if (!isValidContinuous) continue; // 不符合連續班精神，換下一位司機評估
+
                       bestDriver = d;
-                      break; 
+                      break; // 找到完美符合勞基法的駕駛，停止尋找
                   }
               
-                  // 💡 [修正] 紀錄已指派的駕駛排班，避免後續車趟重複派給同一個人
                   if (bestDriver) {
                       assigned_driver = bestDriver.name;
                       assigned_empid = bestDriver.empId;
                       if (!driverSchedules[bestDriver.empId]) driverSchedules[bestDriver.empId] = [];
                       driverSchedules[bestDriver.empId].push({start: tStart, end: tEnd});
-                      changes++; // 只要有指派駕駛或車輛就算有異動
+                      changes++; 
                   }
-              } // 💡 [修正] 這裡必須閉合駕駛迴圈！
+              }
               
-              // 尋找最佳車輛 (應該與尋找駕駛平行)
+              // 🚌 尋找可用車輛
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
                   let bestVehicle = null;
                   for (let v of currentAvailableVehicles) {
@@ -376,6 +395,7 @@
                   }
               }
 
+              // 若有變動，加入批次更新
               if (assigned_driver !== trip.assigned_driver || assigned_vehicle !== trip.assigned_vehicle) {
                   batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver, assigned_empid, assigned_vehicle });
               }
@@ -383,9 +403,9 @@
           
           if (changes > 0) { 
               await batch.commit(); 
-              alert(`✨ 智慧調度完成！已自動指派 ${changes} 個空缺。\n(已過濾班別衝突、重疊車次並限制 12H 總工時)`); 
+              alert(`✨ 智慧調度完成！已成功指派 ${changes} 個空缺。\n(系統已嚴格把關：駕駛 8H、總工時 12H，且完全排除兩頭班)`); 
           } else {
-              alert("目前無合適的空缺車趟，或無符合勞基法規範之駕駛/車輛可供調度。");
+              alert("目前無符合勞基法規範之駕駛/車輛可供調度。\n(可能因總工時將超時，或會產生不合法的大空班)");
           }
       });
 
