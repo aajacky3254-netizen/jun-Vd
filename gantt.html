@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>豐東交通客運 - 視覺化圖形調度看板 (甘特圖)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; }
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    
+    /* 甘特圖時間軸容器 */
+    .gantt-container { display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto; margin-top: 20px; border: 1px solid #e2e8f0; }
+    .gantt-header { display: flex; background: #1e293b; color: #fff; font-weight: bold; position: sticky; top: 0; z-index: 20; }
+    .gantt-row { display: flex; border-bottom: 1px solid #e2e8f0; min-height: 70px; transition: background 0.2s; }
+    .gantt-row:hover { background-color: #f8fafc; }
+    
+    /* 左側駕駛固定欄 */
+    .gantt-label-col { width: 180px; min-width: 180px; padding: 12px; display: flex; flex-direction: column; justify-content: center; background: #f8fafc; border-right: 2px solid #cbd5e1; font-weight: bold; position: sticky; left: 0; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.02); }
+    
+    /* 右側 24 小時時間軸 */
+    .gantt-timeline-col { flex-grow: 1; position: relative; min-width: 1200px; background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px); background-size: calc(100% / 24) 100%; }
+    
+    /* 時間軸刻度數字 */
+    .hour-scale { width: calc(100% / 24); text-align: left; padding-left: 4px; font-size: 12px; border-right: 1px solid #334155; box-sizing: border-box; py: 8px; }
+    
+    /* 車趟甘特圖方塊 */
+    .trip-block { position: absolute; height: 50px; top: 10px; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; color: white; cursor: move; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s, box-shadow 0.1s; user-select: none; z-index: 5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trip-block:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    
+    /* 拖曳中目標列高亮效果 */
+    .drag-over { background-color: #f0fdf4 !important; border-left: 4px solid #22c55e; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar" id="main-nav"></nav>
+
+  <div class="p-6">
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex items-center space-x-4">
+        <h2 class="text-2xl font-bold text-gray-800">📊 圖形化拖曳排班動態畫布</h2>
+        <input type="date" id="ganttDate" class="border-2 border-blue-300 rounded-lg px-4 py-2 outline-none font-bold text-blue-700 bg-blue-50 shadow-sm">
+        <span id="db-status" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
+      </div>
+      <div class="text-sm text-gray-500 font-bold bg-white px-4 py-2 rounded-lg border border-gray-200">
+        💡 <strong>操作提示：</strong>用滑鼠按住車趟方塊，可「直接上下拖曳」至別的駕駛長列中進行即時改派。
+      </div>
+    </div>
+
+    <div class="gantt-container">
+      <div class="gantt-header">
+        <div class="gantt-label-col bg-slate-800 text-amber-400 text-center">排班對象 (人/車)</div>
+        <div class="gantt-timeline-col flex flex-row text-slate-400" id="timelineScale">
+          </div>
+      </div>
+
+      <div id="ganttBody" class="bg-white">
+        </div>
+    </div>
+  </div>
+
+<script type="module">
+  import { db } from './firebase-init.js';
+  import { collection, query, onSnapshot, doc, updateDoc, getDoc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { checkAuthAndGetRole, renderNavbar } from './auth.js';
+
+  const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+  checkAuthAndGetRole(['總公司', '站長', '調度員']).then(async (user) => {
+      renderNavbar(user, 'gantt'); // 假設導航列代碼為 gantt
+      
+      const dateInput = document.getElementById('ganttDate');
+      dateInput.value = new Date().toISOString().split('T')[0];
+      
+      const dbStatusEl = document.getElementById('db-status');
+      const ganttBody = document.getElementById('ganttBody');
+
+      // 生成 24 小時制時間軸刻度
+      const scaleContainer = document.getElementById('timelineScale');
+      for(let i=0; i<24; i++) {
+          scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`;
+      }
+
+      let currentAvailableDrivers = [];
+      let unsubscribeDispatch = null;
+
+      // 載入當天出勤駕駛陣列
+      async function loadActiveDrivers(selectedDate) {
+          const d = new Date(selectedDate);
+          const target = new Date(d.valueOf()); 
+          target.setDate(target.getDate() - ((d.getDay() + 6) % 7) + 3);
+          const weekId = `${d.getFullYear()}-W${(1 + Math.ceil((target.valueOf() - target.setMonth(0, 1)) / 604800000)).toString().padStart(2, '0')}`;
+          const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()];
+
+          currentAvailableDrivers = [];
+          
+          const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+          if (docSnap.exists() && docSnap.data().roster) {
+              const roster = docSnap.data().roster;
+              for (let dId in roster) {
+                  if (roster[dId][dayKey] && !roster[dId][dayKey].includes("OFF")) {
+                      currentAvailableDrivers.push({ empId: dId, name: roster[dId].name, shift: roster[dId][dayKey] });
+                  }
+              }
+          }
+          currentAvailableDrivers.sort((a, b) => a.empId.localeCompare(b.empId));
+      }
+
+      // 核心渲染與監聽
+      function streamGanttData(dateStr) {
+          if (unsubscribeDispatch) unsubscribeDispatch();
+          
+          const q = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
+          
+          unsubscribeDispatch = onSnapshot(q, async (snapshot) => {
+              await loadActiveDrivers(dateStr);
+              dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+              dbStatusEl.innerText = "畫布連線正常";
+
+              const trips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+              // 清空畫布
+              ganttBody.innerHTML = "";
+
+              // 1. 渲染【尚未指派車趟】緩衝列
+              renderGanttRow("尚未指派", "尚未指派", "請拖曳此處車趟派發", trips.filter(t => t.assigned_driver === "尚未指派"));
+
+              // 2. 依序渲染【在職且當天有班】駕駛列
+              currentAvailableDrivers.forEach(driver => {
+                  const driverTrips = trips.filter(t => t.assigned_driver === driver.name || t.assigned_empid === driver.empId);
+                  renderGanttRow(driver.empId, driver.name, driver.shift, driverTrips);
+              });
+
+              setupDragAndDropEvents();
+          });
+      }
+
+      // 渲染單一整行駕駛與內含方塊的 HTML 函式
+      function renderGanttRow(empId, name, shiftText, rowTrips) {
+          const isUnassigned = empId === "尚未指派";
+          const labelBg = isUnassigned ? "bg-amber-50 text-amber-800" : "bg-slate-50 text-slate-800";
+          
+          let rowHtml = `
+            <div class="gantt-row drop-zone" data-empid="${empId}" data-name="${name}">
+              <div class="gantt-label-col ${labelBg}">
+                <div class="text-base">${name}</div>
+                <div class="text-xs text-gray-400 font-mono">${empId !== name ? 'ID: ' + empId : ''}</div>
+                <div class="text-xs text-emerald-600 mt-1">${shiftText.split(' ')[0]}</div>
+              </div>
+              <div class="gantt-timeline-col">
+          `;
+
+          rowTrips.forEach(trip => {
+              const startMin = timeToMins(trip.departure_time);
+              const endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; // 包含20分緩衝時間
+              
+              // 計算水平百分比位置
+              const leftPercent = (startMin / 1440) * 100;
+              const widthPercent = ((endMin - startMin) / 1440) * 100;
+
+              // 依據路線上色
+              let colorClass = "bg-blue-600 border-blue-700";
+              if (trip.route.includes("N")) colorClass = "bg-purple-600 border-purple-700";
+              else if (trip.route === "TXL") colorClass = "bg-orange-600 border-orange-700";
+              else if (isUnassigned) colorClass = "bg-rose-500 border-rose-600 animate-pulse";
+
+              rowHtml += `
+                <div class="trip-block ${colorClass} border" 
+                     draggable="true" 
+                     data-tripid="${trip.id}"
+                     style="left: ${leftPercent}%; width: ${widthPercent}%;"
+                     title="車趟：${trip.route} (${trip.departure_time}~${trip.arrival_time || '未定'}) 站點：${trip.start_point} ➔ ${trip.end_point}">
+                  <div class="truncate font-black">${trip.route}: ${trip.start_point}➔${trip.end_point}</div>
+                  <div class="text-[10px] opacity-90 font-mono">${trip.departure_time}➔${trip.assigned_vehicle}</div>
+                </div>
+              `;
+          });
+
+          rowHtml += `</div></div>`;
+          ganttBody.innerHTML += rowHtml;
+      }
+
+      // ==========================================
+      // 🎛️ HTML5 原生拖曳引擎事件綁定 (IVU 圖形改派核心)
+      // ==========================================
+      function setupDragAndDropEvents() {
+          const blocks = document.querySelectorAll('.trip-block');
+          const zones = document.querySelectorAll('.drop-zone');
+
+          blocks.forEach(block => {
+              block.addEventListener('dragstart', (e) => {
+                  e.dataTransfer.setData('text/plain', e.target.dataset.tripid);
+                  e.target.style.opacity = '0.4';
+              });
+              block.addEventListener('dragend', (e) => {
+                  e.target.style.opacity = '1.4';
+              });
+          });
+
+          zones.forEach(zone => {
+              zone.addEventListener('dragover', (e) => {
+                  e.preventDefault(); // 必須阻擋預設行為才能觸發 drop
+                  zone.classList.add('drag-over');
+              });
+              zone.addEventListener('dragleave', () => {
+                  zone.classList.remove('drag-over');
+              });
+              zone.addEventListener('drop', async (e) => {
+                  e.preventDefault();
+                  zone.classList.remove('drag-over');
+                  
+                  const tripId = e.dataTransfer.getData('text/plain');
+                  const targetEmpId = zone.dataset.empid;
+                  const targetName = zone.dataset.name;
+
+                  if (!tripId) return;
+
+                  try {
+                      dbStatusEl.innerText = "⏳ 雲端同步中...";
+                      const tripRef = doc(db, "daily_dispatches", tripId);
+                      
+                      if (targetEmpId === "尚未指派") {
+                          // 還原成尚未指派狀態
+                          await updateDoc(tripRef, {
+                              assigned_driver: "尚未指派",
+                              assigned_empid: ""
+                          });
+                      } else {
+                          // 改派給目標選定駕駛
+                          await updateDoc(tripRef, {
+                              assigned_driver: targetName,
+                              assigned_empid: targetEmpId
+                          });
+                      }
+                  } catch (err) {
+                      console.error("甘特圖改派失敗:", err);
+                      alert("系統改派同步失敗，請檢查網路連線！");
+                  }
+              });
+          });
+      }
+
+      // 監聽日期變更
+      dateInput.addEventListener('change', (e) => streamGanttData(e.target.value));
+      // 初始啟動
+      streamGanttData(dateInput.value);
+
+  }).catch(err => {
+      console.error("權限驗證失敗:", err);
+      ganttBody.innerHTML = `<tr><td class="text-center py-10 text-red-500 font-bold">請先完成登入驗證！</td></tr>`;
+  });
+</script>
+</body>
+</html>
