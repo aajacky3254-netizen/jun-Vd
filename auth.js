@@ -10,7 +10,6 @@ export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
 
-    // 確保每一頁的標籤與權限皆統一由這裡控制
     const menuItems = [
         { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['總公司', '站長', '調度員'] },
         { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['總公司', '站長', '調度員'] },
@@ -66,14 +65,12 @@ export function logout() {
  * 暫時移除登入：假造一個最高權限的使用者物件 (測試模式)
  */
 export function checkAuthAndGetRole(allowedRoles = []) {
-    return new Promise((resolve, reject) => {
-        // 直接回傳一個虛擬的最高權限帳號，不呼叫 Firebase 驗證
+    return new Promise((resolve) => {
         const mockUser = {
             uid: "bypass-test-uid-001",
             name: "開發測試員",
-            role: "總公司" // 設定為最高權限，確保所有模組皆可見
+            role: "總公司" 
         };
-        
         console.warn("⚠️ 目前為免登入測試模式");
         resolve(mockUser); 
     });
