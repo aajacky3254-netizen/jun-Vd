@@ -56,26 +56,14 @@ export function renderNavbar(user, activePageId) {
 }
 
 /**
- * 登出功能
- */
-export function logout() {
-    signOut(auth).then(() => {
-        window.location.href = 'login.html'; // 登出後導回登入頁
-    }).catch((error) => {
-        console.error("登出失敗:", error);
-    });
-}
-
-/**
- * 暫時修改登出功能
+ * 暫時修改登出功能 (測試模式)
  */
 export function logout() {
     alert("目前為免登入測試模式，無需登出。");
-    // window.location.href = 'index.html';
 }
 
 /**
- * 暫時移除登入：假造一個最高權限的使用者物件
+ * 暫時移除登入：假造一個最高權限的使用者物件 (測試模式)
  */
 export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
