@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>車輛調度系統 - 週班表管理 (連續班制穩定版)</title>
+    <title>車輛調度系統 - 週班表管理 (固定替休升級版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
@@ -13,18 +13,20 @@
         .navbar a.nav-link:hover { background-color: #374151; color: white; }
         .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
 
-
         table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         th { background-color: #f8fafc; color: #374151; font-weight: bold; padding: 12px; border: 1px solid #e2e8f0; font-size: 14px; text-align: center; }
         td { border: 1px solid #e2e8f0; padding: 0; } 
         
         select { width: 100%; height: 48px; border: none; outline: none; text-align: center; font-weight: bold; cursor: pointer; appearance: none; -webkit-appearance: none; padding: 0 10px; }
+        
+        /* 班別色彩管理 */
         .shift-M { background-color: #93c5fd; color: #1e3a8a; }   /* 早班 */
         .shift-A { background-color: #fde047; color: #854d0e; }   /* 中班 */
         .shift-E { background-color: #fca5a5; color: #7f1d1d; }   /* 晚班 */
         .shift-N { background-color: #c084fc; color: #4c1d95; }   /* 夜班 */
         .shift-OFF { background-color: #e5e7eb; color: #374151; } /* 休假 */
         .shift-STB { background-color: #cbd5e1; color: #334155; } /* 待命 */
+        .shift-REL { background-color: #f97316; color: #ffffff; } /* 🚀 替班 (專職替休) */
         
         .driver-cell { padding: 0 16px; text-align: left; font-weight: bold; color: #1f2937; background-color: #f8fafc; }
         .emp-id { color: #6b7280; font-family: monospace; margin-right: 8px; font-size: 13px; }
@@ -43,9 +45,13 @@
             </div>
             <div class="flex space-x-3">
                 <button id="btn-copy-prev" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="複製上週班表">📋 複製上週</button>
-                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="依據絕對時間軸自動輪替">✨ 智慧連續輪班</button>
+                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="依據平日/假日模式自動排休與替班">✨ 智慧固定替休制</button>
                 <button id="btn-save" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow-sm font-bold flex items-center transition">💾 儲存並發布</button>
             </div>
+        </div>
+
+        <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 shadow-sm flex flex-wrap gap-x-6 gap-y-2 text-sm text-orange-900 font-bold">
+            💡 <strong>排班策略提示：</strong>已導入「專職替班駕駛 (Relief Drivers)」模式。請利用「替班 (REL)」選項來填補週末或平日的休假空缺，維持平日與假日班表的固定規律。
         </div>
 
         <div class="overflow-x-auto rounded-lg shadow border border-gray-200">
@@ -60,9 +66,6 @@
                 </thead>
                 <tbody id="roster-body"></tbody>
             </table>
-            <div class="p-3 bg-white text-sm text-gray-500 border-t border-gray-200">
-                💡 <strong>系統提示：</strong>採用「絕對時間軸」排班，跨週保證連續不斷層。老闆帳號 (0000) 將自動鎖定為待命 (STB)。
-            </div>
         </div>
     </div>
 
@@ -79,11 +82,9 @@
 
         const dbStatusEl = document.getElementById('db-status');
         let isDirty = false;
-        // 🎯 修正點 1：即時無感自動存檔引擎 (解決資料不見的問題)
+        
         document.getElementById('roster-table').addEventListener('change', (e) => {
-            if (e.target.tagName === 'SELECT') {
-                silentAutoSave(); // 當任何下拉選單變更，立即在背景存檔
-            }
+            if (e.target.tagName === 'SELECT') silentAutoSave();
         });
 
         async function silentAutoSave() {
@@ -93,38 +94,33 @@
                 daysOfWeek.forEach(day => {
                     const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
                     const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                    if (selectEl) {
-                        rosterToSave[driver.empId][day] = selectEl.value;
-                    }
+                    if (selectEl) rosterToSave[driver.empId][day] = selectEl.value;
                 });
             });
 
             try {
-                // 使用 merge: true 確保不會覆蓋其他欄位，並即時寫入資料庫
                 await setDoc(doc(db, "weekly_schedules", currentWeekId), { 
                     roster: rosterToSave, 
                     updatedAt: new Date().toISOString() 
                 }, { merge: true });
-                
-                // 讓連線燈號閃爍綠色，提示已自動儲存
                 dbStatusEl.innerText = "✅ 即時已存檔";
                 setTimeout(() => dbStatusEl.innerText = "資料庫已連線", 2000);
-            } catch (err) {
-                console.error("背景存檔失敗:", err);
-            }
+            } catch (err) { console.error("背景存檔失敗:", err); }
         }
 
         let currentDrivers = [];
         let currentWeekId = "";
         const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
+        // 🚀 加入全新的 REL (替班) 選項
         const shiftOptions = [
             { val: "M (早)", class: "shift-M" },
             { val: "A (中)", class: "shift-A" },
             { val: "E (晚)", class: "shift-E" },
             { val: "N (夜)", class: "shift-N" },
-            { val: "OFF (休)", class: "shift-OFF" },
-            { val: "STB (待命)", class: "shift-STB" }
+            { val: "REL (替班)", class: "shift-REL" }, 
+            { val: "STB (待命)", class: "shift-STB" },
+            { val: "OFF (休)", class: "shift-OFF" }
         ];
 
         window.getShiftClass = function(val) {
@@ -192,7 +188,7 @@
                 optionsHtml += `<option value="${opt.val}" ${isSelected ? 'selected' : ''}>${opt.val}</option>`;
             });
             const safeEmpId = String(empId).replace(/[^a-zA-Z0-9]/g, '_');
-            return `<select id="sel-${safeEmpId}-${dayKey}" class="${currentClass}" onchange="this.className = window.getShiftClass(this.value)">${optionsHtml}</select>`;
+            return `<select id="sel-${safeEmpId}-${dayKey}" class="${currentClass}" onchange="this.className = window.getShiftClass(this.value); silentAutoSave();">${optionsHtml}</select>`;
         }
 
         async function loadSchedule(weekId) {
@@ -218,45 +214,63 @@
         }
 
         // ==========================================
-        // ✨ 智慧動態輪班 (修正跨週亂跳問題，導入老闆特權)
+        // 🚀 智慧固定替休制 (解決平日假日固定不亂掉的問題)
         // ==========================================
         document.getElementById('btn-auto').addEventListener('click', () => {
-            if(!confirm("確定要執行「智慧連續輪班」嗎？\n系統將使用絕對時間軸排班，確保跨週班表完美銜接。老闆(0000)將自動設定為待命。")) return;
+            if(!confirm("確定要執行「智慧固定替休制」排班嗎？\n系統將自動劃分「平日固定班」與「專職替班」，完美兼顧法定休假與您的固定班表習慣！")) return;
             
-            const healthyPattern = ['M (早)', 'M (早)', 'A (中)', 'E (晚)', 'E (晚)', 'N (夜)', 'OFF (休)'];
-            const weekNum = parseInt(currentWeekId.split('W')[1], 10) || 0;
+            const totalDrivers = currentDrivers.filter(d => !(d.empId === '0000(jun)' || d.empId === '0000' || d.name.includes('老闆')));
+            // 將駕駛分為兩批：70% 負責平日主力，30% 負責假日替班
+            const regularCount = Math.ceil(totalDrivers.length * 0.7); 
 
-            currentDrivers.forEach((driver, driverIndex) => {
+            currentDrivers.forEach((driver) => {
+                const isBoss = (driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.includes('老闆') || driver.name.includes('jun'));
+                const shifts = ['M (早)', 'A (中)', 'E (晚)'];
+                
                 daysOfWeek.forEach((day, dayIndex) => {
                     const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
                     const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
                     
                     if(selectEl) {
-                        // 👑 老闆(jun) 特權：不參與輪班，固定待命
-                        if (driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.includes('老闆') || driver.name.includes('jun')) {
+                        if (isBoss) {
                             selectEl.value = 'STB (待命)';
-                            selectEl.className = window.getShiftClass('STB (待命)');
                         } else {
-                            // 🚀 核心修正：絕對時間計日法 (Absolute Continuous Day)
-                            // weekNum * 7 加上 星期幾(dayIndex)，保證時間軸是一直線遞增，跨週完全不會斷層！
-                            const absoluteDay = (weekNum * 7) + dayIndex;
+                            const isWeekend = (day === 'sat' || day === 'sun');
+                            const driverIdx = totalDrivers.findIndex(d => d.empId === driver.empId);
                             
-                            // driverIndex * 2 的目的是讓不同司機從陣列的不同起點開始，避免全公司同一天休假
-                            const shiftIndex = (absoluteDay + (driverIndex * 2)) % healthyPattern.length;
-                            
-                            const assignedShift = healthyPattern[shiftIndex];
-                            selectEl.value = assignedShift;
-                            selectEl.className = window.getShiftClass(assignedShift);
+                            if (driverIdx < regularCount) {
+                                // 👉 平日主力駕駛：一到五固定排班，六日固定休假
+                                if (isWeekend) {
+                                    selectEl.value = 'OFF (休)';
+                                } else {
+                                    selectEl.value = shifts[driverIdx % 3]; // 固定早中晚
+                                }
+                            } else {
+                                // 👉 專職替班駕駛：六日專門吃下主力休假的車趟，平日排休
+                                const reliefSubIdx = driverIdx - regularCount;
+                                // 分散平日休假：一半休一二，一半休三四
+                                const offDays = (reliefSubIdx % 2 === 0) ? ['mon', 'tue'] : ['wed', 'thu'];
+                                
+                                if (offDays.includes(day)) {
+                                    selectEl.value = 'OFF (休)';
+                                } else if (isWeekend) {
+                                    selectEl.value = 'REL (替班)'; // 週末專職替班
+                                } else {
+                                    selectEl.value = 'STB (待命)'; // 其他平日待命支援
+                                }
+                            }
                         }
+                        selectEl.className = window.getShiftClass(selectEl.value);
                     }
                 });
             });
             isDirty = true;
-            alert("✅ 動態輪班已完美套用！跨週跳動 Bug 已修復，請點擊「儲存」進行法規檢核。");
+            silentAutoSave();
+            alert("✅ 固定替休排班已完成！\n70%駕駛設為平日主力(六日休)\n30%駕駛設為替班支援(平日休)。");
         });
 
         // ==========================================
-        // 💾 儲存與嚴格防呆審核 (維持不變)
+        // 💾 儲存與嚴格防呆審核
         // ==========================================
         document.getElementById('btn-save').addEventListener('click', async () => {
             const rosterToSave = {};
@@ -280,15 +294,14 @@
                             hasViolation = true;
                             violationMsg += `⚠️ [${driver.name}] 違規：前日晚班(E)，今日不可接早/中班，違反11小時休息間隔！\n`;
                         }
-                        if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)")) {
+                        if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)" || currentShift === "REL (替班)")) {
                             hasViolation = true;
-                            violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，今日不可接早/中/晚班，違反11小時休息間隔！\n`;
+                            violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，隔日必須排休或待命，不可連續出勤！\n`;
                         }
                         prevShift = currentShift; 
                     }
                 });
 
-                // 老闆不需要七休一限制
                 const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.includes('老闆');
                 if (offCount === 0 && !isBoss) {
                     hasViolation = true;
@@ -336,6 +349,7 @@
                         });
                     });
                     isDirty = true;
+                    silentAutoSave();
                     alert(`✅ 已載入上週 (${prevWeekId}) 班表！`);
                 } else {
                     alert(`⚠️ 雲端找不到上週 (${prevWeekId}) 紀錄！`);
