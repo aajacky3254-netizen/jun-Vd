@@ -381,9 +381,12 @@
           `;
 
           rowTrips.forEach(trip => {
-              const startMin = getBusinessMin(trip.departure_time);
-              let endMin = getBusinessMin(trip.arrival_time || trip.departure_time) + 20; 
-              if (endMin < startMin) endMin += 1440;
+              let tStart = timeToMins(trip.departure_time);
+              let tEnd = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
+              if (tEnd < tStart) tEnd += 1440; // 👈 必須補上這一行，修正跨日負數Bug
+              
+              let tripDuration = tEnd - tStart;
+              if (totalDriving + tripDuration > 480) continue;
 
               // 🚀 改為除以 1680 (28小時)
               const leftPercent = ((startMin - 240) / 1680) * 100;
