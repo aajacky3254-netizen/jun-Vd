@@ -8,6 +8,10 @@
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; }
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
+    .navbar a.nav-link:hover { background-color: #374151; color: white; }
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
     
     /* 甘特圖時間軸容器 */
     .gantt-container { display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto; border: 1px solid #e2e8f0; }
@@ -226,7 +230,9 @@
               renderGanttRow("尚未指派", "尚未指派", "請拖曳派發", currentTrips.filter(t => t.assigned_driver === "尚未指派"));
               currentAvailableDrivers.forEach(driver => {
                   const driverTrips = currentTrips.filter(t => t.assigned_driver === driver.name || t.assigned_empid === driver.id);
-                  renderGanttRow(driver.id, driver.name, driver.subtitle, driverTrips);
+                  // 🎯 修正點 3：駕駛名稱顯示為 員工編號 (姓名)
+                  const displayName = `${driver.id} (${driver.name})`;
+                  renderGanttRow(driver.id, displayName, driver.subtitle, driverTrips);
               });
           } else if (currentView === 'vehicle') {
               colHeaderTitle.innerText = "車號 (車型裝備)";
@@ -245,29 +251,29 @@
           
           let workSpanStr = "無趟次";
           let drivingTimeStr = "無趟次";
-          let breakWarningHtml = ""; // ✨ 大休警告標籤
+          let breakWarningHtml = ""; 
 
-          if (currentView === 'driver' && !isUnassigned) {
-              if (rowTrips.length > 0) {
-                  let minStart = 9999, maxEnd = 0;
-                  let totalDrivingMins = 0;
-                  
-                  // 依時間排序以進行大休運算
-                  let sortedTrips = [...rowTrips].sort((a,b) => timeToMins(a.departure_time) - timeToMins(b.departure_time));
-                  
-                  sortedTrips.forEach(t => {
-                      let st = timeToMins(t.departure_time);
-                      let et = timeToMins(t.arrival_time || t.departure_time) + 20; // 包含 20分 緩衝
-                      if(st < minStart) minStart = st;
-                      if(et > maxEnd) maxEnd = et; 
-                      totalDrivingMins += (et - st - 20); // 純駕駛時間(扣除緩衝)
-                  });
-                  
-                  let spanMins = maxEnd - minStart;
-                  workSpanStr = `${Math.floor(spanMins / 60)}h ${spanMins % 60}m`;
-                  drivingTimeStr = `${Math.floor(totalDrivingMins / 60)}h ${totalDrivingMins % 60}m`;
+          // 🎯 修正點 4：現在不論是「車輛」還是「駕駛」視角，都會計算「純駕駛時間」
+          if (!isUnassigned && rowTrips.length > 0) {
+              let minStart = 9999, maxEnd = 0;
+              let totalDrivingMins = 0;
+              
+              let sortedTrips = [...rowTrips].sort((a,b) => timeToMins(a.departure_time) - timeToMins(b.departure_time));
+              
+              sortedTrips.forEach(t => {
+                  let st = timeToMins(t.departure_time);
+                  let et = timeToMins(t.arrival_time || t.departure_time) + 20; // 緩衝20分
+                  if(st < minStart) minStart = st;
+                  if(et > maxEnd) maxEnd = et; 
+                  totalDrivingMins += (et - st - 20); // 純駕駛時間
+              });
+              
+              let spanMins = maxEnd - minStart;
+              workSpanStr = `${Math.floor(spanMins / 60)}h ${spanMins % 60}m`;
+              drivingTimeStr = `${Math.floor(totalDrivingMins / 60)}h ${totalDrivingMins % 60}m`;
 
-                  // ✨ 檢核 4.5 小時連續工作大休 (Gantt 視覺警告)
+              // 大休檢核 (僅駕駛視角需要)
+              if (currentView === 'driver') {
                   let blockStart = timeToMins(sortedTrips[0].departure_time);
                   let hasBreakViolation = false;
                   for (let i = 0; i < sortedTrips.length - 1; i++) {
@@ -291,21 +297,19 @@
             <div class="gantt-row drop-zone" data-targetid="${rowId}" data-targetname="${rowName.split(' ')[0]}">
               <div class="gantt-label-col ${labelBg}">
                 <div class="text-[14px] font-black text-slate-800 truncate" title="${rowName}">${rowName} ${breakWarningHtml}</div>
-                ${!isUnassigned && currentView === 'driver' ? `
-                    <div class="text-[11px] text-gray-500 font-bold mt-1 tracking-wide">${subtitleText}</div>
-                    <div class="mt-2 pt-2 border-t border-gray-200">
-                        <div class="text-[11px] text-blue-700 font-bold mb-0.5">⏱️ 總工時: ${workSpanStr}</div>
-                        <div class="text-[11px] text-orange-600 font-bold">🚌 總駕駛: ${drivingTimeStr}</div>
-                    </div>
-                ` : ''}
-                ${!isUnassigned && currentView === 'vehicle' ? `
-                    <div class="text-[11px] text-emerald-600 font-bold mt-1 tracking-wide">${subtitleText}</div>
+                <div class="text-[11px] text-gray-500 font-bold mt-1 tracking-wide">${subtitleText}</div>
+                
+                ${!isUnassigned ? `
+                <div class="mt-2 pt-2 border-t border-gray-200">
+                    ${currentView === 'driver' ? `<div class="text-[11px] text-blue-700 font-bold mb-0.5">⏱️ 總工時: ${workSpanStr}</div>` : ''}
+                    <div class="text-[11px] text-orange-600 font-bold">🚌 總駕駛: ${drivingTimeStr}</div>
+                </div>
                 ` : ''}
               </div>
               <div class="gantt-timeline-col">
           `;
 
-          // (以下方塊渲染區段與原本相同，拼接至 rowHtml 後回傳...)
+          // (維持原樣：方塊渲染與 HTML 閉合)
           rowTrips.forEach(trip => {
               const startMin = timeToMins(trip.departure_time);
               const endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
@@ -317,17 +321,12 @@
               else if (isUnassigned) colorClass = "bg-rose-500 border-rose-600 animate-pulse";
               let blockSubInfo = currentView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
               rowHtml += `
-                <div class="trip-block ${colorClass} border" 
-                     draggable="true" 
-                     data-tripid="${trip.db_id}"
-                     style="left: ${leftPercent}%; width: ${widthPercent}%;"
-                     title="車趟：${trip.route} (${trip.departure_time}~${trip.arrival_time})\n站點：${trip.start_point} ➔ ${trip.end_point}\n${blockSubInfo}">
+                <div class="trip-block ${colorClass} border" draggable="true" data-tripid="${trip.db_id}" style="left: ${leftPercent}%; width: ${widthPercent}%;">
                   <div class="truncate font-black">${trip.route}: ${trip.start_point}➔${trip.end_point}</div>
                   <div class="text-[10px] opacity-90 font-mono mt-0.5 tracking-wider">${trip.departure_time} ｜ ${blockSubInfo}</div>
                 </div>
               `;
           });
-
           rowHtml += `</div></div>`;
           ganttBody.innerHTML += rowHtml;
       }
