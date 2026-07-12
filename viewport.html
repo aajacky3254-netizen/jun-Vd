@@ -33,7 +33,7 @@
     .gantt-label-col { width: 190px; min-width: 190px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; background: #f8fafc; border-right: 2px solid #cbd5e1; position: sticky; left: 0; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.02); }
     .gantt-timeline-col { flex-grow: 1; position: relative; min-width: 1200px; background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px); background-size: calc(100% / 24) 100%; }
     .hour-scale { width: calc(100% / 24); text-align: left; padding-left: 4px; font-size: 12px; border-right: 1px solid #334155; box-sizing: border-box; padding-top: 8px; padding-bottom: 8px;}
-    .trip-block { position: absolute; height: 55px; top: 15px; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; color: white; cursor: move; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s, box-shadow 0.1s; user-select: none; z-index: 5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trip-block { position: absolute; height: 55px; top: 15px; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; color: white; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s, box-shadow 0.1s; user-select: none; z-index: 5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trip-block:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); z-index: 50; }
     .drag-over { background-color: #f0fdf4 !important; border-left: 4px solid #22c55e; }
     .view-btn { padding: 8px 16px; border-radius: 6px; font-weight: bold; font-size: 14px; transition: all 0.2s; }
@@ -44,12 +44,10 @@
 </head>
 <body>
 
-  <!-- 導覽列 -->
   <nav class="navbar no-print" id="main-nav"></nav>
 
   <div id="main-content" class="no-print mt-5">
     
-    <!-- ================= 全局總控台 ================= -->
     <div class="content-area mb-6">
       <div class="flex justify-between items-end mb-3 ml-2">
         <h2 class="text-2xl font-bold text-gray-800">🎛️ 綜合調度總控台</h2>
@@ -58,7 +56,6 @@
       
       <div class="control-panel">
         <div class="input-row w-full">
-            <!-- 全局日期：統一控制甘特圖與表格 -->
             <div class="input-group">
                 <label class="text-blue-800">🗓️ 全局排班日期</label>
                 <input type="date" id="globalDate" class="text-blue-700 font-bold border-2 border-blue-400 bg-blue-50 shadow-inner">
@@ -74,7 +71,6 @@
             
             <div style="flex-grow: 1;"></div> 
             
-            <!-- 操作按鈕群 -->
             <div class="flex gap-2">
                 <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg font-bold transition shadow-sm h-[46px]">✨ 智慧調度</button>
                 <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-4 rounded-lg font-bold transition shadow-sm h-[46px]">🧹 清空</button>
@@ -109,7 +105,6 @@
       </div>
     </div>
 
-    <!-- ================= 甘特圖區塊 (與表格共享資料) ================= -->
     <div class="content-area mb-8">
       <div class="flex justify-between items-center mb-3 ml-2">
         <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📊 圖形化動態畫布</h2>
@@ -124,10 +119,10 @@
           <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-yellow-400"></span>中班 (約09:30-18:30)</div>
           <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-400"></span>晚班 (約13:30-22:30)</div>
           <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-purple-400"></span>夜班 (約22:00-06:00)</div>
-          <div class="ml-auto text-gray-500">💡 按住車趟方塊可上下拖曳，即時連動下方表格。</div>
+          <div class="ml-auto text-gray-500">💡 按住車趟方塊可上下拖曳，滑鼠懸浮可查看詳細資訊。</div>
       </div>
 
-      <div class="gantt-container">
+      <div class="gantt-container relative">
         <div class="gantt-header">
           <div class="gantt-label-col bg-slate-800 text-amber-400 text-center text-sm" id="colHeaderTitle">排班對象</div>
           <div class="gantt-timeline-col flex flex-row text-slate-400" id="timelineScale"></div>
@@ -136,7 +131,6 @@
       </div>
     </div>
 
-    <!-- ================= 時刻表區塊 (與甘特圖共享資料) ================= -->
     <div class="content-area pb-12">
       <h2 class="text-xl font-bold text-gray-800 mb-3 ml-2">📝 詳細發車時刻表</h2>
       <table id="dispatchTable">
@@ -149,7 +143,6 @@
 
   </div>
 
-<!-- ================= 唯一核心 JavaScript (整合狀態與資料流) ================= -->
 <script type="module">
   import { db } from './firebase-init.js';
   import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -202,14 +195,21 @@
   const scaleContainer = document.getElementById('timelineScale');
   for(let i=0; i<24; i++) { scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`; }
 
+  // 🌟 建立全域的 Tooltip 懸浮提示框 (預設隱藏)
+  let tooltipEl = document.getElementById('gantt-tooltip');
+  if (!tooltipEl) {
+      tooltipEl = document.createElement('div');
+      tooltipEl.id = 'gantt-tooltip';
+      tooltipEl.className = 'fixed hidden bg-[#1f2937] text-gray-100 text-[13px] px-3.5 py-2.5 rounded shadow-2xl pointer-events-none z-[9999] border border-gray-600 leading-relaxed tracking-wide';
+      document.body.appendChild(tooltipEl);
+  }
+
   checkAuthAndGetRole(['總公司', '站長', '調度員']).then(async (user) => {
       renderNavbar(user, 'dispatch');
       
-      // 載入路線與站點選單
       onSnapshot(collection(db, "Routes"), snap => { document.getElementById('routesList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join(''); });
       onSnapshot(collection(db, "Stations"), snap => { document.getElementById('stationsList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join(''); });
 
-      // 取得單一日期的週表與 DayKey
       async function getDriverRosterForDate(dateObj) {
           const target = new Date(dateObj.valueOf());
           target.setDate(target.getDate() - ((dateObj.getDay() + 6) % 7) + 3);
@@ -219,14 +219,12 @@
           return docSnap.exists() ? { roster: docSnap.data().roster, dayKey } : null;
       }
 
-      // 🌟 核心：載入當日所有資源 (整合甘特圖與表格所需屬性)
       async function loadGlobalResources(selectedDateStr) {
           currentAvailableDrivers = []; 
           currentStandbyDrivers = [];
           currentAvailableVehicles = [];
           const addedDrivers = new Set();
           
-          // 載入車輛
           const vSnap = await getDocs(collection(db, "Vehicles"));
           vSnap.forEach(v => { 
               if (v.data().status === 'ready') {
@@ -240,7 +238,6 @@
           });
           currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
 
-          // 載入駕駛
           const currD = new Date(selectedDateStr);
           const prevD = new Date(selectedDateStr);
           prevD.setDate(prevD.getDate() - 1);
@@ -272,17 +269,15 @@
               const d = tempDrivers[key];
               const prevC = getChineseShift(d.prevShift);
               const currC = getChineseShift(d.shift);
-              d.subtitle = `昨[${prevC}] ➔ 今[${currC}]`; // 供甘特圖使用
+              d.subtitle = `昨[${prevC}] ➔ 今[${currC}]`; 
               currentAvailableDrivers.push(d);
           }
           currentAvailableDrivers.sort((a, b) => a.empId.localeCompare(b.empId));
           
-          // 更新緊急替補選單
           document.getElementById('stbDriver').innerHTML = '<option value="">2. 選擇待命 (STB) 駕駛</option>' + 
               currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">${d.empId} ${d.name}</option>`).join('');
       }
 
-      // 🌟 核心：監聽 Firestore 資料流 (雙邊同步的關鍵)
       function streamDispatchData(dateStr) {
           if (unsubscribeDispatch) unsubscribeDispatch(); 
           dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300";
@@ -298,13 +293,11 @@
               currentTrips = snapshot.docs.map(d => ({ id: d.id, ...d.data() })); 
               currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
               
-              // 雙邊畫面同時渲染！
               renderGantt();
               renderTable();
           });
       }
 
-      // === 甘特圖渲染邏輯 ===
       function renderGantt() {
           ganttBody.innerHTML = "";
           if (currentGanttView === 'driver') {
@@ -385,8 +378,16 @@
               const widthPercent = ((endMin - startMin) / 1440) * 100;
               let colorClass = trip.route.includes("N") ? "bg-purple-600 border-purple-700" : (trip.route === "TXL" ? "bg-orange-600 border-orange-700" : (isUnassigned ? "bg-rose-500 border-rose-600 animate-pulse" : "bg-blue-600 border-blue-700"));
               let blockSubInfo = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
+              
+              // 準備 Hover Tooltip 所需的數據寫入 Data Attributes
+              let timeStr = `${trip.departure_time}~${trip.arrival_time || '??:??'}`;
+              let stationsStr = `${trip.start_point} ➔ ${trip.end_point}`;
+              let resourceStr = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
+
               rowHtml += `
-                <div class="trip-block ${colorClass} border" draggable="true" data-tripid="${trip.id}" style="left: ${leftPercent}%; width: ${widthPercent}%;">
+                <div class="trip-block ${colorClass} border" draggable="true" data-tripid="${trip.id}" 
+                     data-route="${trip.route}" data-time="${timeStr}" data-stations="${stationsStr}" data-resource="${resourceStr}"
+                     style="left: ${leftPercent}%; width: ${widthPercent}%;">
                   <div class="truncate font-black">${trip.route}: ${trip.start_point}➔${trip.end_point}</div>
                   <div class="text-[10px] opacity-90 font-mono mt-0.5 tracking-wider">${trip.departure_time} ｜ ${blockSubInfo}</div>
                 </div>
@@ -422,7 +423,30 @@
           });
       }
 
-      // === 時刻表渲染邏輯 ===
+      // 🌟 Tooltip 滑鼠追蹤邏輯 (事件委派)
+      ganttBody.addEventListener('mouseover', (e) => {
+          const block = e.target.closest('.trip-block');
+          if (block) {
+              const d = block.dataset;
+              tooltipEl.innerHTML = `
+                  <div class="text-blue-300 font-bold mb-1">車趟：${d.route} <span class="text-gray-300 font-normal tracking-wider">(${d.time})</span></div>
+                  <div class="mb-1">站點：${d.stations}</div>
+                  <div class="text-amber-400 font-bold">${d.resource}</div>
+              `;
+              tooltipEl.classList.remove('hidden');
+          }
+      });
+      ganttBody.addEventListener('mousemove', (e) => {
+          if (!tooltipEl.classList.contains('hidden')) {
+              tooltipEl.style.left = (e.clientX + 15) + 'px';
+              tooltipEl.style.top = (e.clientY + 15) + 'px';
+          }
+      });
+      ganttBody.addEventListener('mouseout', (e) => {
+          const block = e.target.closest('.trip-block');
+          if (block) tooltipEl.classList.add('hidden');
+      });
+
       function renderTable() {
           const assignedDriverIds = new Set(currentTrips.filter(t => t.assigned_empid).map(t => t.assigned_empid));
           document.getElementById('sickDriver').innerHTML = '<option value="">1. 選擇請假駕駛</option>' + 
@@ -447,11 +471,9 @@
           }).join('') || '<tr><td colspan="8" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
       }
 
-      // === 啟動監聽器 ===
       globalDateInput.addEventListener('change', (e) => streamDispatchData(e.target.value));
       streamDispatchData(globalDateInput.value);
 
-      // --- 甘特圖視角切換 ---
       document.getElementById('viewDriverBtn').addEventListener('click', (e) => {
           currentGanttView = 'driver'; e.target.className = 'view-btn active'; document.getElementById('viewVehicleBtn').className = 'view-btn inactive'; renderGantt();
       });
@@ -459,7 +481,6 @@
           currentGanttView = 'vehicle'; e.target.className = 'view-btn active'; document.getElementById('viewDriverBtn').className = 'view-btn inactive'; renderGantt();
       });
 
-      // --- 表格事件 (下拉選單修改與刪除) ---
       tbody.addEventListener('change', async (e) => {
           const tripId = e.target.dataset.id;
           if (e.target.classList.contains('driver-select')) {
@@ -471,6 +492,7 @@
               showToast("✅ 車輛變更已連動更新！");
           }
       });
+      
       tbody.addEventListener('click', async (e) => {
           if (e.target.classList.contains('btn-delete-trip')) {
               await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
@@ -478,7 +500,6 @@
           }
       });
 
-      // --- 頂部面板功能按鈕 ---
       document.getElementById('addTripBtn').onclick = async () => {
           if(!document.getElementById('inputTime').value || !document.getElementById('inputRoute').value) return alert("發車時間與路線為必填！");
           await addDoc(dispatchesCol, {
