@@ -316,68 +316,70 @@
           setupDragAndDropEvents();
       }
 
-      function renderGanttRow(rowId, rowName, subtitleText, rowTrips) {
+      function renderGanttRow(rowId, rowName, subtitleText, rowTrips, isWarning) {
           const isUnassigned = rowId === "尚未指派";
-          const labelBg = isUnassigned ? "bg-amber-50 text-amber-800" : "bg-slate-50 text-slate-800";
-          let workSpanStr = "無趟次", drivingTimeStr = "無趟次", breakWarningHtml = ""; 
+          let rowWrapperClass = isWarning ? "row-warning" : "gantt-row";
+          let labelBg = isWarning ? "bg-red-50 text-red-800" : (isUnassigned ? "bg-amber-50 text-amber-800" : "bg-slate-50 text-slate-800");
+          
+          // 拆分昨日與今日的工時統計
+          let yesterdayDrivingMins = 0;
+          let todayDrivingMins = 0;
+          let breakWarningHtml = ""; 
 
           if (!isUnassigned && rowTrips.length > 0) {
-              let minStart = 9999, maxEnd = 0, totalDrivingMins = 0;
-              let sortedTrips = [...rowTrips].sort((a,b) => timeToMins(a.departure_time) - timeToMins(b.departure_time));
-              
-              sortedTrips.forEach(t => {
+              rowTrips.forEach(t => {
                   let st = timeToMins(t.departure_time);
-                  let et = timeToMins(t.arrival_time || t.departure_time) + 20; 
-                  if(st < minStart) minStart = st;
-                  if(et > maxEnd) maxEnd = et; 
-                  totalDrivingMins += (et - st - 20); 
-              });
-              
-              let spanMins = maxEnd - minStart;
-              workSpanStr = `${Math.floor(spanMins / 60)}h ${spanMins % 60}m`;
-              drivingTimeStr = `${Math.floor(totalDrivingMins / 60)}h ${totalDrivingMins % 60}m`;
-
-              if (currentGanttView === 'driver') {
-                  let blockStart = timeToMins(sortedTrips[0].departure_time);
-                  let hasBreakViolation = false;
-                  for (let i = 0; i < sortedTrips.length - 1; i++) {
-                      let end1 = timeToMins(sortedTrips[i].arrival_time || sortedTrips[i].departure_time) + 20;
-                      let start2 = timeToMins(sortedTrips[i+1].departure_time);
-                      if (start2 - end1 >= 30) { 
-                          if (end1 - blockStart > 270) { hasBreakViolation = true; break; }
-                          blockStart = start2;
-                      }
+                  let et = timeToMins(t.arrival_time || t.departure_time) + 20; // 緩衝20分
+                  
+                  // ✨ 修復跨夜 Bug：如果到達時間小於發車時間，代表跨越午夜
+                  if (et < st) {
+                      et += 1440; // 加上 24 小時的分鐘數
                   }
-                  let lastEnd = timeToMins(sortedTrips[sortedTrips.length-1].arrival_time || sortedTrips[sortedTrips.length-1].departure_time) + 20;
-                  if (lastEnd - blockStart > 270) hasBreakViolation = true;
-                  if (hasBreakViolation) breakWarningHtml = `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-red-100 text-red-700 border border-red-300 animate-pulse" title="超過 4.5 小時未排定 30 分鐘大休">⚠️欠大休</span>`;
-              }
+                  
+                  let tripDuration = et - st - 20; // 純駕駛時間
+
+                  // ✨ 營業日切割邏輯：以凌晨 04:00 (240分鐘) 為界線
+                  if (st < 240) {
+                      yesterdayDrivingMins += tripDuration;
+                  } else {
+                      todayDrivingMins += tripDuration;
+                  }
+              });
           }
           
+          // 格式化時間顯示
+          const formatTime = (mins) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
+          let yesterdayStr = yesterdayDrivingMins > 0 ? formatTime(yesterdayDrivingMins) : "--";
+          let todayStr = todayDrivingMins > 0 ? formatTime(todayDrivingMins) : "--";
+          
           let rowHtml = `
-            <div class="gantt-row drop-zone" data-targetid="${rowId}" data-targetname="${rowName.split(' ')[0]}">
+            <div class="${rowWrapperClass} drop-zone" data-targetid="${rowId}" data-targetname="${rowName.split(' ')[0]}">
               <div class="gantt-label-col ${labelBg}">
-                <div class="text-[14px] font-black text-slate-800 truncate" title="${rowName}">${rowName} ${breakWarningHtml}</div>
-                <div class="text-[11px] text-gray-500 font-bold mt-1 tracking-wide">${subtitleText}</div>
-                ${!isUnassigned ? `
-                <div class="mt-2 pt-2 border-t border-gray-200">
-                    ${currentGanttView === 'driver' ? `<div class="text-[11px] text-blue-700 font-bold mb-0.5">⏱️ 總工時: ${workSpanStr}</div>` : ''}
-                    <div class="text-[11px] text-orange-600 font-bold">🚌 總駕駛: ${drivingTimeStr}</div>
+                <div class="text-[14px] font-black ${isWarning ? 'text-red-700' : 'text-slate-800'} truncate" title="${rowName}">${rowName} ${breakWarningHtml}</div>
+                <div class="text-[11px] ${isWarning ? 'text-red-500' : 'text-gray-500'} font-bold mt-1 tracking-wide">${subtitleText}</div>
+                ${!isUnassigned && !isWarning ? `
+                <div class="mt-2 pt-2 border-t border-gray-200 grid grid-cols-2 gap-1">
+                    <div class="text-[10px] text-purple-700 font-bold bg-purple-50 p-1 rounded">🌙 昨夜結算<br>${yesterdayStr}</div>
+                    <div class="text-[10px] text-blue-700 font-bold bg-blue-50 p-1 rounded">☀️ 今日結算<br>${todayStr}</div>
                 </div>
                 ` : ''}
               </div>
-              <div class="gantt-timeline-col">
+              <div class="gantt-timeline-col overflow-hidden">
           `;
 
           rowTrips.forEach(trip => {
               const startMin = timeToMins(trip.departure_time);
-              const endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
+              let endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
+              
+              // 同樣在畫圖時處理跨日邏輯
+              if (endMin < startMin) endMin += 1440;
+
               const leftPercent = (startMin / 1440) * 100;
               const widthPercent = ((endMin - startMin) / 1440) * 100;
-              let colorClass = trip.route.includes("N") ? "bg-purple-600 border-purple-700" : (trip.route === "TXL" ? "bg-orange-600 border-orange-700" : (isUnassigned ? "bg-rose-500 border-rose-600 animate-pulse" : "bg-blue-600 border-blue-700"));
+              
+              let colorClass = isWarning ? "bg-red-600 border-red-700 animate-pulse" : (trip.route.includes("N") ? "bg-purple-600 border-purple-700" : (trip.route === "TXL" ? "bg-orange-600 border-orange-700" : (isUnassigned ? "bg-amber-500 border-amber-600 animate-pulse" : "bg-blue-600 border-blue-700")));
               let blockSubInfo = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
               
-              // 準備 Hover Tooltip 所需的數據寫入 Data Attributes
               let timeStr = `${trip.departure_time}~${trip.arrival_time || '??:??'}`;
               let stationsStr = `${trip.start_point} ➔ ${trip.end_point}`;
               let resourceStr = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
