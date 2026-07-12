@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>車輛調度系統 - 週班表管理 (固定替休升級版)</title>
+    <title>車輛調度系統 - 週班表管理 (滾動排休升級版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
@@ -26,7 +26,7 @@
         .shift-N { background-color: #c084fc; color: #4c1d95; }   /* 夜班 */
         .shift-OFF { background-color: #e5e7eb; color: #374151; } /* 休假 */
         .shift-STB { background-color: #cbd5e1; color: #334155; } /* 待命 */
-        .shift-REL { background-color: #f97316; color: #ffffff; } /* 🚀 替班 (專職替休) */
+        .shift-REL { background-color: #f97316; color: #ffffff; } /* 替班 */
         
         .driver-cell { padding: 0 16px; text-align: left; font-weight: bold; color: #1f2937; background-color: #f8fafc; }
         .emp-id { color: #6b7280; font-family: monospace; margin-right: 8px; font-size: 13px; }
@@ -45,13 +45,13 @@
             </div>
             <div class="flex space-x-3">
                 <button id="btn-copy-prev" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="複製上週班表">📋 複製上週</button>
-                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="依據平日/假日模式自動排休與替班">✨ 智慧固定替休制</button>
+                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="執行滾動式排休與夜班分配">✨ 智慧滾動替休制</button>
                 <button id="btn-save" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow-sm font-bold flex items-center transition">💾 儲存並發布</button>
             </div>
         </div>
 
         <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 shadow-sm flex flex-wrap gap-x-6 gap-y-2 text-sm text-orange-900 font-bold">
-            💡 <strong>排班策略提示：</strong>已導入「專職替班駕駛 (Relief Drivers)」模式。請利用「替班 (REL)」選項來填補週末或平日的休假空缺，維持平日與假日班表的固定規律。
+            💡 <strong>排班策略提示：</strong>已啟用「滾動式排休」。系統會將休假日均勻打散至每日，並確保每天有 1 名夜班駕駛與適當的替班 (REL) 人力。老闆帳號將自動保留為待命救援。
         </div>
 
         <div class="overflow-x-auto rounded-lg shadow border border-gray-200">
@@ -72,7 +72,7 @@
    <script type="module">
     import { db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, getDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
+    import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
     const allowedRoles = ['總公司', '站長', '調度員']; 
 
@@ -112,7 +112,6 @@
         let currentWeekId = "";
         const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-        // 🚀 加入全新的 REL (替班) 選項
         const shiftOptions = [
             { val: "M (早)", class: "shift-M" },
             { val: "A (中)", class: "shift-A" },
@@ -214,59 +213,96 @@
         }
 
         // ==========================================
-        // 🚀 智慧固定替休制 (解決平日假日固定不亂掉的問題)
+        // ✨ 終極版智慧滾動替休制 (均勻打散、夜班防呆、老闆救援)
         // ==========================================
         document.getElementById('btn-auto').addEventListener('click', () => {
-            if(!confirm("確定要執行「智慧固定替休制」排班嗎？\n系統將自動劃分「平日固定班」與「專職替班」，完美兼顧法定休假與您的固定班表習慣！")) return;
+            if(!confirm("確定要執行「智慧滾動替休制」排班嗎？\n系統將為您均勻打散休假、自動分配每日1名夜班，並設定通用的替班(REL)儲備人力！")) return;
             
-            const totalDrivers = currentDrivers.filter(d => !(d.empId === '0000(jun)' || d.empId === '0000' || d.name.includes('老闆')));
-            // 將駕駛分為兩批：70% 負責平日主力，30% 負責假日替班
-            const regularCount = Math.ceil(totalDrivers.length * 0.7); 
+            // 排除老闆帳號，取得需要參與滾動排班的基層駕駛
+            const isBoss = (d) => d.empId === '0000(jun)' || d.empId === '0000' || d.name.toUpperCase().includes('JUN') || d.name.includes('老闆');
+            const totalDrivers = currentDrivers.filter(d => !isBoss(d));
+            const D = totalDrivers.length;
+            
+            if(D < 3) {
+                alert("⚠️ 駕駛人數過少，無法執行均勻打散排班！");
+                return;
+            }
 
-            currentDrivers.forEach((driver) => {
-                const isBoss = (driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.includes('老闆') || driver.name.includes('jun'));
-                const shifts = ['M (早)', 'A (中)', 'E (晚)'];
+            // 建立 7天 x D駕駛 的空白陣列
+            let sched = Array(D).fill(null).map(() => Array(7).fill(""));
+
+            // 1. 分配休假 (OFF) - 每人2天連假，利用錯位平均打散到週一至週日
+            for(let i = 0; i < D; i++) {
+                let off1 = (i * 2) % 7;
+                let off2 = (off1 + 1) % 7;
+                sched[i][off1] = "OFF (休)";
+                sched[i][off2] = "OFF (休)";
+            }
+
+            // 2. 分配夜班 (N) - 每天精準分配 1 名，優先挑選「明天休假」的人以避開 N接M
+            let lastN = -1;
+            for(let day = 0; day < 7; day++) {
+                let cand = lastN;
+                // 若上一位夜班駕駛今天休假，或尚未指派，則尋找新駕駛
+                if (cand === -1 || sched[cand][day] === "OFF (休)") {
+                    cand = -1;
+                    // 第一志願：今天沒休，且明天休假 (最安全的夜班落點)
+                    for(let i = 0; i < D; i++) {
+                        if (sched[i][day] !== "OFF (休)" && sched[i][(day + 1) % 7] === "OFF (休)") {
+                            cand = i; break;
+                        }
+                    }
+                    // 備案：隨便找一個今天沒休假的人
+                    if (cand === -1) {
+                        for(let i = 0; i < D; i++) {
+                            if (sched[i][day] !== "OFF (休)") { cand = i; break; }
+                        }
+                    }
+                }
+                if (cand !== -1) {
+                    sched[cand][day] = "N (夜)";
+                    lastN = cand;
+                }
+            }
+
+            // 3. 分配底班 (M, A, E, REL) 填滿剩下的空班
+            // 為了防呆，只要這週有上夜班的人，其底班絕對不能是早(M)或中(A)，一律給晚(E)或替班(REL)
+            const safeBases = ["E (晚)", "REL (替班)"];
+            const normalBases = ["M (早)", "A (中)", "E (晚)", "REL (替班)"];
+
+            for(let i = 0; i < D; i++) {
+                let hasNight = sched[i].includes("N (夜)");
+                let baseShift = hasNight ? safeBases[i % safeBases.length] : normalBases[i % normalBases.length];
                 
-                daysOfWeek.forEach((day, dayIndex) => {
+                for(let day = 0; day < 7; day++) {
+                    if (sched[i][day] === "") {
+                        sched[i][day] = baseShift;
+                    }
+                }
+            }
+
+            // 4. 將陣列資料寫回 DOM 畫面
+            currentDrivers.forEach((driver) => {
+                let dIndex = totalDrivers.findIndex(d => d.empId === driver.empId);
+                
+                daysOfWeek.forEach((dayStr, dayIndex) => {
                     const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    const selectEl = document.getElementById(`sel-${safeEmpId}-${dayStr}`);
                     
-                    if(selectEl) {
-                        if (isBoss) {
-                            selectEl.value = 'STB (待命)';
-                        } else {
-                            const isWeekend = (day === 'sat' || day === 'sun');
-                            const driverIdx = totalDrivers.findIndex(d => d.empId === driver.empId);
-                            
-                            if (driverIdx < regularCount) {
-                                // 👉 平日主力駕駛：一到五固定排班，六日固定休假
-                                if (isWeekend) {
-                                    selectEl.value = 'OFF (休)';
-                                } else {
-                                    selectEl.value = shifts[driverIdx % 3]; // 固定早中晚
-                                }
-                            } else {
-                                // 👉 專職替班駕駛：六日專門吃下主力休假的車趟，平日排休
-                                const reliefSubIdx = driverIdx - regularCount;
-                                // 分散平日休假：一半休一二，一半休三四
-                                const offDays = (reliefSubIdx % 2 === 0) ? ['mon', 'tue'] : ['wed', 'thu'];
-                                
-                                if (offDays.includes(day)) {
-                                    selectEl.value = 'OFF (休)';
-                                } else if (isWeekend) {
-                                    selectEl.value = 'REL (替班)'; // 週末專職替班
-                                } else {
-                                    selectEl.value = 'STB (待命)'; // 其他平日待命支援
-                                }
-                            }
+                    if (selectEl) {
+                        if (isBoss(driver)) {
+                            selectEl.value = 'STB (待命)'; // 老闆永遠待命救援
+                        } else if (dIndex !== -1) {
+                            selectEl.value = sched[dIndex][dayIndex];
                         }
                         selectEl.className = window.getShiftClass(selectEl.value);
                     }
                 });
             });
+
             isDirty = true;
             silentAutoSave();
-            alert("✅ 固定替休排班已完成！\n70%駕駛設為平日主力(六日休)\n30%駕駛設為替班支援(平日休)。");
+            alert("✅ 滾動替休排班已完成！\n休假已完美打散，每日皆有夜班與替補人力配置。");
         });
 
         // ==========================================
@@ -294,15 +330,15 @@
                             hasViolation = true;
                             violationMsg += `⚠️ [${driver.name}] 違規：前日晚班(E)，今日不可接早/中班，違反11小時休息間隔！\n`;
                         }
-                        if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)" || currentShift === "REL (替班)")) {
+                        if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)")) {
                             hasViolation = true;
-                            violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，隔日必須排休或待命，不可連續出勤！\n`;
+                            violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，隔日必須排休、待命或替班，不可連續常態出勤！\n`;
                         }
                         prevShift = currentShift; 
                     }
                 });
 
-                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.includes('老闆');
+                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN') || driver.name.includes('老闆');
                 if (offCount === 0 && !isBoss) {
                     hasViolation = true;
                     violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假，違反七休一規定！\n`;
