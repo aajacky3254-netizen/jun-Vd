@@ -100,7 +100,7 @@
             <h3 class="text-xl font-black text-gray-800 mb-6">報到成功</h3>
             
             <div class="e-voucher w-full" id="voucherContent">
-                </div>
+            </div>
             
             <button id="btnCloseVoucher" class="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg">
                 關閉並開始執勤
@@ -110,10 +110,11 @@
 
 <script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, updateDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { collection, query, onSnapshot, doc, updateDoc, where, getDocs, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
 
     let currentUser = null;
+    let driverEmpId = ""; // 儲存嚴格比對用的員工編號
     let currentTrips = [];
     let selectedTripId = null;
     let html5QrcodeScanner = null;
@@ -121,26 +122,41 @@
     const dateInput = document.getElementById('selectDate');
     const tripList = document.getElementById('trip-list');
     
-    // 初始化日期為今日
     dateInput.value = new Date().toISOString().split('T')[0];
 
-    // 權限檢查 (限定駕駛長以上登入)
-    checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then((user) => {
+    checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
         currentUser = user;
-        // 如果您的系統駕駛名稱存在 displayName，則使用；若是透過其他方式綁定，請自行調整
-        const driverName = user.displayName || user.email.split('@')[0]; 
+        const driverName = user.name || user.displayName || user.email?.split('@')[0] || "未知駕駛"; 
         document.getElementById('driver-greeting').innerText = `👨‍✈️ 駕駛長：${driverName}`;
         
-        loadMyTrips(dateInput.value, driverName);
+        // 🚀 修正：透過 Auth 資訊嚴格反查 Employees ID，確保絕對身分唯一性
+        try {
+            const docSnap = await getDoc(doc(db, "Drivers", user.uid || ""));
+            if (docSnap.exists()) {
+                driverEmpId = docSnap.id;
+            } else {
+                // 退回機制：若 UID 不符，至少利用全名做第一次嚴格比對取得 empId
+                const qD = query(collection(db, "Drivers"), where("name", "==", driverName));
+                const snapD = await getDocs(qD);
+                if (!snapD.empty) {
+                    driverEmpId = snapD.docs[0].id;
+                } else {
+                    driverEmpId = driverName; // 最後防線
+                }
+            }
+        } catch(e) {
+            driverEmpId = driverName;
+        }
+        
+        loadMyTrips(dateInput.value, driverEmpId);
     }).catch(err => {
         document.body.innerHTML = `<div class="p-10 text-center"><h2 class="text-red-500 font-bold mb-4">請先完成登入</h2><a href="login.html" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold">前往登入</a></div>`;
     });
 
     document.getElementById('btnLogout').addEventListener('click', () => { logout(); });
-    dateInput.addEventListener('change', (e) => { loadMyTrips(e.target.value, currentUser.displayName || currentUser.email.split('@')[0]); });
+    dateInput.addEventListener('change', (e) => { loadMyTrips(e.target.value, driverEmpId); });
 
-    // ================= 載入個人車趟 =================
-    function loadMyTrips(dateStr, driverName) {
+    function loadMyTrips(dateStr, empId) {
         const q = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
         
         onSnapshot(q, (snapshot) => {
@@ -150,15 +166,14 @@
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
-                // 🚀 過濾出「指派給自己」的車趟
-                if (data.assigned_driver && data.assigned_driver.includes(driverName)) {
+                // 🚀 修正：只認編號 (assigned_empid)，使用嚴格等於 ===，完全杜絕名字包含問題！
+                if (data.assigned_empid === empId) {
                     currentTrips.push({ id: docSnap.id, ...data });
                     if (data.status === 'checked_in') checkedCount++;
                     else pendingCount++;
                 }
             });
 
-            // 依發車時間排序
             currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
 
             document.getElementById('count-total').innerText = currentTrips.length;
@@ -204,7 +219,6 @@
             `;
         }).join('');
 
-        // 綁定按鈕事件
         document.querySelectorAll('.btn-punch-in').forEach(btn => {
             btn.addEventListener('click', (e) => openPunchModal(e.target.dataset.id));
         });
@@ -213,7 +227,6 @@
         });
     }
 
-    // ================= 報到邏輯與 QR Code =================
     const punchModal = document.getElementById('punchModal');
     const chkAlcohol = document.getElementById('chkAlcohol');
     const chkHealth = document.getElementById('chkHealth');
@@ -250,52 +263,85 @@
         if(html5QrcodeScanner) html5QrcodeScanner.clear();
     });
 
-    // 啟動 QR Scanner
     btnStartScan.addEventListener('click', () => {
         btnStartScan.style.display = 'none';
         document.getElementById('qr-reader').classList.remove('hidden');
         
         html5QrcodeScanner = new Html5QrcodeScanType("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
         html5QrcodeScanner.render((decodedText) => {
-            // 掃描成功處理 (實務上可以核對 decodedText 是否與 trip.assigned_vehicle 一致)
             html5QrcodeScanner.clear();
             document.getElementById('qr-reader').classList.add('hidden');
             alert(`✅ 掃描成功：已確認車輛 ${decodedText}`);
-            // 自動勾選
             chkAlcohol.checked = true;
             chkHealth.checked = true;
             checkConditions();
-        }, (err) => { /* 掃描中忽略錯誤 */ });
+        }, (err) => {});
     });
 
-    // 送出報到更新 Firebase
+    // 🚀 修正：強制擷取 GPS 並寫入伺服器時間 (serverTimestamp) 杜絕時間假造
     btnSubmitPunch.addEventListener('click', async () => {
         if (!selectedTripId) return;
         
-        btnSubmitPunch.innerText = "⏳ 憑單生成中...";
-        try {
-            const now = new Date();
-            const timeString = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-            
-            await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                status: 'checked_in',
-                check_in_time: timeString
+        btnSubmitPunch.innerText = "⏳ 正在取得定位並簽到...";
+        btnSubmitPunch.disabled = true;
+
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                
+                try {
+                    await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
+                        status: 'checked_in',
+                        check_in_time: serverTimestamp(), // 🔥 Firebase 雲端伺服器時間，防竄改
+                        check_in_location: { lat, lng }   // 🔥 紀錄報到座標
+                    });
+                    
+                    punchModal.style.display = 'none';
+                    openVoucherModal(selectedTripId);
+                } catch (err) {
+                    alert('報到連線失敗，請檢查網路。');
+                } finally {
+                    btnSubmitPunch.innerText = "確認報到並領取電子憑單";
+                    btnSubmitPunch.disabled = false;
+                }
+            }, (error) => {
+                alert('⚠️ 報到失敗：系統無法取得您的位置！\n請確認手機已開啟「定位服務(GPS)」，並允許瀏覽器存取位置權限。');
+                btnSubmitPunch.innerText = "確認報到並領取電子憑單";
+                btnSubmitPunch.disabled = false;
+            }, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
             });
-            
-            punchModal.style.display = 'none';
-            openVoucherModal(selectedTripId);
-        } catch (err) {
-            alert('報到失敗，請檢查網路。');
+        } else {
+            alert('⚠️ 您的瀏覽器不支援定位功能，無法完成報到！');
+            btnSubmitPunch.innerText = "確認報到並領取電子憑單";
+            btnSubmitPunch.disabled = false;
         }
-        btnSubmitPunch.innerText = "確認報到並領取電子憑單";
     });
 
-    // ================= 電子憑單 =================
     const voucherModal = document.getElementById('voucherModal');
     
     function openVoucherModal(tripId) {
         const trip = currentTrips.find(t => t.id === tripId);
         if(!trip) return;
+
+        // 轉換 serverTimestamp 供畫面顯示
+        let displayTime = "系統已紀錄";
+        if (trip.check_in_time) {
+            if (typeof trip.check_in_time.toDate === 'function') {
+                const d = trip.check_in_time.toDate();
+                displayTime = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+            } else {
+                displayTime = trip.check_in_time; // 兼容舊版字串時間
+            }
+        }
+
+        // GPS 位置顯示格式
+        let locHtml = trip.check_in_location 
+            ? `<div class="flex justify-between border-b border-yellow-200 pb-2 mt-2"><span>打卡座標</span><span class="text-xs text-gray-500 self-center">${trip.check_in_location.lat.toFixed(4)}, ${trip.check_in_location.lng.toFixed(4)}</span></div>` 
+            : '';
 
         document.getElementById('voucherContent').innerHTML = `
             <div class="text-center mb-4">
@@ -307,7 +353,8 @@
                 <div class="flex justify-between border-b border-yellow-200 pb-2"><span>發車時間</span><span class="text-xl text-red-600 font-black">${trip.departure_time}</span></div>
                 <div class="flex justify-between border-b border-yellow-200 pb-2"><span>使用車號</span><span class="text-gray-900">${trip.assigned_vehicle}</span></div>
                 <div class="flex justify-between border-b border-yellow-200 pb-2"><span>起訖點</span><span class="text-right">${trip.start_point}<br>➔ ${trip.end_point}</span></div>
-                <div class="flex justify-between pt-1"><span>報到時間</span><span class="text-emerald-600">${trip.check_in_time || '系統已紀錄'}</span></div>
+                <div class="flex justify-between pt-1"><span>報到時間</span><span class="text-emerald-600">${displayTime}</span></div>
+                ${locHtml}
             </div>
         `;
         voucherModal.style.display = 'flex';
