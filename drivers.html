@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 人事管理系統</title>
+  <title>豐東交通客運 - 人事管理系統 (安全雲端版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
@@ -77,12 +77,12 @@
       <div class="input-group" style="width: 180px;">
         <label>系統登入權限</label>
         <select id="inpRole">
-  <option value="駕駛長">駕駛長</option>
-  <option value="調度員">調度員</option>
-  <option value="維修保養班">維修保養班</option>
-  <option value="站長">站長</option> <!-- 原本是 StationManager -->
-  <option value="總公司">總公司</option> <!-- 如果有這個選項的話 -->
-</select>
+          <option value="駕駛長">駕駛長</option>
+          <option value="調度員">調度員</option>
+          <option value="維修保養班">維修保養班</option>
+          <option value="站長">站長</option>
+          <option value="總公司">總公司</option>
+        </select>
       </div>
     </div>
 
@@ -90,13 +90,13 @@
       <div class="input-group" style="width: 180px;">
         <label>實際編制職稱</label>
         <select id="empRole" class="font-bold text-gray-700">
-  <option value="駕駛長">🚌 駕駛長</option>
-  <option value="站務員">🎫 站務員</option>
-  <option value="站長">🏢 站長</option> <!-- 原本是 StationManager -->
-  <option value="調度員">🚦 調度員</option>
-  <option value="維修員">🔧 維修技師</option>
-  <option value="行政職員">💼 辦公室職員</option>
-</select>
+          <option value="駕駛長">🚌 駕駛長</option>
+          <option value="站務員">🎫 站務員</option>
+          <option value="站長">🏢 站長</option>
+          <option value="調度員">🚦 調度員</option>
+          <option value="維修員">🔧 維修技師</option>
+          <option value="行政職員">💼 辦公室職員</option>
+        </select>
       </div>
 
       <div class="input-group flex-grow" id="milestoneGroup">
@@ -133,13 +133,14 @@
       </tbody>
     </table>
   </div>
+  
   <script type="module">
     import { db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    // 🛡️ 引入 Firebase Functions (安全呼叫後端)
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
-        
 
-    // 允許進入此頁面的權限
     const allowedRoles = ['總公司', '站長', '調度員']; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
@@ -159,7 +160,6 @@
 
         let currentDrivers = [];
 
-        // 監聽職稱連動顯示
         document.getElementById('empRole').addEventListener('change', (e) => {
             const milestoneGroup = document.getElementById('milestoneGroup');
             if (e.target.value === '駕駛長') {
@@ -196,7 +196,6 @@
                 return;
             }
 
-            // XSS 簡單防護 (避免名字包含 HTML 標籤破壞版面)
             const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
             currentDrivers.forEach(driver => {
@@ -277,7 +276,6 @@
             }));
         }
 
-        // 儲存按鈕邏輯
         document.getElementById('btnSaveDriver').addEventListener('click', async () => {
             const empId = document.getElementById('inpEmpId').value.trim();
             const name = document.getElementById('inpName').value.trim();
@@ -298,31 +296,20 @@
                 const docRef = doc(db, "Drivers", empId);
                 const docSnap = await getDoc(docRef);
 
-                // ✅ 整合：如果是新員工，呼叫您的 GAS API 在後端建立帳號
+                // 🛡️ 安全機制：如果是新員工，透過 Firebase Functions 在後端安全建立 Auth 帳號
                 if (!docSnap.exists()) {
                     try {
-                        // 這裡已經換上您剛剛提供的專屬 URL！
-                        const gasUrl = "https://script.google.com/macros/s/AKfycbwRelX_fQCleSmsLJQiOCoUU9mtrgTauSPh09D7c9qguFj6SWqr57ayM_hmqIY3U6oqLw/exec"; 
-                        
-                        // drivers.html 內的 fetch 修正
-                        await fetch(gasUrl, {
-                            method: "POST",
-                            headers: {
-                                // 💡 將 application/json 改為 text/plain 避免觸發 GAS 的 CORS 預檢錯誤
-                                "Content-Type": "text/plain;charset=utf-8" 
-                            },
-                            body: JSON.stringify({ 
-                                empId: empId,
-                                secretToken: "YOUR_CUSTOM_SECRET_KEY_HERE" 
-                            }) 
-                        });
-                        console.log("後端 Auth 帳號建立請求已送出");
+                        const functions = getFunctions();
+                        const createDriverAccount = httpsCallable(functions, 'createDriverAccount');
+                        // 呼叫雲端函數，Firebase 會自動且安全地帶上管理員的 Token
+                        await createDriverAccount({ empId: empId });
+                        console.log("後端 Auth 帳號建立請求已送出並完成");
                     } catch (apiErr) {
                         console.error("呼叫建立帳號 API 失敗:", apiErr);
+                        alert("⚠️ 帳號建立過程中發生錯誤 (可能權限不足)，但人事資料仍會被儲存。");
                     }
                 }
 
-                // 準備要寫入 Firestore 的員工資料 (已完全移除不安全的明文密碼)
                 const driverData = {
                     name: name,
                     status: status,
@@ -334,7 +321,6 @@
 
                 await setDoc(docRef, driverData, { merge: true });
 
-                // 成功後重設表單狀態
                 document.getElementById('inpEmpId').value = '';
                 document.getElementById('inpEmpId').disabled = false;
                 document.getElementById('inpEmpId').style.backgroundColor = '#f8fafc';
@@ -345,7 +331,6 @@
                 document.getElementById('milestoneGroup').style.display = 'flex';
                 
                 if (!docSnap.exists()) {
-                    // ✅ 將新增成功的提示改為 123456
                     alert(`✅ 員工帳號建立成功！\n員工編號: ${empId}\n預設登入密碼: 123456\n所屬場站: ${station}\n編制職稱: ${empRole}`);
                 } else {
                     alert(`✅ 員工資料已成功更新！`);
@@ -363,53 +348,50 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
+
     // ==========================================
-// 🚀 一鍵同步舊有員工帳號小工具
-// ==========================================
-setTimeout(() => {
-    // 在畫面右下角生成一個臨時按鈕
-    const syncBtn = document.createElement('button');
-    syncBtn.innerHTML = "🔄 批次同步舊員工 Auth 帳號";
-    syncBtn.className = "fixed bottom-5 right-5 bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg font-bold z-50";
-    document.body.appendChild(syncBtn);
+    // 🛡️ 同步工具也一併升級為安全的 Cloud Functions 呼叫
+    // ==========================================
+    setTimeout(() => {
+        const syncBtn = document.createElement('button');
+        syncBtn.innerHTML = "🔄 批次同步舊員工 Auth 帳號";
+        syncBtn.className = "fixed bottom-5 right-5 bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg font-bold z-50";
+        document.body.appendChild(syncBtn);
 
-    syncBtn.addEventListener('click', async () => {
-        if(!confirm("確定要將所有尚未建立登入帳號的舊員工，批次同步到 Firebase Auth 嗎？")) return;
-        
-        syncBtn.innerText = "⏳ 同步中，請稍候...";
-        syncBtn.disabled = true;
+        syncBtn.addEventListener('click', async () => {
+            if(!confirm("確定要將所有尚未建立登入帳號的舊員工，批次同步到 Firebase Auth 嗎？")) return;
+            
+            syncBtn.innerText = "⏳ 同步中，請稍候...";
+            syncBtn.disabled = true;
 
-        const gasUrl = "https://script.google.com/macros/s/AKfycbwRelX_fQCleSmsLJQiOCoUU9mtrgTauSPh09D7c9qguFj6SWqr57ayM_hmqIY3U6oqLw/exec"; // ⚠️記得替換網址
-        let successCount = 0;
+            const functions = getFunctions();
+            const createDriverAccount = httpsCallable(functions, 'createDriverAccount');
+            let successCount = 0;
 
-        try {
-            const snap = await getDocs(collection(db, "Drivers"));
-            const drivers = [];
-            snap.forEach(doc => drivers.push(doc.id));
+            try {
+                const snap = await getDocs(collection(db, "Drivers"));
+                const drivers = [];
+                snap.forEach(doc => drivers.push(doc.id));
 
-            for (let empId of drivers) {
-                try {
-                    const res = await fetch(gasUrl, {
-                        method: "POST",
-                        body: JSON.stringify({ empId: empId }) 
-                    });
-                    const result = await res.json();
-                    if (result.success || (result.result && result.result.error && result.result.error.message === "EMAIL_EXISTS")) {
-                        console.log(`${empId} 帳號建立成功或已存在`);
-                        successCount++;
+                for (let empId of drivers) {
+                    try {
+                        const result = await createDriverAccount({ empId: empId });
+                        if (result.data.success) {
+                            console.log(`${empId} 帳號建立成功或已存在`);
+                            successCount++;
+                        }
+                    } catch (e) {
+                        console.error(`${empId} 同步失敗`, e);
                     }
-                } catch (e) {
-                    console.error(`${empId} 同步失敗`, e);
                 }
+                alert(`✅ 同步完成！共檢查/同步了 ${successCount} 位員工的登入帳號。`);
+            } catch (error) {
+                alert("讀取員工清單或執行權限失敗！");
+            } finally {
+                syncBtn.remove(); 
             }
-            alert(`✅ 同步完成！共檢查/同步了 ${successCount} 位員工的登入帳號。`);
-        } catch (error) {
-            alert("讀取員工清單失敗！");
-        } finally {
-            syncBtn.remove(); // 執行完畢後移除按鈕
-        }
-    });
-}, 2000);
+        });
+    }, 2000);
   </script>
 </body>
 </html>
