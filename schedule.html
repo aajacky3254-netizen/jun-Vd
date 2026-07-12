@@ -18,9 +18,8 @@
         td { border: 1px solid #e2e8f0; padding: 0; } 
         
         select { width: 100%; height: 48px; border: none; outline: none; text-align: center; font-weight: bold; cursor: pointer; appearance: none; -webkit-appearance: none; padding: 0 10px; }
-        /* 💡 更新的班別 CSS */
         .shift-M { background-color: #93c5fd; color: #1e3a8a; }   /* 早班 */
-        .shift-A { background-color: #fde047; color: #854d0e; }   /* 中班 (取代兩頭班) */
+        .shift-A { background-color: #fde047; color: #854d0e; }   /* 中班 */
         .shift-E { background-color: #fca5a5; color: #7f1d1d; }   /* 晚班 */
         .shift-N { background-color: #c084fc; color: #4c1d95; }   /* 夜班 */
         .shift-OFF { background-color: #e5e7eb; color: #374151; } /* 休假 */
@@ -43,7 +42,7 @@
             </div>
             <div class="flex space-x-3">
                 <button id="btn-copy-prev" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="複製上週班表">📋 複製上週</button>
-                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="依據週數動態輪替">✨ 智慧連續輪班</button>
+                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="依據絕對時間軸自動輪替">✨ 智慧連續輪班</button>
                 <button id="btn-save" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow-sm font-bold flex items-center transition">💾 儲存並發布</button>
             </div>
         </div>
@@ -61,7 +60,7 @@
                 <tbody id="roster-body"></tbody>
             </table>
             <div class="p-3 bg-white text-sm text-gray-500 border-t border-gray-200">
-                💡 <strong>實務提示：</strong>本系統已廢除兩頭班。請排定連續班別 (早/中/晚/夜)。系統自動阻擋違反 11 小時休息之間隔排班。
+                💡 <strong>系統提示：</strong>採用「絕對時間軸」排班，跨週保證連續不斷層。老闆帳號 (0000) 將自動鎖定為待命 (STB)。
             </div>
         </div>
     </div>
@@ -88,7 +87,6 @@
         let currentWeekId = "";
         const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-        // 💡 更新：廢除兩頭班，採用連續班別
         const shiftOptions = [
             { val: "M (早)", class: "shift-M" },
             { val: "A (中)", class: "shift-A" },
@@ -189,34 +187,45 @@
         }
 
         // ==========================================
-        // ✨ 智慧動態輪班 (無兩頭班、順時針健康循環)
+        // ✨ 智慧動態輪班 (修正跨週亂跳問題，導入老闆特權)
         // ==========================================
         document.getElementById('btn-auto').addEventListener('click', () => {
-            if(!confirm("確定要執行「智慧連續輪班」嗎？\n系統將依據【早➜早➜中➜晚➜晚➜夜➜休】的健康週期運算，完全排除兩頭班。")) return;
+            if(!confirm("確定要執行「智慧連續輪班」嗎？\n系統將使用絕對時間軸排班，確保跨週班表完美銜接。老闆(0000)將自動設定為待命。")) return;
             
-            // 💡 排班優化：順時針排班，拒絕花花班
             const healthyPattern = ['M (早)', 'M (早)', 'A (中)', 'E (晚)', 'E (晚)', 'N (夜)', 'OFF (休)'];
             const weekNum = parseInt(currentWeekId.split('W')[1], 10) || 0;
 
             currentDrivers.forEach((driver, driverIndex) => {
                 daysOfWeek.forEach((day, dayIndex) => {
-                    const shiftIndex = (driverIndex + dayIndex + weekNum) % healthyPattern.length;
-                    const assignedShift = healthyPattern[shiftIndex];
                     const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
                     const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
                     
                     if(selectEl) {
-                        selectEl.value = assignedShift;
-                        selectEl.className = window.getShiftClass(assignedShift);
+                        // 👑 老闆(jun) 特權：不參與輪班，固定待命
+                        if (driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.includes('老闆') || driver.name.includes('jun')) {
+                            selectEl.value = 'STB (待命)';
+                            selectEl.className = window.getShiftClass('STB (待命)');
+                        } else {
+                            // 🚀 核心修正：絕對時間計日法 (Absolute Continuous Day)
+                            // weekNum * 7 加上 星期幾(dayIndex)，保證時間軸是一直線遞增，跨週完全不會斷層！
+                            const absoluteDay = (weekNum * 7) + dayIndex;
+                            
+                            // driverIndex * 2 的目的是讓不同司機從陣列的不同起點開始，避免全公司同一天休假
+                            const shiftIndex = (absoluteDay + (driverIndex * 2)) % healthyPattern.length;
+                            
+                            const assignedShift = healthyPattern[shiftIndex];
+                            selectEl.value = assignedShift;
+                            selectEl.className = window.getShiftClass(assignedShift);
+                        }
                     }
                 });
             });
             isDirty = true;
-            alert("✅ 動態輪班已套用！請點擊「儲存」進行法規檢核。");
+            alert("✅ 動態輪班已完美套用！跨週跳動 Bug 已修復，請點擊「儲存」進行法規檢核。");
         });
 
         // ==========================================
-        // 💾 儲存與嚴格防呆審核 (11H 間隔與七休一)
+        // 💾 儲存與嚴格防呆審核 (維持不變)
         // ==========================================
         document.getElementById('btn-save').addEventListener('click', async () => {
             const rosterToSave = {};
@@ -236,7 +245,6 @@
                         rosterToSave[driver.empId][day] = currentShift;
                         if (currentShift === "OFF (休)") offCount++;
 
-                        // 💡 法規防呆：嚴禁逆時針排班 (確保 11 小時休息)
                         if (prevShift === "E (晚)" && (currentShift === "M (早)" || currentShift === "A (中)")) {
                             hasViolation = true;
                             violationMsg += `⚠️ [${driver.name}] 違規：前日晚班(E)，今日不可接早/中班，違反11小時休息間隔！\n`;
@@ -249,7 +257,9 @@
                     }
                 });
 
-                if (offCount === 0) {
+                // 老闆不需要七休一限制
+                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.includes('老闆');
+                if (offCount === 0 && !isBoss) {
                     hasViolation = true;
                     violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假，違反七休一規定！\n`;
                 }
@@ -270,7 +280,37 @@
             btn.innerText = "💾 儲存並發布"; btn.disabled = false;
         });
 
-        document.getElementById('btn-copy-prev').addEventListener('click', async () => { /* 邏輯不變，略 */ });
+        document.getElementById('btn-copy-prev').addEventListener('click', async () => { 
+            if(!confirm("確定要載入「上週」底稿嗎？")) return;
+            const d = new Date(document.getElementById('week-picker').value);
+            d.setDate(d.getDate() - 7);
+            const prevWeekId = getWeekStr(d.toISOString());
+
+            try {
+                const docSnap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
+                const data = docSnap.data();
+                
+                if (data && data.roster) {
+                    currentDrivers.forEach(driver => {
+                        daysOfWeek.forEach(day => {
+                            if (data.roster[driver.empId] && data.roster[driver.empId][day]) {
+                                const shift = data.roster[driver.empId][day];
+                                const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                                const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                                if (selectEl) {
+                                    selectEl.value = shift;
+                                    selectEl.className = window.getShiftClass(shift);
+                                }
+                            }
+                        });
+                    });
+                    isDirty = true;
+                    alert(`✅ 已載入上週 (${prevWeekId}) 班表！`);
+                } else {
+                    alert(`⚠️ 雲端找不到上週 (${prevWeekId}) 紀錄！`);
+                }
+            } catch (err) { console.error(err); alert("讀取失敗。"); }
+        });
     });
    </script>
 </body>

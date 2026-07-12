@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 視覺化圖形調度看板 (雙視角甘特圖)</title>
+  <title>豐東交通客運 - 視覺化圖形調度看板 (高階防呆版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; }
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
     
     /* 甘特圖時間軸容器 */
-    .gantt-container { display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto; margin-top: 20px; border: 1px solid #e2e8f0; }
+    .gantt-container { display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto; border: 1px solid #e2e8f0; }
     .gantt-header { display: flex; background: #1e293b; color: #fff; font-weight: bold; position: sticky; top: 0; z-index: 20; }
-    .gantt-row { display: flex; border-bottom: 1px solid #e2e8f0; min-height: 70px; transition: background 0.2s; }
+    .gantt-row { display: flex; border-bottom: 1px solid #e2e8f0; min-height: 85px; transition: background 0.2s; }
     .gantt-row:hover { background-color: #f8fafc; }
     
     /* 左側固定欄 */
-    .gantt-label-col { width: 180px; min-width: 180px; padding: 12px; display: flex; flex-direction: column; justify-content: center; background: #f8fafc; border-right: 2px solid #cbd5e1; font-weight: bold; position: sticky; left: 0; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.02); }
+    .gantt-label-col { width: 190px; min-width: 190px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; background: #f8fafc; border-right: 2px solid #cbd5e1; position: sticky; left: 0; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.02); }
     
     /* 右側 24 小時時間軸 */
     .gantt-timeline-col { flex-grow: 1; position: relative; min-width: 1200px; background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px); background-size: calc(100% / 24) 100%; }
@@ -25,8 +25,8 @@
     .hour-scale { width: calc(100% / 24); text-align: left; padding-left: 4px; font-size: 12px; border-right: 1px solid #334155; box-sizing: border-box; padding-top: 8px; padding-bottom: 8px;}
     
     /* 車趟甘特圖方塊 */
-    .trip-block { position: absolute; height: 50px; top: 10px; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; color: white; cursor: move; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s, box-shadow 0.1s; user-select: none; z-index: 5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .trip-block:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .trip-block { position: absolute; height: 55px; top: 15px; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; color: white; cursor: move; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s, box-shadow 0.1s; user-select: none; z-index: 5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trip-block:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); z-index: 50; }
     
     /* 拖曳中目標列高亮效果 */
     .drag-over { background-color: #f0fdf4 !important; border-left: 4px solid #22c55e; }
@@ -43,13 +43,11 @@
   <nav class="navbar" id="main-nav"></nav>
 
   <div class="p-6">
-    <!-- 頂部控制面板 -->
     <div class="flex justify-between items-center mb-4">
       <div class="flex items-center space-x-6">
         <h2 class="text-2xl font-bold text-gray-800">📊 圖形化拖曳排班動態畫布</h2>
         
-        <!-- ✨ 雙視角切換器 -->
-        <div class="flex p-1 bg-gray-200 rounded-lg">
+        <div class="flex p-1 bg-gray-200 rounded-lg shadow-inner">
             <button id="viewDriverBtn" class="view-btn active">👨‍✈️ 駕駛視角</button>
             <button id="viewVehicleBtn" class="view-btn inactive">🚌 車輛視角</button>
         </div>
@@ -58,26 +56,26 @@
         <span id="db-status" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
       </div>
       <div class="text-sm text-gray-500 font-bold bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
-        早班（Frühdienst）： 約 04:30 - 13:30（涵蓋早上尖峰，總工時約 9 小時，駕駛約 6.5 小時）。
-        中班（Mitteldienst）： 約 09:30 - 18:30（取代傳統兩頭班，專門用來覆蓋早尖峰尾聲與晚尖峰前半段）。
-        晚班（Spätdienst）： 約 13:30 - 22:30（涵蓋晚間尖峰）。
-        夜班（Nachtdienst）： 約 22:00 - 06:00（專責 N100 等夜間路線與收班回廠）。      </div>
+        💡 <strong>操作提示：</strong>按住車趟即可上下拖曳派班。系統將自動即時計算該駕駛之總工時與純駕駛時間。
+      </div>
     </div>
 
-    <!-- 甘特圖主體 -->
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 shadow-sm flex flex-wrap gap-x-6 gap-y-2 text-sm text-indigo-900 font-bold">
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-400"></span>早班：約 04:30 - 13:30 (涵蓋早上尖峰)</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-yellow-400"></span>中班：約 09:30 - 18:30 (專門覆蓋早尖峰尾聲與晚尖峰前半段)</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-400"></span>晚班：約 13:30 - 22:30 (涵蓋晚間尖峰)</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-purple-400"></span>夜班：約 22:00 - 06:00 (專責夜間路線與收班回廠)</div>
+    </div>
+
     <div class="gantt-container">
-      <!-- 時間軸刻度 (24小時) -->
       <div class="gantt-header">
-        <div class="gantt-label-col bg-slate-800 text-amber-400 text-center" id="colHeaderTitle">排班對象</div>
+        <div class="gantt-label-col bg-slate-800 text-amber-400 text-center text-sm" id="colHeaderTitle">排班對象</div>
         <div class="gantt-timeline-col flex flex-row text-slate-400" id="timelineScale">
-          <!-- 由 JS 自動生成 00 ~ 23 的刻度 -->
-        </div>
+          </div>
       </div>
 
-      <!-- 看板行結構 -->
       <div id="ganttBody" class="bg-white">
-        <!-- 由 JS 動態渲染行與車趟 -->
-      </div>
+        </div>
     </div>
   </div>
 
@@ -87,6 +85,13 @@
   import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
   const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  
+  // 提取中文班別代稱
+  const getChineseShift = (shiftStr) => {
+      if (!shiftStr) return "無";
+      const match = shiftStr.match(/\((.*?)\)/);
+      return match ? match[1] : shiftStr.split(' ')[0];
+  };
 
   checkAuthAndGetRole(['總公司', '站長', '調度員']).then(async (user) => {
       renderNavbar(user, 'gantt'); 
@@ -98,7 +103,6 @@
       const ganttBody = document.getElementById('ganttBody');
       const colHeaderTitle = document.getElementById('colHeaderTitle');
 
-      // 視角狀態管理 ('driver' 或 'vehicle')
       let currentView = 'driver'; 
       let currentAvailableDrivers = [];
       let currentAvailableVehicles = [];
@@ -111,7 +115,6 @@
           scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`;
       }
 
-      // 視角切換綁定
       document.getElementById('viewDriverBtn').addEventListener('click', () => {
           currentView = 'driver';
           document.getElementById('viewDriverBtn').className = 'view-btn active';
@@ -126,92 +129,158 @@
           renderGantt();
       });
 
-      // 載入當天出勤駕駛陣列
-      async function loadActiveDrivers(selectedDate) {
-          const d = new Date(selectedDate);
-          const target = new Date(d.valueOf()); 
-          target.setDate(target.getDate() - ((d.getDay() + 6) % 7) + 3);
-          const weekId = `${d.getFullYear()}-W${(1 + Math.ceil((target.valueOf() - target.setMonth(0, 1)) / 604800000)).toString().padStart(2, '0')}`;
-          const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()];
-
-          currentAvailableDrivers = [];
+      // 取得單一日期的週表與 DayKey
+      async function getDriverRosterForDate(dateObj) {
+          const target = new Date(dateObj.valueOf());
+          target.setDate(target.getDate() - ((dateObj.getDay() + 6) % 7) + 3);
+          const weekId = `${dateObj.getFullYear()}-W${(1 + Math.ceil((target.valueOf() - target.setMonth(0, 1)) / 604800000)).toString().padStart(2, '0')}`;
+          const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][dateObj.getDay()];
           const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
-          if (docSnap.exists() && docSnap.data().roster) {
-              const roster = docSnap.data().roster;
-              for (let dId in roster) {
-                  if (roster[dId][dayKey] && !roster[dId][dayKey].includes("OFF")) {
-                      currentAvailableDrivers.push({ id: dId, name: roster[dId].name, subtitle: roster[dId][dayKey].split(' ')[0] });
+          return docSnap.exists() ? { roster: docSnap.data().roster, dayKey } : null;
+      }
+
+      // 載入當天出勤駕駛 (含昨天班別繼承)
+      async function loadActiveDrivers(selectedDate) {
+          currentAvailableDrivers = [];
+          const currD = new Date(selectedDate);
+          const prevD = new Date(selectedDate);
+          prevD.setDate(prevD.getDate() - 1);
+
+          const [currData, prevData] = await Promise.all([
+              getDriverRosterForDate(currD),
+              getDriverRosterForDate(prevD)
+          ]);
+
+          const tempDrivers = {};
+          
+          if (currData && currData.roster) {
+              for (let dId in currData.roster) {
+                  const shift = currData.roster[dId][currData.dayKey];
+                  if (shift && !shift.includes("OFF")) {
+                      tempDrivers[dId] = { id: dId, name: currData.roster[dId].name, currShift: shift, prevShift: "休假" };
                   }
               }
+          }
+
+          if (prevData && prevData.roster) {
+              for (let dId in prevData.roster) {
+                  const prevShift = prevData.roster[dId][prevData.dayKey];
+                  if (tempDrivers[dId]) {
+                      tempDrivers[dId].prevShift = prevShift;
+                  } else if (prevShift && prevShift.includes("N (夜)")) {
+                      // 繼承跨日夜班
+                      tempDrivers[dId] = { id: dId, name: prevData.roster[dId].name, currShift: "跨日續班", prevShift: prevShift };
+                  }
+              }
+          }
+
+          for(let key in tempDrivers) {
+              const d = tempDrivers[key];
+              const prevC = getChineseShift(d.prevShift);
+              const currC = getChineseShift(d.currShift);
+              // ✨ 設定顯示文字： 昨[早] ➔ 今[中]
+              d.subtitle = `昨[${prevC}] ➔ 今[${currC}]`;
+              currentAvailableDrivers.push(d);
           }
           currentAvailableDrivers.sort((a, b) => a.id.localeCompare(b.id));
       }
 
-      // 載入妥善車輛陣列
+      // ✨ 載入車輛 (加入車型讀取)
       async function loadActiveVehicles() {
           currentAvailableVehicles = [];
           const vSnap = await getDocs(collection(db, "Vehicles"));
           vSnap.forEach(v => {
-              if (v.data().status === 'ready') currentAvailableVehicles.push({ id: v.id, name: v.id, subtitle: "整備完成" });
+              if (v.data().status === 'ready') {
+                  // 自動讀取 model 或 type 欄位，若無則顯示未指定
+                  const modelInfo = v.data().model || v.data().type || '未指定車型';
+                  currentAvailableVehicles.push({ 
+                      id: v.id, 
+                      name: `${v.id} (${modelInfo})`, 
+                      subtitle: "整備完成" 
+                  });
+              }
           });
           currentAvailableVehicles.sort((a, b) => a.id.localeCompare(b.id));
       }
 
-      // 監聽當日車趟
       function streamGanttData(dateStr) {
           if (unsubscribeDispatch) unsubscribeDispatch();
           const q = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
           
           unsubscribeDispatch = onSnapshot(q, async (snapshot) => {
-              // 確保駕駛與車輛資料都載入完畢
               await Promise.all([loadActiveDrivers(dateStr), loadActiveVehicles()]);
               
               dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
               dbStatusEl.innerText = "畫布連線正常";
 
               currentTrips = snapshot.docs.map(doc => ({ db_id: doc.id, ...doc.data() }));
-              renderGantt(); // 重新渲染畫面
+              renderGantt(); 
           });
       }
 
-      // ✨ 根據當前視角渲染畫面
       function renderGantt() {
           ganttBody.innerHTML = "";
 
           if (currentView === 'driver') {
-              colHeaderTitle.innerText = "駕駛長 (班別)";
-              // 1. 渲染【尚未指派駕駛】的車趟
+              colHeaderTitle.innerText = "駕駛長 (班別狀態)";
               renderGanttRow("尚未指派", "尚未指派", "請拖曳派發", currentTrips.filter(t => t.assigned_driver === "尚未指派"));
-              // 2. 渲染各個駕駛
               currentAvailableDrivers.forEach(driver => {
                   const driverTrips = currentTrips.filter(t => t.assigned_driver === driver.name || t.assigned_empid === driver.id);
                   renderGanttRow(driver.id, driver.name, driver.subtitle, driverTrips);
               });
           } else if (currentView === 'vehicle') {
-              colHeaderTitle.innerText = "車牌號碼 (狀態)";
-              // 1. 渲染【尚未指派車輛】的車趟
+              colHeaderTitle.innerText = "車號 (車型裝備)";
               renderGanttRow("尚未指派", "尚未指派", "請拖曳派發", currentTrips.filter(t => t.assigned_vehicle === "尚未指派"));
-              // 2. 渲染各台車輛
               currentAvailableVehicles.forEach(vehicle => {
                   const vehicleTrips = currentTrips.filter(t => t.assigned_vehicle === vehicle.id);
                   renderGanttRow(vehicle.id, vehicle.name, vehicle.subtitle, vehicleTrips);
               });
           }
-
           setupDragAndDropEvents();
       }
 
-      // 渲染單一橫列
       function renderGanttRow(rowId, rowName, subtitleText, rowTrips) {
           const isUnassigned = rowId === "尚未指派";
           const labelBg = isUnassigned ? "bg-amber-50 text-amber-800" : "bg-slate-50 text-slate-800";
           
+          // ✨ 計算總工時與純駕駛時間
+          let workSpanStr = "無趟次";
+          let drivingTimeStr = "無趟次";
+
+          if (currentView === 'driver' && !isUnassigned) {
+              if (rowTrips.length > 0) {
+                  let minStart = 9999, maxEnd = 0;
+                  let totalDrivingMins = 0;
+                  
+                  rowTrips.forEach(t => {
+                      let st = timeToMins(t.departure_time);
+                      let et = timeToMins(t.arrival_time || t.departure_time);
+                      if(st < minStart) minStart = st;
+                      // 下班時間計入 20 分鐘緩衝
+                      if(et + 20 > maxEnd) maxEnd = et + 20; 
+                      totalDrivingMins += (et - st);
+                  });
+                  
+                  let spanMins = maxEnd - minStart;
+                  workSpanStr = `${Math.floor(spanMins / 60)}h ${spanMins % 60}m`;
+                  drivingTimeStr = `${Math.floor(totalDrivingMins / 60)}h ${totalDrivingMins % 60}m`;
+              }
+          }
+          
           let rowHtml = `
-            <div class="gantt-row drop-zone" data-targetid="${rowId}" data-targetname="${rowName}">
+            <div class="gantt-row drop-zone" data-targetid="${rowId}" data-targetname="${rowName.split(' ')[0]}">
               <div class="gantt-label-col ${labelBg}">
-                <div class="text-base">${rowName}</div>
-                ${!isUnassigned && rowId !== rowName ? `<div class="text-xs text-gray-400 font-mono">ID: ${rowId}</div>` : ''}
-                <div class="text-xs text-emerald-600 mt-1">${subtitleText}</div>
+                <div class="text-[15px] font-black text-slate-800 truncate" title="${rowName}">${rowName}</div>
+                ${!isUnassigned && currentView === 'driver' ? `
+                    <div class="text-[11px] text-gray-500 font-bold mt-1 tracking-wide">${subtitleText}</div>
+                    <div class="mt-2 pt-2 border-t border-gray-200">
+                        <div class="text-[11px] text-blue-700 font-bold mb-0.5">⏱️ 總工時: ${workSpanStr}</div>
+                        <div class="text-[11px] text-orange-600 font-bold">🚌 總駕駛: ${drivingTimeStr}</div>
+                    </div>
+                ` : ''}
+                ${!isUnassigned && currentView === 'vehicle' ? `
+                    <div class="text-[11px] text-emerald-600 font-bold mt-1 tracking-wide">${subtitleText}</div>
+                ` : ''}
               </div>
               <div class="gantt-timeline-col">
           `;
@@ -227,7 +296,6 @@
               else if (trip.route === "TXL") colorClass = "bg-orange-600 border-orange-700";
               else if (isUnassigned) colorClass = "bg-rose-500 border-rose-600 animate-pulse";
 
-              // 根據視角決定方塊內顯示的副資訊 (如果在看駕駛，方塊上就顯示車號；反之亦然)
               let blockSubInfo = currentView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
 
               rowHtml += `
@@ -237,7 +305,7 @@
                      style="left: ${leftPercent}%; width: ${widthPercent}%;"
                      title="車趟：${trip.route} (${trip.departure_time}~${trip.arrival_time}) \n站點：${trip.start_point} ➔ ${trip.end_point}\n${blockSubInfo}">
                   <div class="truncate font-black">${trip.route}: ${trip.start_point}➔${trip.end_point}</div>
-                  <div class="text-[10px] opacity-90 font-mono">${trip.departure_time} ｜ ${blockSubInfo}</div>
+                  <div class="text-[10px] opacity-90 font-mono mt-0.5 tracking-wider">${trip.departure_time} ｜ ${blockSubInfo}</div>
                 </div>
               `;
           });
@@ -246,9 +314,6 @@
           ganttBody.innerHTML += rowHtml;
       }
 
-      // ==========================================
-      // 🎛️ 智慧雙棲拖曳引擎
-      // ==========================================
       function setupDragAndDropEvents() {
           const blocks = document.querySelectorAll('.trip-block');
           const zones = document.querySelectorAll('.drop-zone');
@@ -262,10 +327,7 @@
           });
 
           zones.forEach(zone => {
-              zone.addEventListener('dragover', (e) => {
-                  e.preventDefault(); 
-                  zone.classList.add('drag-over');
-              });
+              zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
               zone.addEventListener('dragleave', () => { zone.classList.remove('drag-over'); });
               
               zone.addEventListener('drop', async (e) => {
@@ -273,8 +335,8 @@
                   zone.classList.remove('drag-over');
                   
                   const tripId = e.dataTransfer.getData('text/plain');
-                  const targetId = zone.dataset.targetid;     // 駕駛 ID 或是 車牌號碼
-                  const targetName = zone.dataset.targetname; // 駕駛姓名 或是 車牌號碼
+                  const targetId = zone.dataset.targetid;     
+                  const targetName = zone.dataset.targetname; 
 
                   if (!tripId) return;
 
@@ -282,7 +344,6 @@
                       dbStatusEl.innerText = "⏳ 雲端同步中...";
                       const tripRef = doc(db, "daily_dispatches", tripId);
                       
-                      // 判斷目前視角，更新對應的資料庫欄位
                       if (currentView === 'driver') {
                           if (targetId === "尚未指派") {
                               await updateDoc(tripRef, { assigned_driver: "尚未指派", assigned_empid: "" });
@@ -293,7 +354,7 @@
                           if (targetId === "尚未指派") {
                               await updateDoc(tripRef, { assigned_vehicle: "尚未指派" });
                           } else {
-                              await updateDoc(tripRef, { assigned_vehicle: targetId }); // targetId 就是車牌
+                              await updateDoc(tripRef, { assigned_vehicle: targetId }); 
                           }
                       }
                   } catch (err) {
@@ -304,7 +365,6 @@
           });
       }
 
-      // 監聽日期變更
       dateInput.addEventListener('change', (e) => streamGanttData(e.target.value));
       streamGanttData(dateInput.value);
 

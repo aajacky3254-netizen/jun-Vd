@@ -62,9 +62,7 @@
       <div class="input-group"><label>發車時間</label><input type="time" id="inputTime"></div>
       <div class="input-group"><label>到達時間</label><input type="time" id="inputEndTime"></div>
       <div class="input-group"><label>路線/Tour</label><input type="text" id="inputRoute" list="routesList" placeholder="例:200(T5)" style="width: 110px;"></div>
-      
       <div class="input-group"><label>趟數</label><input type="number" id="inputTrips" value="1" min="1" style="width: 70px;" class="font-bold text-center"></div>
-      
       <div class="input-group"><label>起始點</label><input type="text" id="inputStart" list="stationsList" style="width: 140px;"></div>
       <div class="input-group"><label>終點站</label><input type="text" id="inputEnd" list="stationsList" style="width: 140px;"></div>
       <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-700 transition shadow-sm">＋ 新增區塊</button>
@@ -119,27 +117,56 @@
       onSnapshot(collection(db, "Routes"), snap => { document.getElementById('routesList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join(''); });
       onSnapshot(collection(db, "Stations"), snap => { document.getElementById('stationsList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join(''); });
 
-      async function loadResources(selectedDate) {
-          const d = new Date(selectedDate);
-          const target = new Date(d.valueOf()); 
-          target.setDate(target.getDate() - ((d.getDay() + 6) % 7) + 3);
-          const weekId = `${d.getFullYear()}-W${(1 + Math.ceil((target.valueOf() - target.setMonth(0, 1)) / 604800000)).toString().padStart(2, '0')}`;
-          const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()];
+      // 取得單一日期的週表與 DayKey
+      async function getDriverRosterForDate(dateObj) {
+          const target = new Date(dateObj.valueOf());
+          target.setDate(target.getDate() - ((dateObj.getDay() + 6) % 7) + 3);
+          const weekId = `${dateObj.getFullYear()}-W${(1 + Math.ceil((target.valueOf() - target.setMonth(0, 1)) / 604800000)).toString().padStart(2, '0')}`;
+          const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][dateObj.getDay()];
+          const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+          return docSnap.exists() ? { roster: docSnap.data().roster, dayKey } : null;
+      }
 
-          currentAvailableDrivers = []; currentAvailableVehicles = [];
+      // ✨ 改良版：同時載入「今天」與「昨天」的駕駛清單
+      async function loadResources(selectedDate) {
+          currentAvailableDrivers = []; 
+          currentAvailableVehicles = [];
+          const addedDrivers = new Set();
           
           const vSnap = await getDocs(collection(db, "Vehicles"));
           vSnap.forEach(v => { if (v.data().status === 'ready') currentAvailableVehicles.push({ plate: v.id }); });
 
-          const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
-          if (docSnap.exists() && docSnap.data().roster) {
-              const roster = docSnap.data().roster;
-              for (let dId in roster) {
-                  if (roster[dId][dayKey] && !roster[dId][dayKey].includes("OFF")) {
-                      currentAvailableDrivers.push({ empId: dId, name: roster[dId].name, shift: roster[dId][dayKey] });
+          const currD = new Date(selectedDate);
+          const prevD = new Date(selectedDate);
+          prevD.setDate(prevD.getDate() - 1);
+
+          const [currData, prevData] = await Promise.all([
+              getDriverRosterForDate(currD),
+              getDriverRosterForDate(prevD)
+          ]);
+
+          // 1. 處理「今天」有班的駕駛
+          if (currData && currData.roster) {
+              for (let dId in currData.roster) {
+                  const shift = currData.roster[dId][currData.dayKey];
+                  if (shift && !shift.includes("OFF")) {
+                      currentAvailableDrivers.push({ empId: dId, name: currData.roster[dId].name, shift: shift, isPrevNight: false });
+                      addedDrivers.add(dId);
                   }
               }
           }
+
+          // 2. 處理「昨天」上夜班的駕駛 (跨日繼承，處理過午夜的班次)
+          if (prevData && prevData.roster) {
+              for (let dId in prevData.roster) {
+                  const prevShift = prevData.roster[dId][prevData.dayKey];
+                  // 如果昨天是夜班，且今天名單裡還沒有他，就強制加入清單
+                  if (prevShift && prevShift.includes("N (夜)") && !addedDrivers.has(dId)) {
+                      currentAvailableDrivers.push({ empId: dId, name: prevData.roster[dId].name, shift: prevShift, isPrevNight: true });
+                  }
+              }
+          }
+          currentAvailableDrivers.sort((a, b) => a.empId.localeCompare(b.empId));
       }
 
       function loadDispatchForDate(dateStr) {
@@ -152,10 +179,18 @@
               currentDayTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
               
               tbody.innerHTML = currentDayTrips.map(data => {
-                  let drvOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableDrivers.map(d => `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver===d.name?'selected':''}>${d.empId} ${d.name} (${d.shift.split(' ')[0]})</option>`).join('');
+                  let drvOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableDrivers.map(d => {
+                      // ✨ 正規表達式：從 "M (早)" 中精準提取出 "早" 
+                      let shiftMatch = d.shift.match(/\((.*?)\)/);
+                      let chineseShift = shiftMatch ? shiftMatch[1] : d.shift.split(' ')[0];
+                      // ✨ 針對昨晚來上班的跨日駕駛，標示為 "昨夜"
+                      let displayTag = d.isPrevNight ? `昨夜` : chineseShift;
+
+                      return `<option value="${d.name}" data-empid="${d.empId}" ${data.assigned_driver===d.name?'selected':''}>${d.empId} ${d.name} (${displayTag})</option>`;
+                  }).join('');
+
                   let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
                   
-                  // ✨ 渲染時加入趟數顯示
                   return `<tr>
                       <td class="font-bold">${data.departure_time} ${data.arrival_time ? '~ '+data.arrival_time : ''}</td>
                       <td class="text-blue-700 font-bold">${data.route}</td>
@@ -172,22 +207,17 @@
       loadDispatchForDate(dateInput.value);
       dateInput.addEventListener('change', (e) => loadDispatchForDate(e.target.value));
 
-      // ✨ 新增車趟時，將趟數 (trip_count) 寫入 Firebase
       document.getElementById('addTripBtn').onclick = async () => {
           if(!document.getElementById('inputTime').value || !document.getElementById('inputRoute').value) {
               return alert("發車時間與路線為必填！");
           }
           await addDoc(dispatchesCol, {
-              date: dateInput.value, 
-              departure_time: document.getElementById('inputTime').value, 
-              arrival_time: document.getElementById('inputEndTime').value,
-              route: document.getElementById('inputRoute').value, 
-              trip_count: document.getElementById('inputTrips').value || 1, // 紀錄趟數
-              start_point: document.getElementById('inputStart').value, 
-              end_point: document.getElementById('inputEnd').value,
+              date: dateInput.value, departure_time: document.getElementById('inputTime').value, arrival_time: document.getElementById('inputEndTime').value,
+              route: document.getElementById('inputRoute').value, trip_count: document.getElementById('inputTrips').value || 1, 
+              start_point: document.getElementById('inputStart').value, end_point: document.getElementById('inputEnd').value,
               assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending"
           });
-          document.getElementById('inputTrips').value = 1; // 新增後重置趟數為1
+          document.getElementById('inputTrips').value = 1; 
       };
 
       tbody.addEventListener('change', async (e) => {
@@ -202,7 +232,6 @@
           if (e.target.classList.contains('btn-delete-trip')) await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id));
       });
 
-      // 📋 載入指定日期時刻表 (複製包含趟數)
       const copySourceInput = document.getElementById('inputCopySource');
       const yesterdayInit = new Date(); yesterdayInit.setDate(yesterdayInit.getDate() - 1);
       copySourceInput.value = yesterdayInit.toISOString().split('T')[0];
@@ -235,13 +264,8 @@
                       if (!existingSchedules.has(uniqueKey)) {
                           const newTripRef = doc(collection(db, "daily_dispatches"));
                           batch.set(newTripRef, {
-                              date: targetDate, 
-                              departure_time: oldData.departure_time,
-                              arrival_time: oldData.arrival_time || "",
-                              route: oldData.route,
-                              trip_count: oldData.trip_count || 1, // ✨ 完美複製趟數
-                              start_point: oldData.start_point || "",
-                              end_point: oldData.end_point || "",
+                              date: targetDate, departure_time: oldData.departure_time, arrival_time: oldData.arrival_time || "",
+                              route: oldData.route, trip_count: oldData.trip_count || 1, start_point: oldData.start_point || "", end_point: oldData.end_point || "",
                               assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending"
                           });
                           count++;
@@ -267,7 +291,6 @@
           } catch (err) { alert("清空失敗。"); }
       });
 
-      // ✨ 終極版智慧調度 (嚴格落實：8H駕駛、12H總工時、無兩頭班)
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           const tripsToDispatch = currentDayTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
           if (tripsToDispatch.length === 0) return alert("畫面中無空缺車趟可調度！");
@@ -336,8 +359,7 @@
           else { alert("目前無符合勞基法規範之駕駛/車輛可供調度。"); }
       });
 
-      // 列印相關保留不變...
-      document.getElementById('btnPrintAll').addEventListener('click', () => { /* 列印代碼省略以保持核心簡潔，可沿用您原先的完美列印邏輯 */ alert("請套用原先的列印邏輯"); });
+      document.getElementById('btnPrintAll').addEventListener('click', () => { alert("請套用原先的列印邏輯"); });
   }).catch(err => console.error(err));
 </script>
 </body>
