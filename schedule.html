@@ -269,59 +269,76 @@
         });
 
         // ==========================================
-        // 💾 儲存與嚴格防呆審核
-        // ==========================================
-        document.getElementById('btn-save').addEventListener('click', async () => {
-            const rosterToSave = {};
-            let hasViolation = false;
-            let violationMsg = "";
+// 💾 修正後的儲存與嚴格跨週防呆審核
+// ==========================================
+document.getElementById('btn-save').addEventListener('click', async () => {
+    const rosterToSave = {};
+    let hasViolation = false;
+    let violationMsg = "";
 
-            currentDrivers.forEach(driver => {
-                rosterToSave[driver.empId] = { name: driver.name };
-                let prevShift = ""; 
-                let offCount = 0; 
-                
-                daysOfWeek.forEach(day => {
-                    const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                    if (selectEl) {
-                        const currentShift = selectEl.value;
-                        rosterToSave[driver.empId][day] = currentShift;
-                        if (currentShift === "OFF (休)") offCount++;
+    // 1. 取得上週的 ID，用以撈取上週日班表
+    const d = new Date(document.getElementById('week-picker').value);
+    d.setDate(d.getDate() - 7);
+    const prevWeekId = getWeekStr(d.toISOString());
+    let lastWeekRoster = {};
+    try {
+        const snap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
+        if (snap.exists()) lastWeekRoster = snap.data().roster || {};
+    } catch (e) { console.warn("無法取得上週班表，將跳過跨週檢核"); }
 
-                        if (prevShift === "E (晚)" && (currentShift === "M (早)" || currentShift === "A (中)")) {
-                            hasViolation = true;
-                            violationMsg += `⚠️ [${driver.name}] 違規：前日晚班(E)，今日不可接早/中班，違反11小時休息間隔！\n`;
-                        }
-                        if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)")) {
-                            hasViolation = true;
-                            violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，隔日必須排休、待命或替班，不可連續常態出勤！\n`;
-                        }
-                        prevShift = currentShift; 
-                    }
-                });
+    // 2. 開始檢核
+    currentDrivers.forEach(driver => {
+        rosterToSave[driver.empId] = { name: driver.name };
+        
+        // 🚀 關鍵修正：初始化 prevShift 為上週日的班別 (若無則預設為休假)
+        let prevShift = (lastWeekRoster[driver.empId] && lastWeekRoster[driver.empId]['sun']) 
+                        ? lastWeekRoster[driver.empId]['sun'] 
+                        : "OFF (休)";
+        
+        let offCount = 0; 
+        
+        daysOfWeek.forEach(day => {
+            const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+            const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+            if (selectEl) {
+                const currentShift = selectEl.value;
+                rosterToSave[driver.empId][day] = currentShift;
+                if (currentShift === "OFF (休)") offCount++;
 
-                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN') || driver.name.includes('老闆');
-                if (offCount === 0 && !isBoss) {
+                // 防呆檢核邏輯
+                if (prevShift === "E (晚)" && (currentShift === "M (早)" || currentShift === "A (中)")) {
                     hasViolation = true;
-                    violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假，違反七休一規定！\n`;
+                    violationMsg += `⚠️ [${driver.name}] 違規：前日晚班(E)，今日不可接早/中班，違反11小時休息間隔！\n`;
                 }
-            });
-
-            if (hasViolation) {
-                alert("❌ 儲存失敗！系統偵測到高風險/違法排班：\n\n" + violationMsg);
-                return;
+                if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)")) {
+                    hasViolation = true;
+                    violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，隔日必須排休、待命或替班，不可連續常態出勤！\n`;
+                }
+                prevShift = currentShift; 
             }
-
-            const btn = document.getElementById('btn-save');
-            btn.innerText = "⏳ 儲存中..."; btn.disabled = true;
-            try {
-                await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
-                isDirty = false; 
-                alert("✅ 班表已成功儲存！法規檢核全數通過！");
-            } catch (err) { alert("❌ 儲存失敗！"); }
-            btn.innerText = "💾 儲存並發布"; btn.disabled = false;
         });
+
+        const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN') || driver.name.includes('老闆');
+        if (offCount === 0 && !isBoss) {
+            hasViolation = true;
+            violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假，違反七休一規定！\n`;
+        }
+    });
+
+    if (hasViolation) {
+        alert("❌ 儲存失敗！系統偵測到高風險/違法排班（包含跨週衝突）：\n\n" + violationMsg);
+        return;
+    }
+
+    const btn = document.getElementById('btn-save');
+    btn.innerText = "⏳ 儲存中..."; btn.disabled = true;
+    try {
+        await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
+        isDirty = false; 
+        alert("✅ 班表已成功儲存！跨週法規檢核全數通過！");
+    } catch (err) { alert("❌ 儲存失敗！"); }
+    btn.innerText = "💾 儲存並發布"; btn.disabled = false;
+});
 
         document.getElementById('btn-copy-prev').addEventListener('click', async () => { 
             if(!confirm("確定要載入「上週」底稿嗎？")) return;
