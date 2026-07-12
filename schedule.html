@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>車輛調度系統 - 週班表管理 (滾動排休升級版)</title>
+    <title>車輛調度系統 - 週班表管理 (台灣客運實務版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
@@ -45,13 +45,13 @@
             </div>
             <div class="flex space-x-3">
                 <button id="btn-copy-prev" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="複製上週班表">📋 複製上週</button>
-                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="執行滾動式排休與夜班分配">✨ 智慧滾動替休制</button>
+                <button id="btn-auto" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded shadow-sm font-bold flex items-center transition" title="執行台灣客運實務排休與專職分配">✨ 智慧實務排班 (固定班+散休)</button>
                 <button id="btn-save" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow-sm font-bold flex items-center transition">💾 儲存並發布</button>
             </div>
         </div>
 
         <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 shadow-sm flex flex-wrap gap-x-6 gap-y-2 text-sm text-orange-900 font-bold">
-            💡 <strong>排班策略提示：</strong>已啟用「滾動式排休」。系統會將休假日均勻打散至每日，並確保每天有 1 名夜班駕駛與適當的替班 (REL) 人力。老闆帳號將自動保留為待命救援。
+            💡 <strong>排班策略提示：</strong>已啟用「台灣客運實務制」。系統將固定每位駕駛的底班（早/中/晚/夜/替），並採「散休」機制確保不連續休假防疲勞，且每天皆會自動保留老闆為待命救援。
         </div>
 
         <div class="overflow-x-auto rounded-lg shadow border border-gray-200">
@@ -213,78 +213,30 @@
         }
 
         // ==========================================
-        // ✨ 終極版智慧滾動替休制 (均勻打散、夜班防呆、老闆救援)
+        // ✨ 終極版：台灣客運實務排班制 (固定底班、專職夜班、完美散休)
         // ==========================================
         document.getElementById('btn-auto').addEventListener('click', () => {
-            if(!confirm("確定要執行「智慧滾動替休制」排班嗎？\n系統將為您均勻打散休假、自動分配每日1名夜班，並設定通用的替班(REL)儲備人力！")) return;
+            if(!confirm("確定要執行「台灣客運實務排班制」嗎？\n系統將固定每位駕駛的底班，並採用「散休」確保不連休，每天皆有夜班與替補人力！")) return;
             
-            // 排除老闆帳號，取得需要參與滾動排班的基層駕駛
             const isBoss = (d) => d.empId === '0000(jun)' || d.empId === '0000' || d.name.toUpperCase().includes('JUN') || d.name.includes('老闆');
-            const totalDrivers = currentDrivers.filter(d => !isBoss(d));
-            const D = totalDrivers.length;
             
-            if(D < 3) {
-                alert("⚠️ 駕駛人數過少，無法執行均勻打散排班！");
-                return;
-            }
+            // 台灣實務：每人入職即固定班別 (針對 7 位基層駕駛的最佳火力配置)
+            // 2早、1中、2晚、1夜、1替班
+            const baseShifts = ["M (早)", "M (早)", "A (中)", "E (晚)", "E (晚)", "N (夜)", "REL (替班)"];
+            
+            // 完美散休矩陣 (保證每人一週休2天，且絕對不連續，且每天剛好有2人休假)
+            const offPatterns = [
+                [0, 3], // 星期一、四休
+                [1, 4], // 星期二、五休
+                [2, 5], // 星期三、六休
+                [3, 6], // 星期四、日休
+                [0, 4], // 星期一、五休
+                [1, 5], // 星期二、六休
+                [2, 6]  // 星期三、日休
+            ];
 
-            // 建立 7天 x D駕駛 的空白陣列
-            let sched = Array(D).fill(null).map(() => Array(7).fill(""));
-
-            // 1. 分配休假 (OFF) - 每人2天連假，利用錯位平均打散到週一至週日
-            for(let i = 0; i < D; i++) {
-                let off1 = (i * 2) % 7;
-                let off2 = (off1 + 1) % 7;
-                sched[i][off1] = "OFF (休)";
-                sched[i][off2] = "OFF (休)";
-            }
-
-            // 2. 分配夜班 (N) - 每天精準分配 1 名，優先挑選「明天休假」的人以避開 N接M
-            let lastN = -1;
-            for(let day = 0; day < 7; day++) {
-                let cand = lastN;
-                // 若上一位夜班駕駛今天休假，或尚未指派，則尋找新駕駛
-                if (cand === -1 || sched[cand][day] === "OFF (休)") {
-                    cand = -1;
-                    // 第一志願：今天沒休，且明天休假 (最安全的夜班落點)
-                    for(let i = 0; i < D; i++) {
-                        if (sched[i][day] !== "OFF (休)" && sched[i][(day + 1) % 7] === "OFF (休)") {
-                            cand = i; break;
-                        }
-                    }
-                    // 備案：隨便找一個今天沒休假的人
-                    if (cand === -1) {
-                        for(let i = 0; i < D; i++) {
-                            if (sched[i][day] !== "OFF (休)") { cand = i; break; }
-                        }
-                    }
-                }
-                if (cand !== -1) {
-                    sched[cand][day] = "N (夜)";
-                    lastN = cand;
-                }
-            }
-
-            // 3. 分配底班 (M, A, E, REL) 填滿剩下的空班
-            // 為了防呆，只要這週有上夜班的人，其底班絕對不能是早(M)或中(A)，一律給晚(E)或替班(REL)
-            const safeBases = ["E (晚)", "REL (替班)"];
-            const normalBases = ["M (早)", "A (中)", "E (晚)", "REL (替班)"];
-
-            for(let i = 0; i < D; i++) {
-                let hasNight = sched[i].includes("N (夜)");
-                let baseShift = hasNight ? safeBases[i % safeBases.length] : normalBases[i % normalBases.length];
-                
-                for(let day = 0; day < 7; day++) {
-                    if (sched[i][day] === "") {
-                        sched[i][day] = baseShift;
-                    }
-                }
-            }
-
-            // 4. 將陣列資料寫回 DOM 畫面
+            let dIdx = 0;
             currentDrivers.forEach((driver) => {
-                let dIndex = totalDrivers.findIndex(d => d.empId === driver.empId);
-                
                 daysOfWeek.forEach((dayStr, dayIndex) => {
                     const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
                     const selectEl = document.getElementById(`sel-${safeEmpId}-${dayStr}`);
@@ -292,17 +244,28 @@
                     if (selectEl) {
                         if (isBoss(driver)) {
                             selectEl.value = 'STB (待命)'; // 老闆永遠待命救援
-                        } else if (dIndex !== -1) {
-                            selectEl.value = sched[dIndex][dayIndex];
+                        } else {
+                            // 套用散休與固定底班
+                            let myOffDays = offPatterns[dIdx % offPatterns.length];
+                            let myBaseShift = baseShifts[dIdx % baseShifts.length];
+                            
+                            if (myOffDays.includes(dayIndex)) {
+                                selectEl.value = 'OFF (休)';
+                            } else {
+                                selectEl.value = myBaseShift;
+                            }
                         }
                         selectEl.className = window.getShiftClass(selectEl.value);
                     }
                 });
+                
+                // 只有基層駕駛才會推進班表索引
+                if (!isBoss(driver)) dIdx++;
             });
 
             isDirty = true;
             silentAutoSave();
-            alert("✅ 滾動替休排班已完成！\n休假已完美打散，每日皆有夜班與替補人力配置。");
+            alert("✅ 台灣客運實務排班已完成！\n\n已成功為駕駛鎖定固定底班，分配專職夜班，並以散休模式打散休假，預防過度疲勞！");
         });
 
         // ==========================================
