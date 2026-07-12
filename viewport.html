@@ -14,6 +14,17 @@
     .navbar a.nav-link:hover { background-color: #374151; color: white; }
     .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
     
+    /* ========== 第二頁：每日發車時刻表樣式 ========== */
+    .content-area { padding: 0 20px; }
+    .control-panel { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; flex-direction: column; gap: 15px; border: 1px solid #e2e8f0; }
+    .input-row { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
+    .input-group input, .input-group select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; outline: none; }
+    table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; border-radius: 8px; overflow: hidden;}
+    th, td { border: 1px solid #e2e8f0; padding: 14px; }
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
+
     /* ========== 第一頁：甘特圖看板樣式 ========== */
     .gantt-container { display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto; border: 1px solid #e2e8f0; }
     .gantt-header { display: flex; background: #1e293b; color: #fff; font-weight: bold; position: sticky; top: 0; z-index: 20; }
@@ -29,17 +40,6 @@
     .view-btn.active { background-color: #ffffff; color: #1e293b; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .view-btn.inactive { background-color: transparent; color: #64748b; }
     .view-btn.inactive:hover { background-color: #e2e8f0; color: #334155; }
-
-    /* ========== 第二頁：每日發車時刻表樣式 ========== */
-    .content-area { padding: 0 20px; }
-    .control-panel { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; flex-direction: column; gap: 15px; border: 1px solid #e2e8f0; }
-    .input-row { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
-    .input-group { display: flex; flex-direction: column; gap: 6px; }
-    .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
-    .input-group input, .input-group select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; outline: none; }
-    table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; border-radius: 8px; overflow: hidden;}
-    th, td { border: 1px solid #e2e8f0; padding: 14px; }
-    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
   </style>
 </head>
 <body>
@@ -47,44 +47,7 @@
   <!-- 共用導覽列 -->
   <nav class="navbar no-print" id="main-nav"></nav>
 
-  <!-- ================= 第一頁：圖形化拖曳排班動態畫布 ================= -->
-  <div class="p-6 border-b-4 border-gray-300">
-    <div class="flex justify-between items-center mb-4">
-      <div class="flex items-center space-x-6">
-        <h2 class="text-2xl font-bold text-gray-800">📊 圖形化拖曳排班動態畫布</h2>
-        
-        <div class="flex p-1 bg-gray-200 rounded-lg shadow-inner">
-            <button id="viewDriverBtn" class="view-btn active">👨‍✈️ 駕駛視角</button>
-            <button id="viewVehicleBtn" class="view-btn inactive">🚌 車輛視角</button>
-        </div>
-
-        <input type="date" id="ganttDate" class="border-2 border-blue-300 rounded-lg px-4 py-2 outline-none font-bold text-blue-700 bg-blue-50 shadow-sm">
-        <span id="db-status" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
-      </div>
-      <div class="text-sm text-gray-500 font-bold bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
-        💡 <strong>操作提示：</strong>按住車趟即可上下拖曳派班。系統將自動即時計算該駕駛之總工時與純駕駛時間。
-      </div>
-    </div>
-
-    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 shadow-sm flex flex-wrap gap-x-6 gap-y-2 text-sm text-indigo-900 font-bold">
-        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-400"></span>早班：約 04:30 - 13:30 (涵蓋早上尖峰)</div>
-        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-yellow-400"></span>中班：約 09:30 - 18:30 (專門覆蓋早尖峰尾聲與晚尖峰前半段)</div>
-        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-400"></span>晚班：約 13:30 - 22:30 (涵蓋晚間尖峰)</div>
-        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-purple-400"></span>夜班：約 22:00 - 06:00 (專責夜間路線與收班回廠)</div>
-    </div>
-
-    <div class="gantt-container">
-      <div class="gantt-header">
-        <div class="gantt-label-col bg-slate-800 text-amber-400 text-center text-sm" id="colHeaderTitle">排班對象</div>
-        <div class="gantt-timeline-col flex flex-row text-slate-400" id="timelineScale">
-          </div>
-      </div>
-      <div id="ganttBody" class="bg-white">
-        </div>
-    </div>
-  </div>
-
-  <!-- ================= 第二頁：每日發車時刻表 ================= -->
+    <!-- ================= 第二頁：每日發車時刻表 ================= -->
   <div id="main-content" class="no-print">
     <div class="content-area mt-5">
       <h2 class="text-2xl font-bold text-gray-800 mb-4 ml-2">🕒 每日發車時刻表</h2>
@@ -136,6 +99,43 @@
         </thead>
         <tbody id="dispatchBody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ================= 第一頁：圖形化拖曳排班動態畫布 ================= -->
+  <div class="p-6 border-b-4 border-gray-300">
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex items-center space-x-6">
+        <h2 class="text-2xl font-bold text-gray-800">📊 圖形化拖曳排班動態畫布</h2>
+        
+        <div class="flex p-1 bg-gray-200 rounded-lg shadow-inner">
+            <button id="viewDriverBtn" class="view-btn active">👨‍✈️ 駕駛視角</button>
+            <button id="viewVehicleBtn" class="view-btn inactive">🚌 車輛視角</button>
+        </div>
+
+        <input type="date" id="ganttDate" class="border-2 border-blue-300 rounded-lg px-4 py-2 outline-none font-bold text-blue-700 bg-blue-50 shadow-sm">
+        <span id="db-status" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
+      </div>
+      <div class="text-sm text-gray-500 font-bold bg-white px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
+        💡 <strong>操作提示：</strong>按住車趟即可上下拖曳派班。系統將自動即時計算該駕駛之總工時與純駕駛時間。
+      </div>
+    </div>
+
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4 shadow-sm flex flex-wrap gap-x-6 gap-y-2 text-sm text-indigo-900 font-bold">
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-400"></span>早班：約 04:30 - 13:30 (涵蓋早上尖峰)</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-yellow-400"></span>中班：約 09:30 - 18:30 (專門覆蓋早尖峰尾聲與晚尖峰前半段)</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-red-400"></span>晚班：約 13:30 - 22:30 (涵蓋晚間尖峰)</div>
+        <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-purple-400"></span>夜班：約 22:00 - 06:00 (專責夜間路線與收班回廠)</div>
+    </div>
+
+    <div class="gantt-container">
+      <div class="gantt-header">
+        <div class="gantt-label-col bg-slate-800 text-amber-400 text-center text-sm" id="colHeaderTitle">排班對象</div>
+        <div class="gantt-timeline-col flex flex-row text-slate-400" id="timelineScale">
+          </div>
+      </div>
+      <div id="ganttBody" class="bg-white">
+        </div>
     </div>
   </div>
 
