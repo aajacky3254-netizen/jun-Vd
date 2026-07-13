@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 人事管理系統 (安全雲端版)</title>
+  <title>豐東交通客運 - 人事管理系統 (安全無後端版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
@@ -135,11 +135,18 @@
   </div>
   
   <script type="module">
-    import { db } from './firebase-init.js';
+    // 🔥 引入完整的 app 來做雙開實例
+    import { app, db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    // 🛡️ 引入 Firebase Functions (安全呼叫後端)
-    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
+    
+    // 🛡️ 引入 Secondary App 所需的模組
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signOut as secSignOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    // 建立一個次要的 Firebase App 實例，專門用來建帳號 (才不會把站長給踢下線)
+    const secondaryApp = initializeApp(app.options, "SecondaryApp");
+    const secondaryAuth = getAuth(secondaryApp);
 
     const allowedRoles = ['總公司', '站長', '調度員']; 
 
@@ -182,7 +189,6 @@
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
             dbStatusEl.innerText = "資料庫已連線";
         }, (error) => {
-            console.error(error);
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
             dbStatusEl.innerText = "連線失敗";
         });
@@ -269,7 +275,6 @@
                     try {
                         await deleteDoc(doc(db, "Drivers", e.target.dataset.id));
                     } catch (err) {
-                        console.error("刪除失敗:", err);
                         alert("刪除失敗，請檢查網路！");
                     }
                 }
@@ -296,17 +301,18 @@
                 const docRef = doc(db, "Drivers", empId);
                 const docSnap = await getDoc(docRef);
 
-                // 🛡️ 安全機制：如果是新員工，透過 Firebase Functions 在後端安全建立 Auth 帳號
+                // 🛡️ 雙開防護機制：如果員工不存在，利用 secondaryAuth 建立帳號
                 if (!docSnap.exists()) {
                     try {
-                        const functions = getFunctions();
-                        const createDriverAccount = httpsCallable(functions, 'createDriverAccount');
-                        // 呼叫雲端函數，Firebase 會自動且安全地帶上管理員的 Token
-                        await createDriverAccount({ empId: empId });
-                        console.log("後端 Auth 帳號建立請求已送出並完成");
+                        const email = `${empId}@fengdong.com`;
+                        await createUserWithEmailAndPassword(secondaryAuth, email, "123456");
+                        await secSignOut(secondaryAuth); // 建立完馬上登出 secondaryAuth，確保主帳號不被影響
+                        console.log("登入帳號建立成功");
                     } catch (apiErr) {
-                        console.error("呼叫建立帳號 API 失敗:", apiErr);
-                        alert("⚠️ 帳號建立過程中發生錯誤 (可能權限不足)，但人事資料仍會被儲存。");
+                        if (apiErr.code !== 'auth/email-already-in-use') {
+                            alert("建立登入帳號失敗：" + apiErr.message);
+                            throw apiErr; // 終止後續寫入資料庫
+                        }
                     }
                 }
 
@@ -337,7 +343,7 @@
                 }
             } catch (err) {
                 console.error("寫入失敗:", err);
-                alert("儲存失敗，請檢查網路狀態。");
+                alert("儲存失敗，請檢查權限或網路。");
             } finally {
                 btn.innerHTML = "💾 儲存人員資料";
                 btn.disabled = false;
@@ -348,50 +354,6 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
-
-    // ==========================================
-    // 🛡️ 同步工具也一併升級為安全的 Cloud Functions 呼叫
-    // ==========================================
-    setTimeout(() => {
-        const syncBtn = document.createElement('button');
-        syncBtn.innerHTML = "🔄 批次同步舊員工 Auth 帳號";
-        syncBtn.className = "fixed bottom-5 right-5 bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg font-bold z-50";
-        document.body.appendChild(syncBtn);
-
-        syncBtn.addEventListener('click', async () => {
-            if(!confirm("確定要將所有尚未建立登入帳號的舊員工，批次同步到 Firebase Auth 嗎？")) return;
-            
-            syncBtn.innerText = "⏳ 同步中，請稍候...";
-            syncBtn.disabled = true;
-
-            const functions = getFunctions();
-            const createDriverAccount = httpsCallable(functions, 'createDriverAccount');
-            let successCount = 0;
-
-            try {
-                const snap = await getDocs(collection(db, "Drivers"));
-                const drivers = [];
-                snap.forEach(doc => drivers.push(doc.id));
-
-                for (let empId of drivers) {
-                    try {
-                        const result = await createDriverAccount({ empId: empId });
-                        if (result.data.success) {
-                            console.log(`${empId} 帳號建立成功或已存在`);
-                            successCount++;
-                        }
-                    } catch (e) {
-                        console.error(`${empId} 同步失敗`, e);
-                    }
-                }
-                alert(`✅ 同步完成！共檢查/同步了 ${successCount} 位員工的登入帳號。`);
-            } catch (error) {
-                alert("讀取員工清單或執行權限失敗！");
-            } finally {
-                syncBtn.remove(); 
-            }
-        });
-    }, 2000);
   </script>
 </body>
 </html>
