@@ -3,6 +3,9 @@ import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+/**
+ * 動態渲染導覽列 (全站統一標籤)
+ */
 export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
@@ -51,6 +54,9 @@ export function renderNavbar(user, activePageId) {
     }
 }
 
+/**
+ * 真實登出功能 (安全清除憑證)
+ */
 export function logout() {
     signOut(auth).then(() => {
         window.location.href = 'login.html';
@@ -60,50 +66,58 @@ export function logout() {
     });
 }
 
-// 🔒 核心安全機制：使用 UID 直接開鎖
-export async function checkAuthAndGetRole(allowedRoles) {
+/**
+ * 🔒 核心安全機制：驗證 Firebase 登入狀態並核對 Firestore 權限
+ */
+export function checkAuthAndGetRole(allowedRoles = []) {
     return new Promise((resolve, reject) => {
-        onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
                 try {
-                    // 直接用登入的 UID 當作鑰匙，去 drivers 找對應的文件
-                    const userDocRef = doc(db, "drivers", firebaseUser.uid);
-                    const userDocSnap = await getDoc(userDocRef);
+                    // 🔥 核心修正：將 email (例如 admin@fengdong.com) 拆解回員工編號 (admin)
+                    const empId = user.email ? user.email.split('@')[0] : user.uid;
+                    const docRef = doc(db, "Drivers", empId);
+                    const docSnap = await getDoc(docRef);
                     
-                    if (userDocSnap.exists()) {
-                        // 鎖打開了！成功拿到資料
-                        const driverData = userDocSnap.data();
+                    if (docSnap.exists()) {
+                        const driverData = docSnap.data();
                         
-                        const fullUserData = {
-                            uid: firebaseUser.uid,
-                            email: firebaseUser.email,
-                            empId: driverData.driverId || driverData.empId || firebaseUser.uid, // 抓取您設定的 driverId
-                            name: driverData.name || '未設定姓名',
-                            role: driverData.role || '駕駛長'
-                        };
+                        if (driverData.status !== 'active') {
+                            await signOut(auth);
+                            alert("您的帳號目前為非在職狀態，無法登入系統。");
+                            window.location.href = 'login.html';
+                            reject("非在職狀態");
+                            return;
+                        }
 
-                        if (allowedRoles && !allowedRoles.includes(fullUserData.role)) {
-                            alert(`權限不足！此頁面僅限 ${allowedRoles.join(', ')} 存取。`);
+                        if (allowedRoles.length === 0 || allowedRoles.includes(driverData.role)) {
+                            resolve({ 
+                                uid: user.uid, 
+                                name: driverData.name, 
+                                role: driverData.role,
+                                empRole: driverData.empRole,
+                                station: driverData.station
+                            });
+                        } else {
+                            alert(`權限不足！此頁面僅限【${allowedRoles.join(', ')}】存取。`);
                             window.location.href = 'index.html'; 
                             reject("權限不足");
-                        } else {
-                            resolve(fullUserData); 
                         }
                     } else {
-                        // 找不到對應 UID 的文件
-                        console.error("找不到人事資料。您的 UID:", firebaseUser.uid);
-                        alert("登入失敗：系統中找不到您的資料。請確認您的「人事資料文件 ID」是否與「登入 UID」完全一致。");
-                        await signOut(auth); 
+                        await signOut(auth);
+                        alert("系統中找不到您的員工資料，請聯繫管理員。");
                         window.location.href = 'login.html';
-                        reject("找不到人事資料");
+                        reject("找不到員工資料");
                     }
                 } catch (error) {
-                    console.error("驗證過程發生錯誤:", error); 
-                    reject(error);
+                    console.error("讀取權限失敗:", error);
+                    reject("系統錯誤，無法驗證權限");
                 }
             } else {
-                window.location.href = 'login.html';
                 reject("未登入");
+                if (!window.location.pathname.endsWith('login.html')) {
+                    window.location.href = 'login.html';
+                }
             }
         });
     });
