@@ -65,7 +65,8 @@ export function logout() {
         alert("登出失敗，請檢查網路連線。");
     });
 }
-
+// 系統以為「文件 ID」就是「用戶的 uid」
+const userDoc = await getDoc(doc(db, "drivers", firebaseUser.uid));
 /**
  * 🔒 核心安全機制：驗證 Firebase 登入狀態並核對 Firestore 權限
  */
