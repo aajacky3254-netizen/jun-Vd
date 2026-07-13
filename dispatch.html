@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 綜合調度總覽 (28小時營業日版)</title>
+  <title>豐東交通客運 - 綜合調度總覽 (完美修復版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     /* ========== 共用與導覽列樣式 ========== */
@@ -43,7 +43,6 @@
     .view-btn.inactive { background-color: transparent; color: #64748b; }
     .view-btn.inactive:hover { background-color: #e2e8f0; color: #334155; }
     
-    /* 閃爍警告動畫 */
     @keyframes subtlePulse { 0% { background-color: #fef2f2; } 50% { background-color: #fee2e2; } 100% { background-color: #fef2f2; } }
     .row-warning { animation: subtlePulse 2s infinite; border-left: 4px solid #ef4444; }
   </style>
@@ -345,14 +344,9 @@
               rowTrips.forEach(t => {
                   let st = getBusinessMin(t.departure_time);
                   let et = getBusinessMin(t.arrival_time || t.departure_time) + 20; 
-                  
-                  // 處理極端跨日 (發車 23:30, 結束 01:15)
                   if (et < st) et += 1440; 
-                  
                   let tripDuration = et - st - 20; 
 
-                  // 🚀 昨夜與今日工時拆分邏輯 (以 04:00 為界線)
-                  // 若發車時間在 00:00~03:59 (會被轉成 1440~1679)，視為「昨夜的工時」
                   if (timeToMins(t.departure_time) < 240) {
                       yesterdayDrivingMins += tripDuration;
                   } else {
@@ -381,14 +375,10 @@
           `;
 
           rowTrips.forEach(trip => {
-              let tStart = timeToMins(trip.departure_time);
-              let tEnd = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
-              if (tEnd < tStart) tEnd += 1440; // 👈 必須補上這一行，修正跨日負數Bug
-              
-              let tripDuration = tEnd - tStart;
-              if (totalDriving + tripDuration > 480);
+              const startMin = getBusinessMin(trip.departure_time);
+              let endMin = getBusinessMin(trip.arrival_time || trip.departure_time) + 20; 
+              if (endMin < startMin) endMin += 1440;
 
-              // 🚀 改為除以 1680 (28小時)
               const leftPercent = ((startMin - 240) / 1680) * 100;
               const widthPercent = ((endMin - startMin) / 1680) * 100;
               
@@ -525,6 +515,59 @@
           document.getElementById('inputTrips').value = 1; showToast("✅ 車趟已新增！");
       };
 
+      document.getElementById('btnEmergencyReplace').addEventListener('click', async () => {
+          const sickId = document.getElementById('sickDriver').value, stbId = document.getElementById('stbDriver').value;
+          if (!sickId || !stbId) return alert("請同時選擇「原駕駛」與「替班駕駛」！");
+          if (sickId === stbId) return alert("來源與目標不能是同一人！");
+          const sickName = document.getElementById('sickDriver').selectedOptions[0].dataset.name, stbName = document.getElementById('stbDriver').selectedOptions[0].dataset.name;
+          const tripsToTransfer = currentTrips.filter(t => t.assigned_empid === sickId);
+          if (tripsToTransfer.length === 0) return alert("該駕駛今日無車趟可轉移！");
+          if (!confirm(`確定要將 [${sickName}] 的 ${tripsToTransfer.length} 筆車趟由 [${stbName}] 替班嗎？`)) return;
+          try {
+              const batch = writeBatch(db);
+              tripsToTransfer.forEach(trip => batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: stbName, assigned_empid: stbId }));
+              await batch.commit(); alert(`✅ 替班成功！車趟已完美轉移給 ${stbName}。`);
+              document.getElementById('sickDriver').value = ""; document.getElementById('stbDriver').value = "";
+          } catch (err) { alert("轉移失敗，請檢查網路連線。"); }
+      });
+
+      document.getElementById('btnCopyFromDate').addEventListener('click', async () => {
+          const sourceDate = document.getElementById('inputCopySource').value, targetDate = globalDateInput.value;
+          if (!sourceDate || sourceDate === targetDate) return alert("日期無效！");
+          if(currentTrips.length > 0 && !confirm(`⚠️ 畫面上已有車趟，將跳過重複班次。繼續嗎？`)) return;
+          const btn = document.getElementById('btnCopyFromDate'); btn.innerText = "⏳ 載入中..."; btn.disabled = true;
+          try {
+              const existing = new Set(currentTrips.map(trip => `${trip.route}_${trip.departure_time}`));
+              const snap = await getDocs(query(dispatchesCol, where("date", "==", sourceDate)));
+              if(snap.empty) alert(`找不到 ${sourceDate} 紀錄！`);
+              else {
+                  const batch = writeBatch(db); let count = 0;
+                  snap.forEach(docSnap => {
+                      const oldData = docSnap.data();
+                      if (!existing.has(`${oldData.route}_${oldData.departure_time}`)) {
+                          batch.set(doc(collection(db, "daily_dispatches")), {
+                              date: targetDate, departure_time: oldData.departure_time, arrival_time: oldData.arrival_time || "",
+                              route: oldData.route, trip_count: oldData.trip_count || 1, start_point: oldData.start_point || "", end_point: oldData.end_point || "",
+                              assigned_driver: oldData.assigned_driver || "尚未指派", assigned_empid: oldData.assigned_empid || "", assigned_vehicle: oldData.assigned_vehicle || "尚未指派", status: "pending"
+                          }); count++;
+                      }
+                  });
+                  if (count > 0) { await batch.commit(); showToast(`✅ 拷貝 ${count} 筆影子班表！`); } 
+              }
+          } catch (err) { alert("複製失敗。"); }
+          btn.innerText = "📋 帶班複製"; btn.disabled = false;
+      });
+
+      document.getElementById('btnClearDispatch').addEventListener('click', async () => {
+          const tripsToClear = currentTrips.filter(t => t.assigned_driver !== "尚未指派" || t.assigned_vehicle !== "尚未指派");
+          if(tripsToClear.length === 0 || !confirm(`⚠️ 確定要清空這 ${tripsToClear.length} 筆指派嗎？`)) return;
+          try {
+              const batch = writeBatch(db);
+              tripsToClear.forEach(trip => batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派" }));
+              await batch.commit(); showToast("✅ 排班已全數清空！");
+          } catch (err) { alert("清空失敗。"); }
+      });
+      
       // ✨ 智慧調度按鈕 (修復非法迴圈與跨日負數 Bug 版)
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           const tripsToDispatch = currentTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
@@ -535,7 +578,7 @@
           const batch = writeBatch(db); 
           let changes = 0;
 
-          // ⚠️ 嚴格使用 for...of 迴圈，絕對不能用 .forEach，否則 continue 會報錯！
+          // ⚠️ 嚴格使用 for...of 迴圈，絕對不能用 .forEach
           for (let trip of tripsToDispatch) {
               let assigned_driver = trip.assigned_driver;
               let assigned_empid = trip.assigned_empid;
@@ -544,30 +587,25 @@
               // 🚀 使用營業日函數處理時間，解決午夜跨日產生負數的 Bug
               let tStart = getBusinessMin(trip.departure_time);
               let tEnd = getBusinessMin(trip.arrival_time || trip.departure_time) + 20; 
-              if (tEnd < tStart) tEnd += 1440; // 雙重保險：確保到達時間大於發車時間
+              if (tEnd < tStart) tEnd += 1440; // 雙重保險
               
-              let tripDuration = tEnd - tStart; // 純駕駛 + 緩衝時間
+              let tripDuration = tEnd - tStart; 
 
-              // 尋找適合的駕駛
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
                   let bestDriver = null;
                   
                   for (let d of currentAvailableDrivers) {
                       let sched = driverSchedules[d.empId] || [];
                       
-                      // 1. 檢查時段是否與已排定的車趟重疊
                       if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue;
                       
-                      // 2. 檢查總工時 (合法加班，放寬至 10 小時 = 600 分鐘)
                       let totalDriving = sched.reduce((tot, s) => tot + (s.end - s.start), 0);
                       if (totalDriving + tripDuration > 600) continue; 
                       
-                      // 3. 檢查單日總跨度 (報到至下班不能超過 12 小時 = 720 分鐘)
                       let minStart = sched.length > 0 ? Math.min(...sched.map(s => s.start), tStart) : tStart;
                       let maxEnd = sched.length > 0 ? Math.max(...sched.map(s => s.end), tEnd) : tEnd;
                       if (maxEnd - minStart > 720) continue;
 
-                      // 4. 檢查連續休息 (超過 3 小時的空檔視為不合法的破碎班)
                       let isValidContinuous = true;
                       let combined = sched.length > 0 ? [...sched, {start: tStart, end: tEnd}].sort((a,b)=>a.start-b.start) : [{start: tStart, end: tEnd}];
                       for (let i = 0; i < combined.length - 1; i++) {
@@ -575,7 +613,6 @@
                       }
                       if (!isValidContinuous) continue; 
 
-                      // 5. 大休檢核 (連續工作 4.5 小時需休息 30 分鐘)
                       let currentBlockStart = combined[0].start;
                       let isValidBreak = true;
                       for (let i = 0; i < combined.length - 1; i++) {
@@ -587,7 +624,6 @@
                       if (combined[combined.length-1].end - currentBlockStart > 270) isValidBreak = false;
                       if (!isValidBreak) continue; 
 
-                      // 找到完美符合法規的駕駛！
                       bestDriver = d; 
                       break; 
                   }
@@ -601,7 +637,6 @@
                   }
               }
               
-              // 尋找適合的車輛
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
                   let bestVehicle = null;
                   for (let v of currentAvailableVehicles) {
@@ -616,7 +651,6 @@
                   }
               }
 
-              // 若有變動，加入批量更新隊列
               if (assigned_driver !== trip.assigned_driver || assigned_vehicle !== trip.assigned_vehicle) {
                   batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver, assigned_empid, assigned_vehicle });
               }
@@ -628,5 +662,8 @@
           } else { 
               alert("目前無符合勞基法規範之駕駛/車輛可供調度。"); 
           }
-      });      });
-</script</body></html>
+      });
+  }).catch(err => console.error(err));
+</script>
+</body>
+</html>
