@@ -59,7 +59,6 @@ export function renderNavbar(user, activePageId) {
  */
 export function logout() {
     signOut(auth).then(() => {
-        // 登出成功後導向登入頁面
         window.location.href = 'login.html';
     }).catch((error) => {
         console.error("登出失敗:", error);
@@ -75,14 +74,14 @@ export function checkAuthAndGetRole(allowedRoles = []) {
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 try {
-                    // 去 Firestore 的 Drivers 集合撈取該員工的真實資料
-                    const docRef = doc(db, "Drivers", user.uid);
+                    // 🔥 核心修正：將 email (例如 admin@fengdong.com) 拆解回員工編號 (admin)
+                    const empId = user.email ? user.email.split('@')[0] : user.uid;
+                    const docRef = doc(db, "Drivers", empId);
                     const docSnap = await getDoc(docRef);
                     
                     if (docSnap.exists()) {
                         const driverData = docSnap.data();
                         
-                        // 防護 1：檢查是否在職 (若離職/留停則強制登出)
                         if (driverData.status !== 'active') {
                             await signOut(auth);
                             alert("您的帳號目前為非在職狀態，無法登入系統。");
@@ -91,9 +90,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                             return;
                         }
 
-                        // 防護 2：檢查權限是否符合該頁面要求 (若 allowedRoles 為空陣列，代表只要有登入即可存取)
                         if (allowedRoles.length === 0 || allowedRoles.includes(driverData.role)) {
-                            // 驗證通過，回傳完整的使用者資訊供頁面使用
                             resolve({ 
                                 uid: user.uid, 
                                 name: driverData.name, 
@@ -102,13 +99,11 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                                 station: driverData.station
                             });
                         } else {
-                            // 越權存取，踢回首頁
                             alert(`權限不足！此頁面僅限【${allowedRoles.join(', ')}】存取。`);
                             window.location.href = 'index.html'; 
                             reject("權限不足");
                         }
                     } else {
-                        // 找不到該員工的人事資料，強制登出
                         await signOut(auth);
                         alert("系統中找不到您的員工資料，請聯繫管理員。");
                         window.location.href = 'login.html';
@@ -119,9 +114,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                     reject("系統錯誤，無法驗證權限");
                 }
             } else {
-                // 尚未登入
                 reject("未登入");
-                // 如果當前不在 login.html 頁面，就自動跳轉過去
                 if (!window.location.pathname.endsWith('login.html')) {
                     window.location.href = 'login.html';
                 }
