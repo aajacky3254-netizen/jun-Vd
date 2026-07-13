@@ -1,11 +1,8 @@
 // auth.js
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/**
- * 動態渲染導覽列 (全站統一標籤)
- */
 export function renderNavbar(user, activePageId) {
     const nav = document.getElementById('main-nav');
     if (!nav) return;
@@ -54,9 +51,6 @@ export function renderNavbar(user, activePageId) {
     }
 }
 
-/**
- * 真實登出功能 (安全清除憑證)
- */
 export function logout() {
     signOut(auth).then(() => {
         window.location.href = 'login.html';
@@ -66,26 +60,24 @@ export function logout() {
     });
 }
 
-/**
- * 🔒 核心安全機制：驗證 Firebase 登入狀態並核對 Firestore 權限
- */
+// 🔒 核心安全機制：使用 UID 直接開鎖
 export async function checkAuthAndGetRole(allowedRoles) {
     return new Promise((resolve, reject) => {
         onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 try {
-                    // 直接用登入的 UID 去 drivers 集合找對應的文件
+                    // 直接用登入的 UID 當作鑰匙，去 drivers 找對應的文件
                     const userDocRef = doc(db, "drivers", firebaseUser.uid);
                     const userDocSnap = await getDoc(userDocRef);
                     
                     if (userDocSnap.exists()) {
+                        // 鎖打開了！成功拿到資料
                         const driverData = userDocSnap.data();
                         
                         const fullUserData = {
                             uid: firebaseUser.uid,
                             email: firebaseUser.email,
-                            // 注意：這裡改抓您截圖裡的 driverId 欄位
-                            empId: driverData.driverId || driverData.empId || firebaseUser.uid, 
+                            empId: driverData.driverId || driverData.empId || firebaseUser.uid, // 抓取您設定的 driverId
                             name: driverData.name || '未設定姓名',
                             role: driverData.role || '駕駛長'
                         };
@@ -98,9 +90,9 @@ export async function checkAuthAndGetRole(allowedRoles) {
                             resolve(fullUserData); 
                         }
                     } else {
-                        // 如果在 drivers 集合裡找不到 UID 對應的文件
+                        // 找不到對應 UID 的文件
                         console.error("找不到人事資料。您的 UID:", firebaseUser.uid);
-                        alert("登入失敗：人事系統中找不到您的資料。請確認管理員是否已使用您的 UID 建立人事檔案。");
+                        alert("登入失敗：系統中找不到您的資料。請確認您的「人事資料文件 ID」是否與「登入 UID」完全一致。");
                         await signOut(auth); 
                         window.location.href = 'login.html';
                         reject("找不到人事資料");
