@@ -78,28 +78,26 @@
   </div>
 
   <script type="module">
+    // 1. 合併所有 Import（移除重複宣告）
     import { db } from './firebase-init.js';
-    // 💡 補上 where 條件篩選
-    import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, orderBy, getDocs, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js';
-import { db } from './firebase-init.js';
-    // 💡 新增 addDoc 來寫入資料
     import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, orderBy, getDocs, where, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    // 💡 補上 renderNavbar 解決導覽列消失問題
     import { checkAuthAndGetRole, renderNavbar, logout } from './auth.js';
 
+    // 2. 共用函式只宣告一次
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
+    // 3. 權限驗證區塊只保留一個
     checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
+        // 驗證成功，顯示畫面
         document.body.style.display = 'block'; 
 
-        // 💡 呼叫共用導覽列 (取代原本壞掉的手動拼湊)
+        // 呼叫共用導覽列
         renderNavbar(user, 'leaves');
 
         const dbStatusEl = document.getElementById('db-status');
         const leaveRequestsCol = collection(db, "leave_requests");
 
-        // ======= 🚀 新增：處理假單送出邏輯 =======
+        // ======= 🚀 區塊 A：處理假單送出邏輯 =======
         const leaveModal = document.getElementById('leaveModal');
         document.getElementById('btnOpenLeaveForm').onclick = () => leaveModal.classList.replace('hidden', 'flex');
         document.getElementById('btnCancelLeave').onclick = () => leaveModal.classList.replace('flex', 'hidden');
@@ -114,7 +112,7 @@ import { db } from './firebase-init.js';
             btn.disabled = true; btn.innerText = "送出中...";
             try {
                 await addDoc(leaveRequestsCol, {
-                    empId: user.empId || user.uid, // 若為駕駛則帶入其編號
+                    empId: user.empId || user.uid,
                     name: user.name,
                     type: type,
                     date: date,
@@ -132,24 +130,8 @@ import { db } from './firebase-init.js';
             }
             btn.disabled = false; btn.innerText = "送出申請";
         };
-    const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
-
-    checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
-        document.body.style.display = 'block'; 
-
-        const nav = document.getElementById('main-nav');
-        nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
-                <span>👤 ${escapeHTML(user.name)} (${escapeHTML(user.role)})</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
-            </div>
-        `;
-        document.getElementById('btnLogout').addEventListener('click', logout);
-
-        const dbStatusEl = document.getElementById('db-status');
-        const leaveRequestsCol = collection(db, "leave_requests");
         
-        // 💡 權限分流判斷：駕駛只能看自己的，主管看全部
+        // ======= 📊 區塊 B：讀取與渲染假單清單邏輯 =======
         let q;
         if (user.role === '駕駛長') {
             q = query(leaveRequestsCol, where("empId", "==", user.empId));
@@ -161,7 +143,6 @@ import { db } from './firebase-init.js';
             const leaveBody = document.getElementById('leaveRequestsBody');
             leaveBody.innerHTML = '';
 
-            // 如果是駕駛，需要把抓回來的資料在前端排序 (因為用了 where 就不能混用其他欄位的 orderBy)
             let requests = [];
             snapshot.forEach(docSnap => requests.push({ id: docSnap.id, ...docSnap.data() }));
             
@@ -186,7 +167,6 @@ import { db } from './firebase-init.js';
                 if (data.status === '審核中') {
                     statusHtml = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-300">待簽核</span>';
                     
-                    // 💡 按鈕分流：駕駛顯示刪除(撤銷)，主管顯示核准/退回
                     if (user.role === '駕駛長') {
                         actionBtns = `<button class="btn-delete bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors shadow-sm" data-id="${leaveId}">撤銷假單</button>`;
                     } else {
@@ -215,7 +195,7 @@ import { db } from './firebase-init.js';
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
             dbStatusEl.innerText = "資料庫已連線";
 
-            // 💡 主管功能：核准
+            // 綁定事件：核准
             document.querySelectorAll('.btn-approve').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const currentBtn = e.target;
@@ -234,7 +214,7 @@ import { db } from './firebase-init.js';
                 });
             });
 
-            // 💡 主管功能：退回
+            // 綁定事件：退回
             document.querySelectorAll('.btn-reject').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const currentBtn = e.target;
@@ -253,7 +233,7 @@ import { db } from './firebase-init.js';
                 });
             });
 
-            // 💡 駕駛長功能：撤銷(刪除)自己的假單
+            // 綁定事件：撤銷
             document.querySelectorAll('.btn-delete').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const currentBtn = e.target;
