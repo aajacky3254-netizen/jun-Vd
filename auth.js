@@ -1,7 +1,7 @@
 // auth.js
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 /**
  * 動態渲染導覽列 (全站統一標籤)
  */
@@ -69,39 +69,63 @@ const userDoc = await getDoc(doc(db, "drivers", firebaseUser.uid));
 /**
  * 🔒 核心安全機制：驗證 Firebase 登入狀態並核對 Firestore 權限
  */
-// 在 checkAuthAndGetRole 函數內部
 export async function checkAuthAndGetRole(allowedRoles) {
     return new Promise((resolve, reject) => {
         onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // 【修改這裡】: 不要直接 getDoc(doc(db, "drivers", firebaseUser.uid))
-                // 改用登入者的 email 去 drivers 集合裡尋找符合的員工資料
-                const derviersCol = collection(db, "drivers");
-                const q = query(derviersCol, where("email", "==", firebaseUser.email)); 
-                
-                const querySnapshot = await getDocs(q);
-                
-                if (!querySnapshot.empty) {
-                    // 找到了！抓出第一筆符合的人事資料
-                    const driverData = querySnapshot.docs[0].data();
+                try {
+                    let driverData = null;
+
+                    // 1. 先試著用原本的 UID 去找資料
+                    const userDocSnap = await getDoc(doc(db, "drivers", firebaseUser.uid));
                     
-                    // 將 Firebase 帳號資訊與您輸入的人事資料（員工編號、姓名、職務）打包回傳
-                    const fullUserData = {
-                        uid: firebaseUser.uid,
-                        email: firebaseUser.email,
-                        empId: driverData.empId, // 順利拿到 0002 了！
-                        name: driverData.name,   // 順利拿到姓名了！
-                        role: driverData.role
-                    };
-                    resolve(fullUserData);
-                } else {
-                    // 雖然登入了，但人事資料庫裡沒有這個 Email
-                    console.error("此帳號尚未建立人事基本資料");
-                    resolve({ uid: firebaseUser.uid, role: '訪客', name: '未登錄員工' });
+                    if (userDocSnap.exists()) {
+                        driverData = userDocSnap.data();
+                    } else {
+                        // 2. 如果 UID 找不到，改用登入的 Email 去人事資料表(drivers)裡面撈 
+                        if (firebaseUser.email) {
+                            const q = query(collection(db, "drivers"), where("email", "==", firebaseUser.email));
+                            const querySnapshot = await getDocs(q);
+                            if (!querySnapshot.empty) {
+                                driverData = querySnapshot.docs[0].data();
+                            }
+                        }
+                    }
+
+                    // 3. 判斷是否有成功抓到人事資料
+                    if (driverData) {
+                        // 打包完整用戶資訊
+                        const fullUserData = {
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            empId: driverData.empId || firebaseUser.uid, // 確保一定有員工編號
+                            name: driverData.name || '未設定姓名',
+                            role: driverData.role || '駕駛長'
+                        };
+
+                        // 4. 檢查網頁權限
+                        if (allowedRoles && !allowedRoles.includes(fullUserData.role)) {
+                            alert(`權限不足！此頁面僅限 ${allowedRoles.join(', ')} 存取。`);
+                            window.location.href = 'index.html'; // 擋下並導回首頁
+                            reject("權限不足");
+                        } else {
+                            resolve(fullUserData); // 成功，解鎖網頁！
+                        }
+                    } else {
+                        // 真的找不到資料：阻擋登入並提示
+                        alert("登入失敗：人事系統中找不到您的資料 (請確認註冊 Email 是否與人事建檔一致)。");
+                        await signOut(auth); // 強制登出
+                        window.location.href = 'login.html';
+                        reject("找不到人事資料");
+                    }
+                } catch (error) {
+                    console.error("驗證過程發生錯誤:", error); // F12 會顯示詳細錯誤
+                    reject(error);
                 }
             } else {
-                // 未登入，導向登入頁
+                // 沒登入就想進來，踢回登入頁
                 window.location.href = 'login.html';
+                reject("未登入");
             }
         });
     });
