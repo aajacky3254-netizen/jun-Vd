@@ -1,8 +1,7 @@
 // auth.js
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 /**
  * 動態渲染導覽列 (全站統一標籤)
  */
@@ -70,55 +69,39 @@ const userDoc = await getDoc(doc(db, "drivers", firebaseUser.uid));
 /**
  * 🔒 核心安全機制：驗證 Firebase 登入狀態並核對 Firestore 權限
  */
-export function checkAuthAndGetRole(allowedRoles = []) {
+// 在 checkAuthAndGetRole 函數內部
+export async function checkAuthAndGetRole(allowedRoles) {
     return new Promise((resolve, reject) => {
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                try {
-                    // 🔥 核心修正：將 email (例如 admin@fengdong.com) 拆解回員工編號 (admin)
-                    const empId = user.email ? user.email.split('@')[0] : user.uid;
-                    const docRef = doc(db, "Drivers", empId);
-                    const docSnap = await getDoc(docRef);
+        onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                // 【修改這裡】: 不要直接 getDoc(doc(db, "drivers", firebaseUser.uid))
+                // 改用登入者的 email 去 drivers 集合裡尋找符合的員工資料
+                const derviersCol = collection(db, "drivers");
+                const q = query(derviersCol, where("email", "==", firebaseUser.email)); 
+                
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                    // 找到了！抓出第一筆符合的人事資料
+                    const driverData = querySnapshot.docs[0].data();
                     
-                    if (docSnap.exists()) {
-                        const driverData = docSnap.data();
-                        
-                        if (driverData.status !== 'active') {
-                            await signOut(auth);
-                            alert("您的帳號目前為非在職狀態，無法登入系統。");
-                            window.location.href = 'login.html';
-                            reject("非在職狀態");
-                            return;
-                        }
-
-                        if (allowedRoles.length === 0 || allowedRoles.includes(driverData.role)) {
-                            resolve({ 
-                                uid: user.uid, 
-                                name: driverData.name, 
-                                role: driverData.role,
-                                empRole: driverData.empRole,
-                                station: driverData.station
-                            });
-                        } else {
-                            alert(`權限不足！此頁面僅限【${allowedRoles.join(', ')}】存取。`);
-                            window.location.href = 'index.html'; 
-                            reject("權限不足");
-                        }
-                    } else {
-                        await signOut(auth);
-                        alert("系統中找不到您的員工資料，請聯繫管理員。");
-                        window.location.href = 'login.html';
-                        reject("找不到員工資料");
-                    }
-                } catch (error) {
-                    console.error("讀取權限失敗:", error);
-                    reject("系統錯誤，無法驗證權限");
+                    // 將 Firebase 帳號資訊與您輸入的人事資料（員工編號、姓名、職務）打包回傳
+                    const fullUserData = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email,
+                        empId: driverData.empId, // 順利拿到 0002 了！
+                        name: driverData.name,   // 順利拿到姓名了！
+                        role: driverData.role
+                    };
+                    resolve(fullUserData);
+                } else {
+                    // 雖然登入了，但人事資料庫裡沒有這個 Email
+                    console.error("此帳號尚未建立人事基本資料");
+                    resolve({ uid: firebaseUser.uid, role: '訪客', name: '未登錄員工' });
                 }
             } else {
-                reject("未登入");
-                if (!window.location.pathname.endsWith('login.html')) {
-                    window.location.href = 'login.html';
-                }
+                // 未登入，導向登入頁
+                window.location.href = 'login.html';
             }
         });
     });
