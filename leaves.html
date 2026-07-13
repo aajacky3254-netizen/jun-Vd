@@ -24,6 +24,36 @@
 
   <nav class="navbar" id="main-nav">  </nav>
 
+  <div class="flex justify-between items-center mt-6 mb-4">
+      <h2>📅 駕駛員排休與請假簽核區</h2>
+      <div class="flex items-center gap-3">
+        <button id="btnOpenLeaveForm" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition">＋ 填寫假單</button>
+        <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
+      </div>
+    </div>
+
+    <div id="leaveModal" class="fixed inset-0 bg-black/50 hidden justify-center items-center z-50">
+       <div class="bg-white p-6 rounded-xl w-96 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4">📝 新增請假 / 排休</h3>
+          <div class="mb-3">
+             <label class="block text-sm font-bold mb-1">假別</label>
+             <select id="leaveType" class="w-full border rounded p-2 outline-none focus:border-blue-500"><option>特休</option><option>事假</option><option>病假</option><option>排休</option><option>公假</option></select>
+          </div>
+          <div class="mb-3">
+             <label class="block text-sm font-bold mb-1">日期</label>
+             <input type="date" id="leaveDate" class="w-full border rounded p-2 outline-none focus:border-blue-500">
+          </div>
+          <div class="mb-4">
+             <label class="block text-sm font-bold mb-1">事由 (選填)</label>
+             <input type="text" id="leaveReason" class="w-full border rounded p-2 outline-none focus:border-blue-500" placeholder="請填寫事由">
+          </div>
+          <div class="flex justify-end gap-2">
+             <button id="btnCancelLeave" class="px-4 py-2 bg-gray-200 text-gray-700 rounded font-bold hover:bg-gray-300">取消</button>
+             <button id="btnSubmitLeave" class="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">送出申請</button>
+          </div>
+       </div>
+    </div>
+
   <div class="content-area">
     <div class="flex justify-between items-center mt-6 mb-4">
       <h2>📅 駕駛員排休與請假簽核區</h2>
@@ -52,7 +82,56 @@
     // 💡 補上 where 條件篩選
     import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, orderBy, getDocs, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
+import { db } from './firebase-init.js';
+    // 💡 新增 addDoc 來寫入資料
+    import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, orderBy, getDocs, where, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    // 💡 補上 renderNavbar 解決導覽列消失問題
+    import { checkAuthAndGetRole, renderNavbar, logout } from './auth.js';
 
+    const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
+
+    checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
+        document.body.style.display = 'block'; 
+
+        // 💡 呼叫共用導覽列 (取代原本壞掉的手動拼湊)
+        renderNavbar(user, 'leaves');
+
+        const dbStatusEl = document.getElementById('db-status');
+        const leaveRequestsCol = collection(db, "leave_requests");
+
+        // ======= 🚀 新增：處理假單送出邏輯 =======
+        const leaveModal = document.getElementById('leaveModal');
+        document.getElementById('btnOpenLeaveForm').onclick = () => leaveModal.classList.replace('hidden', 'flex');
+        document.getElementById('btnCancelLeave').onclick = () => leaveModal.classList.replace('flex', 'hidden');
+
+        document.getElementById('btnSubmitLeave').onclick = async () => {
+            const type = document.getElementById('leaveType').value;
+            const date = document.getElementById('leaveDate').value;
+            const reason = document.getElementById('leaveReason').value;
+            if(!date) return alert("請選擇請假日期！");
+            
+            const btn = document.getElementById('btnSubmitLeave');
+            btn.disabled = true; btn.innerText = "送出中...";
+            try {
+                await addDoc(leaveRequestsCol, {
+                    empId: user.empId || user.uid, // 若為駕駛則帶入其編號
+                    name: user.name,
+                    type: type,
+                    date: date,
+                    reason: reason,
+                    status: '審核中',
+                    createdAt: new Date().toISOString()
+                });
+                leaveModal.classList.replace('flex', 'hidden');
+                document.getElementById('leaveDate').value = ""; // 清空表單
+                document.getElementById('leaveReason').value = "";
+                alert("✅ 假單已成功送出！");
+            } catch(e) {
+                console.error(e);
+                alert("送出失敗，請檢查網路連線。");
+            }
+            btn.disabled = false; btn.innerText = "送出申請";
+        };
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
     checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
