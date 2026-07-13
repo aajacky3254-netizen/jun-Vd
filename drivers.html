@@ -3,17 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 人事管理系統 (安全無後端版)</title>
+  <title>豐東交通客運 - 人事管理系統 (含一鍵開通版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; padding: 0; margin: 0; background-color: #f4f6f9; display: none; }
-    h2 { color: #1e293b; margin: 20px 0; font-weight: 800; font-size: 26px; letter-spacing: 1px;}
-    
-    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
-    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
-    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
-    .navbar a.nav-link:hover { background-color: #374151; color: white; }
-    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+    body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
+        .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+        .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
+        .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
+        .navbar a.nav-link:hover { background-color: #374151; color: white; }
+        .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
 
     .content-area { padding: 0 20px; max-width: 1400px; margin: 0 auto;}
     
@@ -135,7 +133,7 @@
   </div>
   
   <script type="module">
-    // 🔥 引入完整的 app 來做雙開實例
+    // 🔥 引入完整的 app 來做雙開實例 (不影響當前登入的 Admin)
     import { app, db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
@@ -144,7 +142,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signOut as secSignOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-    // 建立一個次要的 Firebase App 實例，專門用來建帳號 (才不會把站長給踢下線)
+    // 建立一個次要的 Firebase App 實例，專門用來建帳號
     const secondaryApp = initializeApp(app.options, "SecondaryApp");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -306,12 +304,12 @@
                     try {
                         const email = `${empId}@fengdong.com`;
                         await createUserWithEmailAndPassword(secondaryAuth, email, "123456");
-                        await secSignOut(secondaryAuth); // 建立完馬上登出 secondaryAuth，確保主帳號不被影響
+                        await secSignOut(secondaryAuth); // 建立完馬上登出，確保站長不被踢下線
                         console.log("登入帳號建立成功");
                     } catch (apiErr) {
                         if (apiErr.code !== 'auth/email-already-in-use') {
                             alert("建立登入帳號失敗：" + apiErr.message);
-                            throw apiErr; // 終止後續寫入資料庫
+                            throw apiErr; 
                         }
                     }
                 }
@@ -337,7 +335,7 @@
                 document.getElementById('milestoneGroup').style.display = 'flex';
                 
                 if (!docSnap.exists()) {
-                    alert(`✅ 員工帳號建立成功！\n員工編號: ${empId}\n預設登入密碼: 123456\n所屬場站: ${station}\n編制職稱: ${empRole}`);
+                    alert(`✅ 員工帳號建立成功！\n\n登入帳號(編號): ${empId}\n預設密碼: 123456\n所屬場站: ${station}\n編制職稱: ${empRole}\n\n該員工現在可以直接登入系統了！`);
                 } else {
                     alert(`✅ 員工資料已成功更新！`);
                 }
@@ -350,6 +348,52 @@
                 btn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }
         });
+
+        // ==========================================
+        // 🚀 一鍵批次開通全體員工登入帳號 (救星按鈕)
+        // ==========================================
+        setTimeout(() => {
+            const syncBtn = document.createElement('button');
+            syncBtn.innerHTML = "🚀 一鍵批次開通登入帳號";
+            syncBtn.className = "fixed bottom-5 right-5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl shadow-2xl font-black z-[9999] transition-all transform hover:-translate-y-1 border-2 border-white";
+            document.body.appendChild(syncBtn);
+
+            syncBtn.addEventListener('click', async () => {
+                if(!confirm("確定要幫列表上【所有還不能登入的員工】批次開通帳號嗎？\n開通後，他們的預設密碼皆為 123456")) return;
+                
+                syncBtn.innerText = "⏳ 系統批次處理中，請勿關閉網頁...";
+                syncBtn.disabled = true;
+                syncBtn.classList.replace('bg-purple-600', 'bg-gray-500');
+
+                let successCount = 0;
+                let existCount = 0;
+
+                try {
+                    for (let driver of currentDrivers) {
+                        // admin 帳號不在此次批次處理範圍
+                        if(driver.id === 'admin') continue; 
+                        
+                        const email = `${driver.id}@fengdong.com`;
+                        try {
+                            await createUserWithEmailAndPassword(secondaryAuth, email, "123456");
+                            await secSignOut(secondaryAuth);
+                            successCount++;
+                        } catch (e) {
+                            if (e.code === 'auth/email-already-in-use') {
+                                existCount++;
+                            } else {
+                                console.error(`員工 ${driver.id} 建立失敗:`, e);
+                            }
+                        }
+                    }
+                    alert(`✅ 批次帳號開通完成！\n\n🟢 成功新開通：${successCount} 人\n🟡 原本已開通：${existCount} 人\n\n現在大家都可以用自己的【員工編號】搭配密碼【123456】登入系統了！`);
+                } catch (error) {
+                    alert("執行過程中發生錯誤，請檢查網路連線。");
+                } finally {
+                    syncBtn.remove(); // 執行完畢後隱藏按鈕
+                }
+            });
+        }, 1500); // 延遲 1.5 秒等表格跑完再出現按鈕
 
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
