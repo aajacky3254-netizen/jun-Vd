@@ -71,351 +71,270 @@
 
    <script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, setDoc, getDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, renderNavbar } from './auth.js';
+    import { collection, query, onSnapshot, doc, updateDoc, where, getDocs, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout } from './auth.js';
 
-    const allowedRoles = ['總公司', '站長', '調度員']; 
-
-    checkAuthAndGetRole(allowedRoles).then((user) => {
-        document.body.style.display = 'block';
-        renderNavbar(user, 'schedule');
-
-        const dbStatusEl = document.getElementById('db-status');
-        let isDirty = false;
-        
-        document.getElementById('roster-table').addEventListener('change', (e) => {
-            if (e.target.tagName === 'SELECT') silentAutoSave();
-        });
-
-        async function silentAutoSave() {
-            const rosterToSave = {};
-            currentDrivers.forEach(driver => {
-                rosterToSave[driver.empId] = { name: driver.name };
-                daysOfWeek.forEach(day => {
-                    const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                    if (selectEl) rosterToSave[driver.empId][day] = selectEl.value;
-                });
-            });
-
-            try {
-                await setDoc(doc(db, "weekly_schedules", currentWeekId), { 
-                    roster: rosterToSave, 
-                    updatedAt: new Date().toISOString() 
-                }, { merge: true });
-                dbStatusEl.innerText = "✅ 即時已存檔";
-                setTimeout(() => dbStatusEl.innerText = "資料庫已連線", 2000);
-            } catch (err) { console.error("背景存檔失敗:", err); }
-        }
-
-        let currentDrivers = [];
-        let currentWeekId = "";
-        const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-
-        const shiftOptions = [
-            { val: "M (早)", class: "shift-M" },
-            { val: "A (中)", class: "shift-A" },
-            { val: "E (晚)", class: "shift-E" },
-            { val: "N (夜)", class: "shift-N" },
-            { val: "REL (替班)", class: "shift-REL" }, 
-            { val: "STB (待命)", class: "shift-STB" },
-            { val: "OFF (休)", class: "shift-OFF" }
-        ];
-
-        window.getShiftClass = function(val) {
-            const opt = shiftOptions.find(o => o.val === val);
-            return opt ? opt.class : 'shift-OFF';
-        };
-
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('week-picker').value = today;
-        updateWeekTitle(today);
-
-        async function init() {
-            await fetchDrivers();
-            await loadSchedule(currentWeekId);
-        }
-        init();
-
-        document.getElementById('week-picker').addEventListener('change', async (e) => {
-            updateWeekTitle(e.target.value);
-            await loadSchedule(currentWeekId); 
-        });
-
-        function getWeekStr(dateStr) {
-            const d = new Date(dateStr);
-            const target = new Date(d.valueOf());
-            const dayNr = (d.getDay() + 6) % 7;
-            target.setDate(target.getDate() - dayNr + 3);
-            const firstThursday = target.valueOf();
-            target.setMonth(0, 1);
-            if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-            const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
-            return `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
-        }
-
-        function updateWeekTitle(dateStr) {
-            currentWeekId = getWeekStr(dateStr);
-            document.getElementById('week-title').innerText = `本週班表看板 (${currentWeekId})`;
-        }
-
-        async function fetchDrivers() {
-            try {
-                const qStr = query(collection(db, "Drivers"), where("status", "==", "active"));
-                const snap = await getDocs(qStr);
-                currentDrivers = [];
-                snap.forEach(docSnap => {
-                    const data = docSnap.data();
-                    const role = data.role || "駕駛長"; 
-                    if (role === "駕駛長") currentDrivers.push({ empId: docSnap.id, name: data.name });
-                });
-                currentDrivers.sort((a, b) => String(a.empId).localeCompare(String(b.empId)));
-                dbStatusEl.className = "px-2 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
-                dbStatusEl.innerText = "資料庫已連線";
-            } catch (error) {
-                dbStatusEl.className = "px-2 py-1 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-300";
-                dbStatusEl.innerText = "連線失敗";
-            }
-        }
-
-        function generateSelectHtml(empId, dayKey, selectedValue = "OFF (休)") {
-            let optionsHtml = '';
-            let currentClass = 'shift-OFF';
-            shiftOptions.forEach(opt => {
-                const isSelected = (opt.val === selectedValue);
-                if (isSelected) currentClass = opt.class;
-                optionsHtml += `<option value="${opt.val}" ${isSelected ? 'selected' : ''}>${opt.val}</option>`;
-            });
-            const safeEmpId = String(empId).replace(/[^a-zA-Z0-9]/g, '_');
-            return `<select id="sel-${safeEmpId}-${dayKey}" class="${currentClass}" onchange="this.className = window.getShiftClass(this.value); silentAutoSave();">${optionsHtml}</select>`;
-        }
-
-        async function loadSchedule(weekId) {
-            const tbody = document.getElementById('roster-body');
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500 font-bold">載入中，請稍候...</td></tr>';
-            try {
-                const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
-                const data = docSnap.data();
-                const savedRoster = (data && data.roster) ? data.roster : {};
-
-                tbody.innerHTML = '';
-                currentDrivers.forEach(driver => {
-                    const row = document.createElement('tr');
-                    let html = `<td class="driver-cell"><span class="emp-id">${driver.empId}</span> ${driver.name}</td>`;
-                    daysOfWeek.forEach(day => {
-                        const savedShift = (savedRoster[driver.empId] && savedRoster[driver.empId][day]) ? savedRoster[driver.empId][day] : "OFF (休)";
-                        html += `<td>${generateSelectHtml(driver.empId, day, savedShift)}</td>`;
-                    });
-                    row.innerHTML = html;
-                    tbody.appendChild(row);
-                });
-            } catch (error) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 font-bold">讀取錯誤</td></tr>'; }
-        }
-
-       // 💡 修正 1：按鈕 ID 改為正確的 'btn-auto'
-document.getElementById('btn-auto').addEventListener('click', async () => {
-    const weekValue = document.getElementById('week-picker').value; 
-    if (!weekValue) return alert("請先選擇週別！");
-
-    const parts = weekValue.split('-W');
-    const year = parseInt(parts[0], 10);
-    const week = parseInt(parts[1], 10);
+    let currentUser = null;
+    let driverEmpId = ""; 
+    let currentTrips = [];
+    let selectedTripId = null;
+    let html5QrcodeScanner = null;
     
-    const jan4 = new Date(year, 0, 4);
-    const jan4Day = jan4.getDay() === 0 ? 7 : jan4.getDay();
-    const monWeek1 = new Date(jan4);
-    monWeek1.setDate(jan4.getDate() - jan4Day + 1);
+    // 💡 新增變數：紀錄 QR 掃描狀態與站長密碼
+    let isQrScanned = false; 
+    const STATION_MASTER_PIN = "8888"; 
+
+    const dateInput = document.getElementById('selectDate');
+    const tripList = document.getElementById('trip-list');
     
-    const targetMon = new Date(monWeek1);
-    targetMon.setDate(monWeek1.getDate() + (week - 1) * 7);
-    
-    const weekDates = {}; 
-    const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-    
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(targetMon);
-        d.setDate(targetMon.getDate() + i);
-        weekDates[daysOfWeek[i]] = d.toISOString().split('T')[0];
-    }
+    dateInput.value = new Date().toISOString().split('T')[0];
 
-    const approvedLeaves = {}; 
-    
-    try {
-        const leaveQuery = query(collection(db, "leave_requests"), where("status", "==", "已核准"));
-        const leaveSnap = await getDocs(leaveQuery);
+    checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
+        currentUser = user;
+        const driverName = user.name || user.displayName || user.email?.split('@')[0] || "未知駕駛"; 
+        document.getElementById('driver-greeting').innerText = `👨‍✈️ 駕駛長：${driverName}`;
         
-        leaveSnap.forEach(docSnap => {
-            const data = docSnap.data();
-            for (let dayKey of daysOfWeek) {
-                if (weekDates[dayKey] === data.date) {
-                    if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
-                    approvedLeaves[data.empId][dayKey] = data.type || "OFF (休)";
-                }
-            }
-        });
-    } catch (err) {
-        console.error("撈取請假單失敗:", err);
-        return alert("連線失敗，無法取得請假資料，終止自動排班！");
-    }
-
-    // 💡 修正 2：補齊「台灣客運實務排班演算法」
-    const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)"];
-    
-    currentDrivers.forEach((driver, index) => {
-        const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-        
-        // 判斷是否為老闆 (JUN)
-        const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
-        
-        // 決定該司機的「固定底班」(利用 index 循環分配)
-        const myBaseShift = baseShifts[index % baseShifts.length];
-        
-        // 隨機決定一天「散休」(0~6 對應週一到週日)
-        const randomOffDayIndex = Math.floor(Math.random() * 7);
-        const myOffDay = daysOfWeek[randomOffDayIndex];
-
-        daysOfWeek.forEach(day => {
-            const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-            if (!selectEl) return;
-
-            // 📍 優先級 1：防禦機制 (如果有請假，強制寫入假別並跳過)
-            if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
-                const leaveType = approvedLeaves[driver.empId][day];
-                selectEl.value = leaveType;
-                selectEl.className = window.getShiftClass(leaveType);
-                return; 
-            }
-
-            // 📍 優先級 2：老闆永遠待命
-            if (isBoss) {
-                selectEl.value = "STB (待命)";
-                selectEl.className = window.getShiftClass("STB (待命)");
-                return;
-            }
-
-            // 📍 優先級 3：排定散休 (避開已有請假的日子)
-            if (day === myOffDay) {
-                selectEl.value = "OFF (休)";
-                selectEl.className = window.getShiftClass("OFF (休)");
-                return;
-            }
-
-            // 📍 優先級 4：填入常態底班
-            selectEl.value = myBaseShift;
-            selectEl.className = window.getShiftClass(myBaseShift);
-        });
-    });
-
-    isDirty = true;
-    if (typeof silentAutoSave === "function") silentAutoSave();
-    alert("✨ 智慧實務排班完成！\n已自動保留核准假單，並分配底班與散休。");
-});
-
-        // ==========================================
-// 💾 修正後的儲存與嚴格跨週防呆審核
-// ==========================================
-document.getElementById('btn-save').addEventListener('click', async () => {
-    const rosterToSave = {};
-    let hasViolation = false;
-    let violationMsg = "";
-
-    // 1. 取得上週的 ID，用以撈取上週日班表
-    const d = new Date(document.getElementById('week-picker').value);
-    d.setDate(d.getDate() - 7);
-    const prevWeekId = getWeekStr(d.toISOString());
-    let lastWeekRoster = {};
-    try {
-        const snap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
-        if (snap.exists()) lastWeekRoster = snap.data().roster || {};
-    } catch (e) { console.warn("無法取得上週班表，將跳過跨週檢核"); }
-
-    // 2. 開始檢核
-    currentDrivers.forEach(driver => {
-        rosterToSave[driver.empId] = { name: driver.name };
-        
-        // 🚀 關鍵修正：初始化 prevShift 為上週日的班別 (若無則預設為休假)
-        let prevShift = (lastWeekRoster[driver.empId] && lastWeekRoster[driver.empId]['sun']) 
-                        ? lastWeekRoster[driver.empId]['sun'] 
-                        : "OFF (休)";
-        
-        let offCount = 0; 
-        
-        daysOfWeek.forEach(day => {
-            const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-            const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-            if (selectEl) {
-                const currentShift = selectEl.value;
-                rosterToSave[driver.empId][day] = currentShift;
-                if (currentShift === "OFF (休)") offCount++;
-
-                // 防呆檢核邏輯
-                if (prevShift === "E (晚)" && (currentShift === "M (早)" || currentShift === "A (中)")) {
-                    hasViolation = true;
-                    violationMsg += `⚠️ [${driver.name}] 違規：前日晚班(E)，今日不可接早/中班，違反11小時休息間隔！\n`;
-                }
-                if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)")) {
-                    hasViolation = true;
-                    violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，隔日必須排休、待命或替班，不可連續常態出勤！\n`;
-                }
-                prevShift = currentShift; 
-            }
-        });
-
-        const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN') || driver.name.includes('老闆');
-        if (offCount === 0 && !isBoss) {
-            hasViolation = true;
-            violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假，違反七休一規定！\n`;
-        }
-    });
-
-    if (hasViolation) {
-        alert("❌ 儲存失敗！系統偵測到高風險/違法排班（包含跨週衝突）：\n\n" + violationMsg);
-        return;
-    }
-
-    const btn = document.getElementById('btn-save');
-    btn.innerText = "⏳ 儲存中..."; btn.disabled = true;
-    try {
-        await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
-        isDirty = false; 
-        alert("✅ 班表已成功儲存！跨週法規檢核全數通過！");
-    } catch (err) { alert("❌ 儲存失敗！"); }
-    btn.innerText = "💾 儲存並發布"; btn.disabled = false;
-});
-
-        document.getElementById('btn-copy-prev').addEventListener('click', async () => { 
-            if(!confirm("確定要載入「上週」底稿嗎？")) return;
-            const d = new Date(document.getElementById('week-picker').value);
-            d.setDate(d.getDate() - 7);
-            const prevWeekId = getWeekStr(d.toISOString());
-
-            try {
-                const docSnap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
-                const data = docSnap.data();
-                
-                if (data && data.roster) {
-                    currentDrivers.forEach(driver => {
-                        daysOfWeek.forEach(day => {
-                            if (data.roster[driver.empId] && data.roster[driver.empId][day]) {
-                                const shift = data.roster[driver.empId][day];
-                                const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                                const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                                if (selectEl) {
-                                    selectEl.value = shift;
-                                    selectEl.className = window.getShiftClass(shift);
-                                }
-                            }
-                        });
-                    });
-                    isDirty = true;
-                    silentAutoSave();
-                    alert(`✅ 已載入上週 (${prevWeekId}) 班表！`);
+        try {
+            const docSnap = await getDoc(doc(db, "Drivers", user.uid || ""));
+            if (docSnap.exists()) {
+                driverEmpId = docSnap.id;
+            } else {
+                const qD = query(collection(db, "Drivers"), where("name", "==", driverName));
+                const snapD = await getDocs(qD);
+                if (!snapD.empty) {
+                    driverEmpId = snapD.docs[0].id;
                 } else {
-                    alert(`⚠️ 雲端找不到上週 (${prevWeekId}) 紀錄！`);
+                    driverEmpId = driverName; 
                 }
-            } catch (err) { console.error(err); alert("讀取失敗。"); }
-        });
+            }
+        } catch(e) {
+            driverEmpId = driverName;
+        }
+        
+        loadMyTrips(dateInput.value, driverEmpId);
+    }).catch(err => {
+        document.body.innerHTML = `<div class="p-10 text-center"><h2 class="text-red-500 font-bold mb-4">請先完成登入</h2><a href="login.html" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold">前往登入</a></div>`;
     });
-   </script>
+
+    document.getElementById('btnLogout').addEventListener('click', () => { logout(); });
+    dateInput.addEventListener('change', (e) => { loadMyTrips(e.target.value, driverEmpId); });
+
+    function loadMyTrips(dateStr, empId) {
+        const q = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
+        
+        onSnapshot(q, (snapshot) => {
+            currentTrips = [];
+            let pendingCount = 0;
+            let checkedCount = 0;
+
+            snapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                if (data.assigned_empid === empId) {
+                    currentTrips.push({ id: docSnap.id, ...data });
+                    if (data.status === 'checked_in') checkedCount++;
+                    else pendingCount++;
+                }
+            });
+
+            currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
+
+            document.getElementById('count-total').innerText = currentTrips.length;
+            document.getElementById('count-pending').innerText = pendingCount;
+            document.getElementById('count-checked').innerText = checkedCount;
+
+            renderTripCards();
+        });
+    }
+
+    function renderTripCards() {
+        if (currentTrips.length === 0) {
+            tripList.innerHTML = `<div class="text-center py-10 text-gray-400 font-bold">今日無排定車趟，請好好休息 ☕</div>`;
+            return;
+        }
+
+        tripList.innerHTML = currentTrips.map(trip => {
+            const isCheckedIn = trip.status === 'checked_in';
+            const statusClass = isCheckedIn ? 'status-checked' : 'status-pending';
+            const statusText = isCheckedIn ? '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 已報到</span>' : '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待報到</span>';
+            
+            const btnHtml = isCheckedIn 
+                ? `<button class="btn-view-voucher w-full mt-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg text-sm transition" data-id="${trip.id}">📜 查看電子憑單</button>`
+                : `<button class="btn-punch-in w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📱 進行報到 / 酒測</button>`;
+
+            return `
+            <div class="trip-card ${statusClass}">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="text-2xl font-black text-gray-800">${trip.departure_time}</div>
+                    ${statusText}
+                </div>
+                
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-sm">${trip.route}</span>
+                    <span class="text-gray-500 font-bold text-sm">| ${trip.trip_count || 1} 趟</span>
+                </div>
+                
+                <div class="text-gray-700 font-bold text-sm mb-1">📍 ${trip.start_point} ➔ ${trip.end_point}</div>
+                <div class="text-gray-600 font-bold text-sm mb-3">🚌 車號：<span class="text-blue-600">${trip.assigned_vehicle}</span></div>
+                
+                ${btnHtml}
+            </div>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.btn-punch-in').forEach(btn => {
+            btn.addEventListener('click', (e) => openPunchModal(e.target.dataset.id));
+        });
+        document.querySelectorAll('.btn-view-voucher').forEach(btn => {
+            btn.addEventListener('click', (e) => openVoucherModal(e.target.dataset.id));
+        });
+    }
+
+    const punchModal = document.getElementById('punchModal');
+    const chkAlcohol = document.getElementById('chkAlcohol');
+    const chkHealth = document.getElementById('chkHealth');
+    const btnSubmitPunch = document.getElementById('btnSubmitPunch');
+    const btnStartScan = document.getElementById('btnStartScan');
+
+    function checkConditions() {
+        if (chkAlcohol.checked && chkHealth.checked) {
+            btnSubmitPunch.disabled = false;
+            btnSubmitPunch.classList.remove('opacity-50', 'cursor-not-allowed');
+            btnSubmitPunch.classList.add('hover:bg-emerald-600');
+        } else {
+            btnSubmitPunch.disabled = true;
+            btnSubmitPunch.classList.add('opacity-50', 'cursor-not-allowed');
+            btnSubmitPunch.classList.remove('hover:bg-emerald-600');
+        }
+    }
+
+    chkAlcohol.addEventListener('change', checkConditions);
+    chkHealth.addEventListener('change', checkConditions);
+
+    // 💡 注意：整個檔案只能有這一個 openPunchModal 函數
+    function openPunchModal(tripId) {
+        selectedTripId = tripId;
+        chkAlcohol.checked = false;
+        chkHealth.checked = false;
+        
+        isQrScanned = false;
+        const pinInput = document.getElementById('overridePin');
+        if(pinInput) pinInput.value = '';
+        btnStartScan.innerHTML = "📷 掃描車輛 QR Code";
+        btnStartScan.classList.replace('bg-emerald-600', 'bg-slate-800');
+        
+        checkConditions();
+        document.getElementById('qr-reader').classList.add('hidden');
+        btnStartScan.style.display = 'flex';
+        punchModal.style.display = 'flex';
+    }
+
+    document.getElementById('btnCloseModal').addEventListener('click', () => {
+        punchModal.style.display = 'none';
+        if(html5QrcodeScanner) {
+            html5QrcodeScanner.clear().catch(e => console.error("相機釋放失敗", e));
+            html5QrcodeScanner = null;
+        }
+    });
+
+    btnStartScan.addEventListener('click', () => {
+        btnStartScan.style.display = 'none';
+        document.getElementById('qr-reader').classList.remove('hidden');
+        
+        html5QrcodeScanner = new Html5QrcodeScanType("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
+        html5QrcodeScanner.render((decodedText) => {
+            html5QrcodeScanner.clear().catch(e => console.error(e));
+            html5QrcodeScanner = null;
+            document.getElementById('qr-reader').classList.add('hidden');
+            
+            alert(`✅ 掃描成功：已確認車輛 ${decodedText}`);
+            isQrScanned = true; 
+            
+            btnStartScan.style.display = 'flex';
+            btnStartScan.innerHTML = `✅ 已確認 (${decodedText})`;
+            btnStartScan.classList.replace('bg-slate-800', 'bg-emerald-600');
+            
+            chkAlcohol.checked = true;
+            chkHealth.checked = true;
+            checkConditions();
+        }, (err) => {});
+    });
+
+    btnSubmitPunch.addEventListener('click', async () => {
+        if (!selectedTripId) return;
+        
+        const pinInputEl = document.getElementById('overridePin');
+        const pinInput = pinInputEl ? pinInputEl.value : "";
+        let isVerified = false;
+        let checkInMethod = "";
+
+        if (isQrScanned) {
+            isVerified = true;
+            checkInMethod = "QR Code 掃描";
+        } else if (pinInput === STATION_MASTER_PIN) {
+            isVerified = true;
+            checkInMethod = "站長覆核碼";
+        }
+
+        if (!isVerified) {
+            alert("❌ 無法報到！請「掃描車輛 QR Code」或「輸入正確的站長授權碼」。");
+            return;
+        }
+        
+        btnSubmitPunch.innerText = "⏳ 正在處理簽到...";
+        btnSubmitPunch.disabled = true;
+
+        try {
+            await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
+                status: 'checked_in',
+                check_in_time: serverTimestamp(), 
+                check_in_method: checkInMethod 
+            });
+            
+            punchModal.style.display = 'none';
+            openVoucherModal(selectedTripId);
+        } catch (err) {
+            alert('報到連線失敗，請檢查網路。');
+        } finally {
+            btnSubmitPunch.innerText = "確認報到並領取電子憑單";
+            btnSubmitPunch.disabled = false;
+        }
+    });
+
+    const voucherModal = document.getElementById('voucherModal');
+    
+    function openVoucherModal(tripId) {
+        const trip = currentTrips.find(t => t.id === tripId);
+        if(!trip) return;
+
+        let displayTime = "系統已紀錄";
+        if (trip.check_in_time) {
+            if (typeof trip.check_in_time.toDate === 'function') {
+                const d = trip.check_in_time.toDate();
+                displayTime = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+            } else {
+                displayTime = trip.check_in_time; 
+            }
+        }
+
+        document.getElementById('voucherContent').innerHTML = `
+            <div class="text-center mb-4">
+                <div class="text-sm text-gray-500 font-bold mb-1">電子派車憑單 E-Voucher</div>
+                <div class="text-2xl font-black text-gray-800">${trip.route}</div>
+            </div>
+            <div class="space-y-2 text-sm font-bold text-gray-700">
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>駕駛長</span><span class="text-blue-700">${trip.assigned_driver}</span></div>
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>發車時間</span><span class="text-xl text-red-600 font-black">${trip.departure_time}</span></div>
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>使用車號</span><span class="text-gray-900">${trip.assigned_vehicle}</span></div>
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>起訖點</span><span class="text-right">${trip.start_point}<br>➔ ${trip.end_point}</span></div>
+                <div class="flex justify-between pt-1"><span>報到時間</span><span class="text-emerald-600">${displayTime}</span></div>
+            </div>
+        `;
+        voucherModal.style.display = 'flex';
+    }
+
+    document.getElementById('btnCloseVoucher').addEventListener('click', () => {
+        voucherModal.style.display = 'none';
+    });
+</script>
 </body>
 </html>
