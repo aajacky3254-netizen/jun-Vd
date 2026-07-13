@@ -55,23 +55,77 @@ export function renderNavbar(user, activePageId) {
 }
 
 /**
- * 暫時修改登出功能 (測試模式)
+ * 真實登出功能 (安全清除憑證)
  */
 export function logout() {
-    alert("目前為免登入測試模式，無需登出。");
+    signOut(auth).then(() => {
+        // 登出成功後導向登入頁面
+        window.location.href = 'login.html';
+    }).catch((error) => {
+        console.error("登出失敗:", error);
+        alert("登出失敗，請檢查網路連線。");
+    });
 }
 
 /**
- * 暫時移除登入：假造一個最高權限的使用者物件 (測試模式)
+ * 🔒 核心安全機制：驗證 Firebase 登入狀態並核對 Firestore 權限
  */
 export function checkAuthAndGetRole(allowedRoles = []) {
-    return new Promise((resolve) => {
-        const mockUser = {
-            uid: "bypass-test-uid-001",
-            name: "開發測試員",
-            role: "總公司" 
-        };
-        console.warn("⚠️ 目前為免登入測試模式");
-        resolve(mockUser); 
+    return new Promise((resolve, reject) => {
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                try {
+                    // 去 Firestore 的 Drivers 集合撈取該員工的真實資料
+                    const docRef = doc(db, "Drivers", user.uid);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        const driverData = docSnap.data();
+                        
+                        // 防護 1：檢查是否在職 (若離職/留停則強制登出)
+                        if (driverData.status !== 'active') {
+                            await signOut(auth);
+                            alert("您的帳號目前為非在職狀態，無法登入系統。");
+                            window.location.href = 'login.html';
+                            reject("非在職狀態");
+                            return;
+                        }
+
+                        // 防護 2：檢查權限是否符合該頁面要求 (若 allowedRoles 為空陣列，代表只要有登入即可存取)
+                        if (allowedRoles.length === 0 || allowedRoles.includes(driverData.role)) {
+                            // 驗證通過，回傳完整的使用者資訊供頁面使用
+                            resolve({ 
+                                uid: user.uid, 
+                                name: driverData.name, 
+                                role: driverData.role,
+                                empRole: driverData.empRole,
+                                station: driverData.station
+                            });
+                        } else {
+                            // 越權存取，踢回首頁
+                            alert(`權限不足！此頁面僅限【${allowedRoles.join(', ')}】存取。`);
+                            window.location.href = 'index.html'; 
+                            reject("權限不足");
+                        }
+                    } else {
+                        // 找不到該員工的人事資料，強制登出
+                        await signOut(auth);
+                        alert("系統中找不到您的員工資料，請聯繫管理員。");
+                        window.location.href = 'login.html';
+                        reject("找不到員工資料");
+                    }
+                } catch (error) {
+                    console.error("讀取權限失敗:", error);
+                    reject("系統錯誤，無法驗證權限");
+                }
+            } else {
+                // 尚未登入
+                reject("未登入");
+                // 如果當前不在 login.html 頁面，就自動跳轉過去
+                if (!window.location.pathname.endsWith('login.html')) {
+                    window.location.href = 'login.html';
+                }
+            }
+        });
     });
 }
