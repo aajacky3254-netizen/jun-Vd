@@ -59,7 +59,7 @@
   <script type="module">
     import { auth, db } from './firebase-init.js';
     import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const btnLogin = document.getElementById('btnLogin');
     const errorMsg = document.getElementById('errorMsg');
@@ -80,11 +80,28 @@
         try {
             // 嘗試登入
             await signInWithEmailAndPassword(auth, email, password);
+            
+            // 🔥 無敵自動修復機制：如果登入成功，且是 admin，檢查 Firestore 資料庫有沒有遺失
+            if (empId === 'admin') {
+                const adminDoc = await getDoc(doc(db, "Drivers", "admin"));
+                if (!adminDoc.exists()) {
+                    await setDoc(doc(db, "Drivers", "admin"), {
+                        name: "系統創辦人",
+                        role: "總公司",
+                        empRole: "老闆",
+                        station: "總部",
+                        status: "active"
+                    });
+                    console.log("已自動修復 admin 資料庫權限！");
+                }
+            }
+            
             window.location.href = "index.html";
+            
         } catch (error) {
-            // 🔥 首登初始化機制 (創世神帳號)
+            // 首登初始化機制 (創世神帳號)
             if (empId === 'admin' && (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential')) {
-                if (confirm("⚠️ 系統偵測到資料庫完全空白。\n是否要立即將 [admin] 註冊為初始最高管理員帳號？(僅限首次建置系統使用)")) {
+                if (confirm("⚠️ 系統偵測到可能需要初始化或密碼錯誤。\n如果您是首次建置系統，是否要立即將 [admin] 註冊為初始最高管理員帳號？")) {
                     try {
                         await createUserWithEmailAndPassword(auth, email, password);
                         // 在資料庫中寫入 admin 的權限資料
@@ -97,7 +114,12 @@
                         });
                         alert("✅ 系統初始化成功！請再次點擊登入。");
                     } catch(err) {
-                        alert("初始化失敗：" + err.message);
+                        // 如果出現已存在錯誤，提示使用者輸入正確密碼
+                        if (err.code === 'auth/email-already-in-use') {
+                            alert("❌ 帳號其實已經存在！請輸入您之前設定的密碼即可登入。如果忘記密碼，請至 Firebase 後台刪除該帳號後重試。");
+                        } else {
+                            alert("初始化失敗：" + err.message);
+                        }
                     }
                 }
             } else {
