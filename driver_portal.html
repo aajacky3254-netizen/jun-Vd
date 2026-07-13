@@ -117,16 +117,20 @@
         </div>
     </div>
 
-<script type="module">
+   <script type="module">
     import { db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, updateDoc, where, getDocs, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
 
     let currentUser = null;
-    let driverEmpId = ""; // 儲存嚴格比對用的員工編號
+    let driverEmpId = ""; 
     let currentTrips = [];
     let selectedTripId = null;
     let html5QrcodeScanner = null;
+    
+    // 💡 新增變數：紀錄 QR 掃描狀態與站長密碼
+    let isQrScanned = false; 
+    const STATION_MASTER_PIN = "8888"; 
 
     const dateInput = document.getElementById('selectDate');
     const tripList = document.getElementById('trip-list');
@@ -138,19 +142,17 @@
         const driverName = user.name || user.displayName || user.email?.split('@')[0] || "未知駕駛"; 
         document.getElementById('driver-greeting').innerText = `👨‍✈️ 駕駛長：${driverName}`;
         
-        // 🚀 修正：透過 Auth 資訊嚴格反查 Employees ID，確保絕對身分唯一性
         try {
             const docSnap = await getDoc(doc(db, "Drivers", user.uid || ""));
             if (docSnap.exists()) {
                 driverEmpId = docSnap.id;
             } else {
-                // 退回機制：若 UID 不符，至少利用全名做第一次嚴格比對取得 empId
                 const qD = query(collection(db, "Drivers"), where("name", "==", driverName));
                 const snapD = await getDocs(qD);
                 if (!snapD.empty) {
                     driverEmpId = snapD.docs[0].id;
                 } else {
-                    driverEmpId = driverName; // 最後防線
+                    driverEmpId = driverName; 
                 }
             }
         } catch(e) {
@@ -175,7 +177,6 @@
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
-                // 🚀 修正：只認編號 (assigned_empid)，使用嚴格等於 ===，完全杜絕名字包含問題！
                 if (data.assigned_empid === empId) {
                     currentTrips.push({ id: docSnap.id, ...data });
                     if (data.status === 'checked_in') checkedCount++;
@@ -257,133 +258,15 @@
     chkAlcohol.addEventListener('change', checkConditions);
     chkHealth.addEventListener('change', checkConditions);
 
-    function openPunchModal(tripId) {
-        selectedTripId = tripId;
-        chkAlcohol.checked = false;
-        chkHealth.checked = false;
-        checkConditions();
-        document.getElementById('qr-reader').classList.add('hidden');
-        btnStartScan.style.display = 'flex';
-        punchModal.style.display = 'flex';
-    }
-
-    document.getElementById('btnCloseModal').addEventListener('click', () => {
-        punchModal.style.display = 'none';
-        if(html5QrcodeScanner) html5QrcodeScanner.clear();
-    });
-
-    btnStartScan.addEventListener('click', () => {
-        btnStartScan.style.display = 'none';
-        document.getElementById('qr-reader').classList.remove('hidden');
-        
-        html5QrcodeScanner = new Html5QrcodeScanType("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
-        html5QrcodeScanner.render((decodedText) => {
-            html5QrcodeScanner.clear();
-            document.getElementById('qr-reader').classList.add('hidden');
-            alert(`✅ 掃描成功：已確認車輛 ${decodedText}`);
-            chkAlcohol.checked = true;
-            chkHealth.checked = true;
-            checkConditions();
-        }, (err) => {});
-    });
-
-    // 🚀 修正：強制擷取 GPS 並寫入伺服器時間 (serverTimestamp) 杜絕時間假造
-    btnSubmitPunch.addEventListener('click', async () => {
-        if (!selectedTripId) return;
-        
-        btnSubmitPunch.innerText = "⏳ 正在取得定位並簽到...";
-        btnSubmitPunch.disabled = true;
-
-        if ("geolocation" in navigator) {
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                
-                try {
-                    await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                        status: 'checked_in',
-                        check_in_time: serverTimestamp(), // 🔥 Firebase 雲端伺服器時間，防竄改
-                        check_in_location: { lat, lng }   // 🔥 紀錄報到座標
-                    });
-                    
-                    punchModal.style.display = 'none';
-                    openVoucherModal(selectedTripId);
-                } catch (err) {
-                    alert('報到連線失敗，請檢查網路。');
-                } finally {
-                    btnSubmitPunch.innerText = "確認報到並領取電子憑單";
-                    btnSubmitPunch.disabled = false;
-                }
-            }, (error) => {
-                alert('⚠️ 報到失敗：系統無法取得您的位置！\n請確認手機已開啟「定位服務(GPS)」，並允許瀏覽器存取位置權限。');
-                btnSubmitPunch.innerText = "確認報到並領取電子憑單";
-                btnSubmitPunch.disabled = false;
-            }, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            });
-        } else {
-            alert('⚠️ 您的瀏覽器不支援定位功能，無法完成報到！');
-            btnSubmitPunch.innerText = "確認報到並領取電子憑單";
-            btnSubmitPunch.disabled = false;
-        }
-    });
-
-    const voucherModal = document.getElementById('voucherModal');
-    
-    function openVoucherModal(tripId) {
-        const trip = currentTrips.find(t => t.id === tripId);
-        if(!trip) return;
-
-        // 轉換 serverTimestamp 供畫面顯示
-        let displayTime = "系統已紀錄";
-        if (trip.check_in_time) {
-            if (typeof trip.check_in_time.toDate === 'function') {
-                const d = trip.check_in_time.toDate();
-                displayTime = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
-            } else {
-                displayTime = trip.check_in_time; // 兼容舊版字串時間
-            }
-        }
-
-        // GPS 位置顯示格式
-        let locHtml = trip.check_in_location 
-            ? `<div class="flex justify-between border-b border-yellow-200 pb-2 mt-2"><span>打卡座標</span><span class="text-xs text-gray-500 self-center">${trip.check_in_location.lat.toFixed(4)}, ${trip.check_in_location.lng.toFixed(4)}</span></div>` 
-            : '';
-
-        document.getElementById('voucherContent').innerHTML = `
-            <div class="text-center mb-4">
-                <div class="text-sm text-gray-500 font-bold mb-1">電子派車憑單 E-Voucher</div>
-                <div class="text-2xl font-black text-gray-800">${trip.route}</div>
-            </div>
-            <div class="space-y-2 text-sm font-bold text-gray-700">
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>駕駛長</span><span class="text-blue-700">${trip.assigned_driver}</span></div>
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>發車時間</span><span class="text-xl text-red-600 font-black">${trip.departure_time}</span></div>
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>使用車號</span><span class="text-gray-900">${trip.assigned_vehicle}</span></div>
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>起訖點</span><span class="text-right">${trip.start_point}<br>➔ ${trip.end_point}</span></div>
-                <div class="flex justify-between pt-1"><span>報到時間</span><span class="text-emerald-600">${displayTime}</span></div>
-                ${locHtml}
-            </div>
-        `;
-        voucherModal.style.display = 'flex';
-    }
-
-    document.getElementById('btnCloseVoucher').addEventListener('click', () => {
-        voucherModal.style.display = 'none';
-    });
-    // 💡 新增一個全域變數來記錄 QR Code 是否掃描成功
-    let isQrScanned = false; 
-    const STATION_MASTER_PIN = "8888"; // 這裡設定站長覆核密碼 (可自行修改)
-
+    // 💡 注意：整個檔案只能有這一個 openPunchModal 函數
     function openPunchModal(tripId) {
         selectedTripId = tripId;
         chkAlcohol.checked = false;
         chkHealth.checked = false;
         
-        // 🚀 初始化狀態
         isQrScanned = false;
-        document.getElementById('overridePin').value = '';
+        const pinInput = document.getElementById('overridePin');
+        if(pinInput) pinInput.value = '';
         btnStartScan.innerHTML = "📷 掃描車輛 QR Code";
         btnStartScan.classList.replace('bg-emerald-600', 'bg-slate-800');
         
@@ -393,7 +276,6 @@
         punchModal.style.display = 'flex';
     }
 
-    // 🚀 問題一修正：關閉視窗時徹底釋放相機資源
     document.getElementById('btnCloseModal').addEventListener('click', () => {
         punchModal.style.display = 'none';
         if(html5QrcodeScanner) {
@@ -402,22 +284,19 @@
         }
     });
 
-    // QR Code 掃描成功後的邏輯
     btnStartScan.addEventListener('click', () => {
         btnStartScan.style.display = 'none';
         document.getElementById('qr-reader').classList.remove('hidden');
         
         html5QrcodeScanner = new Html5QrcodeScanType("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
         html5QrcodeScanner.render((decodedText) => {
-            // 掃描成功後自動釋放相機
             html5QrcodeScanner.clear().catch(e => console.error(e));
             html5QrcodeScanner = null;
             document.getElementById('qr-reader').classList.add('hidden');
             
             alert(`✅ 掃描成功：已確認車輛 ${decodedText}`);
-            isQrScanned = true; // 標記掃描成功
+            isQrScanned = true; 
             
-            // 變更按鈕樣式提示已完成
             btnStartScan.style.display = 'flex';
             btnStartScan.innerHTML = `✅ 已確認 (${decodedText})`;
             btnStartScan.classList.replace('bg-slate-800', 'bg-emerald-600');
@@ -428,15 +307,14 @@
         }, (err) => {});
     });
 
-    // 🚀 問題二修正：拔除 GPS，改用「QR Code」或「站長覆核碼」驗證
     btnSubmitPunch.addEventListener('click', async () => {
         if (!selectedTripId) return;
         
-        const pinInput = document.getElementById('overridePin').value;
+        const pinInputEl = document.getElementById('overridePin');
+        const pinInput = pinInputEl ? pinInputEl.value : "";
         let isVerified = false;
         let checkInMethod = "";
 
-        // 驗證機制：有掃描 QR 或是 密碼正確
         if (isQrScanned) {
             isVerified = true;
             checkInMethod = "QR Code 掃描";
@@ -457,7 +335,7 @@
             await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
                 status: 'checked_in',
                 check_in_time: serverTimestamp(), 
-                check_in_method: checkInMethod // 紀錄報到方式
+                check_in_method: checkInMethod 
             });
             
             punchModal.style.display = 'none';
@@ -468,6 +346,42 @@
             btnSubmitPunch.innerText = "確認報到並領取電子憑單";
             btnSubmitPunch.disabled = false;
         }
+    });
+
+    const voucherModal = document.getElementById('voucherModal');
+    
+    function openVoucherModal(tripId) {
+        const trip = currentTrips.find(t => t.id === tripId);
+        if(!trip) return;
+
+        let displayTime = "系統已紀錄";
+        if (trip.check_in_time) {
+            if (typeof trip.check_in_time.toDate === 'function') {
+                const d = trip.check_in_time.toDate();
+                displayTime = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+            } else {
+                displayTime = trip.check_in_time; 
+            }
+        }
+
+        document.getElementById('voucherContent').innerHTML = `
+            <div class="text-center mb-4">
+                <div class="text-sm text-gray-500 font-bold mb-1">電子派車憑單 E-Voucher</div>
+                <div class="text-2xl font-black text-gray-800">${trip.route}</div>
+            </div>
+            <div class="space-y-2 text-sm font-bold text-gray-700">
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>駕駛長</span><span class="text-blue-700">${trip.assigned_driver}</span></div>
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>發車時間</span><span class="text-xl text-red-600 font-black">${trip.departure_time}</span></div>
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>使用車號</span><span class="text-gray-900">${trip.assigned_vehicle}</span></div>
+                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>起訖點</span><span class="text-right">${trip.start_point}<br>➔ ${trip.end_point}</span></div>
+                <div class="flex justify-between pt-1"><span>報到時間</span><span class="text-emerald-600">${displayTime}</span></div>
+            </div>
+        `;
+        voucherModal.style.display = 'flex';
+    }
+
+    document.getElementById('btnCloseVoucher').addEventListener('click', () => {
+        voucherModal.style.display = 'none';
     });
 </script>
 </body>
