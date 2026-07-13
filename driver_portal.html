@@ -88,6 +88,15 @@
                 📷 掃描車輛 QR Code
             </button>
             
+            <div class="flex items-center gap-2 my-4">
+                <hr class="flex-grow border-gray-300">
+                <span class="text-xs text-gray-400 font-bold">或 (無QR Code時)</span>
+                <hr class="flex-grow border-gray-300">
+            </div>
+            <div class="mb-4">
+                <input type="password" id="overridePin" placeholder="🔑 輸入站長授權碼 (手動覆核)" class="w-full border-2 border-gray-300 rounded-lg p-3 text-center font-bold tracking-widest outline-none focus:border-emerald-500 transition">
+            </div>
+            
             <button id="btnSubmitPunch" class="w-full bg-emerald-500 text-white font-black py-4 rounded-xl shadow-lg opacity-50 cursor-not-allowed" disabled>
                 確認報到並領取電子憑單
             </button>
@@ -362,6 +371,103 @@
 
     document.getElementById('btnCloseVoucher').addEventListener('click', () => {
         voucherModal.style.display = 'none';
+    });
+    // 💡 新增一個全域變數來記錄 QR Code 是否掃描成功
+    let isQrScanned = false; 
+    const STATION_MASTER_PIN = "8888"; // 這裡設定站長覆核密碼 (可自行修改)
+
+    function openPunchModal(tripId) {
+        selectedTripId = tripId;
+        chkAlcohol.checked = false;
+        chkHealth.checked = false;
+        
+        // 🚀 初始化狀態
+        isQrScanned = false;
+        document.getElementById('overridePin').value = '';
+        btnStartScan.innerHTML = "📷 掃描車輛 QR Code";
+        btnStartScan.classList.replace('bg-emerald-600', 'bg-slate-800');
+        
+        checkConditions();
+        document.getElementById('qr-reader').classList.add('hidden');
+        btnStartScan.style.display = 'flex';
+        punchModal.style.display = 'flex';
+    }
+
+    // 🚀 問題一修正：關閉視窗時徹底釋放相機資源
+    document.getElementById('btnCloseModal').addEventListener('click', () => {
+        punchModal.style.display = 'none';
+        if(html5QrcodeScanner) {
+            html5QrcodeScanner.clear().catch(e => console.error("相機釋放失敗", e));
+            html5QrcodeScanner = null;
+        }
+    });
+
+    // QR Code 掃描成功後的邏輯
+    btnStartScan.addEventListener('click', () => {
+        btnStartScan.style.display = 'none';
+        document.getElementById('qr-reader').classList.remove('hidden');
+        
+        html5QrcodeScanner = new Html5QrcodeScanType("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
+        html5QrcodeScanner.render((decodedText) => {
+            // 掃描成功後自動釋放相機
+            html5QrcodeScanner.clear().catch(e => console.error(e));
+            html5QrcodeScanner = null;
+            document.getElementById('qr-reader').classList.add('hidden');
+            
+            alert(`✅ 掃描成功：已確認車輛 ${decodedText}`);
+            isQrScanned = true; // 標記掃描成功
+            
+            // 變更按鈕樣式提示已完成
+            btnStartScan.style.display = 'flex';
+            btnStartScan.innerHTML = `✅ 已確認 (${decodedText})`;
+            btnStartScan.classList.replace('bg-slate-800', 'bg-emerald-600');
+            
+            chkAlcohol.checked = true;
+            chkHealth.checked = true;
+            checkConditions();
+        }, (err) => {});
+    });
+
+    // 🚀 問題二修正：拔除 GPS，改用「QR Code」或「站長覆核碼」驗證
+    btnSubmitPunch.addEventListener('click', async () => {
+        if (!selectedTripId) return;
+        
+        const pinInput = document.getElementById('overridePin').value;
+        let isVerified = false;
+        let checkInMethod = "";
+
+        // 驗證機制：有掃描 QR 或是 密碼正確
+        if (isQrScanned) {
+            isVerified = true;
+            checkInMethod = "QR Code 掃描";
+        } else if (pinInput === STATION_MASTER_PIN) {
+            isVerified = true;
+            checkInMethod = "站長覆核碼";
+        }
+
+        if (!isVerified) {
+            alert("❌ 無法報到！請「掃描車輛 QR Code」或「輸入正確的站長授權碼」。");
+            return;
+        }
+        
+        btnSubmitPunch.innerText = "⏳ 正在處理簽到...";
+        btnSubmitPunch.disabled = true;
+
+        try {
+            await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
+                status: 'checked_in',
+                check_in_time: serverTimestamp(), 
+                check_in_method: checkInMethod // 紀錄報到方式
+            });
+            
+            punchModal.style.display = 'none';
+            openVoucherModal(selectedTripId);
+        } catch (err) {
+            alert('報到連線失敗，請檢查網路。');
+        } finally {
+            btnSubmitPunch.innerText = "確認報到並領取電子憑單";
+            btnSubmitPunch.disabled = false;
+        }
     });
 </script>
 </body>
