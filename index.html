@@ -66,7 +66,7 @@
             <p class="text-gray-500 text-sm">維護員工基本資料、駕照狀態、在職狀態與系統登入權限發放。</p>
             <span class="mt-4 text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">站長 / 總公司專用</span>
         </a>
-<a href="leaves.html" id="card-leaves" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
+        <a href="leaves.html" id="card-leaves" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group">
             <div class="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-amber-500 transition-colors">📅</div>
             <h3 class="text-xl font-bold text-gray-800 mb-2">差假簽核系統</h3>
             <p class="text-gray-500 text-sm">審核駕駛員送出的特休、排休與事病假單，連動發車防呆。</p>
@@ -99,12 +99,12 @@
             <p class="text-gray-500 text-sm">駕駛員線上回報車況，維修班即時接單檢修。</p>
             <span class="mt-4 text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full">全員開放</span>
         </a>
-<a href="query.html" id="card-query" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group hover:border-blue-400">
-    <div class="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-sky-500 transition-colors">🔍</div>
-    <h3 class="text-xl font-bold text-gray-800 mb-2">公開班表查詢</h3>
-    <p class="text-gray-500 text-sm">提供給乘客或員工查詢每日發車資訊，無須登入即可使用。</p>
-    <span class="mt-4 text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-full">公開服務</span>
-</a>
+        <a href="query.html" id="card-query" class="module-card bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center text-center group hover:border-blue-400">
+            <div class="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center text-4xl mb-4 group-hover:bg-sky-500 transition-colors">🔍</div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">公開班表查詢</h3>
+            <p class="text-gray-500 text-sm">提供給乘客或員工查詢每日發車資訊，無須登入即可使用。</p>
+            <span class="mt-4 text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1 rounded-full">公開服務</span>
+        </a>
     </div>
 
     <div id="fairnessDashboard" class="mt-12 bg-white rounded-xl shadow-md border border-gray-200 p-8 hidden">
@@ -131,20 +131,11 @@
     const today = new Date();
     const firstDay = new Date(today.setDate(today.getDate() - today.getDay() + 1)).toISOString().split('T')[0];
     
-    // 只抓取本週以後的車趟
-    const q = query(collection(db, "daily_dispatches"), where("date", ">=", firstDay));
-    const snap = await getDocs(q);
-    
     // 💡 修正：補上計算工時必須用到的時間轉換函數
     const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
 
     checkAuthAndGetRole([]).then(async (user) => {
-        // 1. 驗證成功後，先顯示網頁主體 
-        const loader = document.getElementById('global-loader');
-        if (loader) {
-            loader.style.opacity = '0'; // 觸發 CSS 淡出動畫
-            setTimeout(() => loader.remove(), 500); // 0.5秒後從網頁結構中徹底移除
-        }
+        // 先顯示歡迎訊息
         document.getElementById('welcomeMsg').innerText = `您好，${user.name}！`;
         
         document.getElementById('main-nav').innerHTML += `
@@ -155,7 +146,7 @@
         `;
         document.getElementById('btnLogout').addEventListener('click', logout);
 
-        // 2. 權限分流判斷
+        // 權限分流判斷
         const r = user.role;
         const hide = (id) => { const el = document.getElementById(id); if(el) el.style.display = 'none'; };
 
@@ -172,14 +163,23 @@
             // 顯示儀表板
             document.getElementById('fairnessDashboard').classList.remove('hidden'); 
             
-            // 執行數據計算 (確保畫面已顯示才繪製)
+            // 執行數據計算 (此時會等待儀表板數據算完)
             await generateFairnessDashboard();
         }
 
-        // 💡 修正：勞務統計計算 (使用時長而非單純算趟次)
+        // 💡 🚀 修正重點：等所有資料庫運算與畫面渲染都完成後，才將 Loading 動畫移除
+        const loader = document.getElementById('global-loader');
+        if (loader) {
+            loader.style.opacity = '0'; // 觸發 CSS 淡出動畫
+            setTimeout(() => loader.remove(), 500); // 0.5秒後從網頁結構中徹底移除
+        }
+
+        // 勞務統計計算 (使用時長而非單純算趟次)
         async function generateFairnessDashboard() {
             try {
-                const snap = await getDocs(collection(db, "daily_dispatches"));
+                // 只抓取本週以後的車趟
+                const q = query(collection(db, "daily_dispatches"), where("date", ">=", firstDay));
+                const snap = await getDocs(q);
                 let driverWorkMins = {}; 
                 
                 snap.forEach(doc => {
@@ -217,10 +217,10 @@
         }
 
     }).catch((err) => {
-    console.error("未登入，已退回登入頁面", err);
-    const loader = document.getElementById('global-loader');
-    if (loader) loader.remove(); // 確保發生錯誤時也能解除卡死狀態
-});
+        console.error("未登入，已退回登入頁面", err);
+        const loader = document.getElementById('global-loader');
+        if (loader) loader.remove(); // 確保發生錯誤時也能解除卡死狀態
+    });
   </script>
 </body>
 </html>
