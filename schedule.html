@@ -212,29 +212,24 @@
             } catch (error) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 font-bold">讀取錯誤</td></tr>'; }
         }
 
-       // 尋找負責「✨ 智慧實務排班」按鈕的點擊事件
-document.getElementById('btnAutoSchedule').addEventListener('click', async () => {
-    const weekValue = document.getElementById('week-picker').value; // 取得如 "2026-W29"
+       // 💡 修正 1：按鈕 ID 改為正確的 'btn-auto'
+document.getElementById('btn-auto').addEventListener('click', async () => {
+    const weekValue = document.getElementById('week-picker').value; 
     if (!weekValue) return alert("請先選擇週別！");
 
-    // -------------------------------------------------------------
-    // 💡 步驟一：將選擇的週別 (YYYY-Www) 換算出該週一到週日的 7 個實際日期 (YYYY-MM-DD)
-    // -------------------------------------------------------------
     const parts = weekValue.split('-W');
     const year = parseInt(parts[0], 10);
     const week = parseInt(parts[1], 10);
     
-    // ISO 8601 標準：當年的 1 月 4 日必定在第一週
     const jan4 = new Date(year, 0, 4);
     const jan4Day = jan4.getDay() === 0 ? 7 : jan4.getDay();
     const monWeek1 = new Date(jan4);
     monWeek1.setDate(jan4.getDate() - jan4Day + 1);
     
-    // 找到目標週別的星期一
     const targetMon = new Date(monWeek1);
     targetMon.setDate(monWeek1.getDate() + (week - 1) * 7);
     
-    const weekDates = {}; // 儲存結構： { 'mon': '2026-07-13', 'tue': '2026-07-14', ... }
+    const weekDates = {}; 
     const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
     
     for (let i = 0; i < 7; i++) {
@@ -243,77 +238,77 @@ document.getElementById('btnAutoSchedule').addEventListener('click', async () =>
         weekDates[daysOfWeek[i]] = d.toISOString().split('T')[0];
     }
 
-    // -------------------------------------------------------------
-    // 💡 步驟二：去 Firebase 差假資料表 (leave_requests) 撈取「已核准」的請假單
-    // -------------------------------------------------------------
-    const approvedLeaves = {}; // 整理後的對照表： { 員工編號: { 'wed': '特休', 'thu': '事假' } }
+    const approvedLeaves = {}; 
     
     try {
-        const leaveQuery = query(
-            collection(db, "leave_requests"),
-            where("status", "==", "已核准")
-        );
+        const leaveQuery = query(collection(db, "leave_requests"), where("status", "==", "已核准"));
         const leaveSnap = await getDocs(leaveQuery);
         
         leaveSnap.forEach(docSnap => {
             const data = docSnap.data();
-            const leaveDate = data.date; // 資料庫存的格式如 "2026-07-15"
-            const empId = data.empId;
-            const leaveType = data.type || "請假";
-            
-            // 檢查這張假單的日期，有沒有落在目前排班的這一個星期之內
             for (let dayKey of daysOfWeek) {
-                if (weekDates[dayKey] === leaveDate) {
-                    if (!approvedLeaves[empId]) {
-                        approvedLeaves[empId] = {};
-                    }
-                    approvedLeaves[empId][dayKey] = leaveType;
+                if (weekDates[dayKey] === data.date) {
+                    if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
+                    approvedLeaves[data.empId][dayKey] = data.type || "OFF (休)";
                 }
             }
         });
     } catch (err) {
         console.error("撈取請假單失敗:", err);
-        return alert("連線失敗，無法取得下週請假審核資料，已終止自動排班！");
+        return alert("連線失敗，無法取得請假資料，終止自動排班！");
     }
 
-    // -------------------------------------------------------------
-    // 💡 步驟三：在排班迴圈中加入保護機制（若已請假則跳過該格子）
-    // -------------------------------------------------------------
-    // 找到您程式碼中迭代所有司機與天數的雙重迴圈區塊：
-    currentDrivers.forEach(driver => {
+    // 💡 修正 2：補齊「台灣客運實務排班演算法」
+    const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)"];
+    
+    currentDrivers.forEach((driver, index) => {
         const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
         
+        // 判斷是否為老闆 (JUN)
+        const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
+        
+        // 決定該司機的「固定底班」(利用 index 循環分配)
+        const myBaseShift = baseShifts[index % baseShifts.length];
+        
+        // 隨機決定一天「散休」(0~6 對應週一到週日)
+        const randomOffDayIndex = Math.floor(Math.random() * 7);
+        const myOffDay = daysOfWeek[randomOffDayIndex];
+
         daysOfWeek.forEach(day => {
-            
-            // 🚨 核心阻擋點：檢查該駕駛在當天是否有「已核准的假單」
+            const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+            if (!selectEl) return;
+
+            // 📍 優先級 1：防禦機制 (如果有請假，強制寫入假別並跳過)
             if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
-                const approvedLeaveType = approvedLeaves[driver.empId][day];
-                const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                
-                if (selectEl) {
-                    selectEl.value = approvedLeaveType; // 強制格子的值為該假別（如：特休/事假）
-                    selectEl.className = window.getShiftClass(approvedLeaveType); // 帶入對應的背景顏色
-                }
-                
-                return; // ⭐️ 重點：直接 return 跳過當天，不讓下方的智慧排班演算法將其覆蓋！
+                const leaveType = approvedLeaves[driver.empId][day];
+                selectEl.value = leaveType;
+                selectEl.className = window.getShiftClass(leaveType);
+                return; 
             }
 
-            // --------------------------------------------------------
-            // ⬇️ 這裡維持您原本既有的智慧排班派發邏輯 (底班、輪班、散休等分配) ⬇️
-            // --------------------------------------------------------
-            // let shift = calculateSmartShift(driver, day); 
-            // selectEl.value = shift;
-            // ...
-            
+            // 📍 優先級 2：老闆永遠待命
+            if (isBoss) {
+                selectEl.value = "STB (待命)";
+                selectEl.className = window.getShiftClass("STB (待命)");
+                return;
+            }
+
+            // 📍 優先級 3：排定散休 (避開已有請假的日子)
+            if (day === myOffDay) {
+                selectEl.value = "OFF (休)";
+                selectEl.className = window.getShiftClass("OFF (休)");
+                return;
+            }
+
+            // 📍 優先級 4：填入常態底班
+            selectEl.value = myBaseShift;
+            selectEl.className = window.getShiftClass(myBaseShift);
         });
     });
 
-    // 觸發畫面的變更提示或自動存檔機制
     isDirty = true;
-    if (typeof silentAutoSave === "function") {
-        silentAutoSave();
-    }
-    alert("✨ 智慧實務排班優化完成！\n（系統已自動載入差假簽核資料，並完整保留所有已核准之請假、特休格子）");
+    if (typeof silentAutoSave === "function") silentAutoSave();
+    alert("✨ 智慧實務排班完成！\n已自動保留核准假單，並分配底班與散休。");
 });
 
         // ==========================================
