@@ -99,14 +99,13 @@
     </table>
   </div>
 
-  <script type="module">
+ <script type="module">
     import { db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, updateDoc, orderBy, where, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
 
-    // 日期格式化工具
     const formatDateTime = (isoString) => {
         if (!isoString) return '無';
         const d = new Date(isoString);
@@ -118,15 +117,42 @@
         renderNavbar(user, 'leaves');
 
         const isManager = ['總公司', '站長', '調度員'].includes(user.role);
+        const leaveRequestsCol = collection(db, "leave_requests");
+        const dbStatusEl = document.getElementById('db-status');
         
-        // 根據身分調整標題與UI
+        // 修正 1 & 4：統一識別碼，若沒設定 empId 則用 uid
+        const currentUserId = user.empId || user.uid; 
+        
+        // 狀態管理：目前的主管視角 (預設看團隊，若不是主管則固定為 personal)
+        let currentView = isManager ? 'team' : 'personal';
+        let allRequests = []; // 存放從資料庫抓回來的所有原始資料
+
+        // 修正 2：建立主管專用的視角切換器
         if (isManager) {
-            document.getElementById('pageTitle').innerText = '📅 差假審核管理 (主管視角)';
-            document.getElementById('filterStatus').classList.remove('hidden'); // 顯示篩選
+            document.getElementById('pageTitle').innerHTML = `
+                <select id="viewToggle" class="text-xl font-bold text-blue-700 bg-transparent border-b-2 border-blue-700 outline-none cursor-pointer pb-1">
+                    <option value="team">👥 團隊差假審核區</option>
+                    <option value="personal">👤 我的差假申請紀錄</option>
+                </select>
+            `;
+            document.getElementById('filterStatus').classList.remove('hidden');
+            
+            // 監聽視角切換
+            document.getElementById('viewToggle').addEventListener('change', (e) => {
+                currentView = e.target.value;
+                if (currentView === 'personal') {
+                    document.getElementById('filterStatus').classList.add('hidden'); // 看個人假單時隱藏狀態篩選
+                } else {
+                    document.getElementById('filterStatus').classList.remove('hidden');
+                }
+                fetchData(); // 重新拉取對應資料
+            });
+        } else {
+            document.getElementById('pageTitle').innerText = '👤 我的差假申請紀錄';
         }
 
-        const dbStatusEl = document.getElementById('db-status');
-        const leaveRequestsCol = collection(db, "leave_requests");
+        // 修正 3：監聽狀態篩選器的變動
+        document.getElementById('filterStatus').addEventListener('change', renderTable);
 
         // ======= 🚀 填寫假單邏輯 =======
         const leaveModal = document.getElementById('leaveModal');
@@ -146,17 +172,16 @@
             btn.disabled = true; btn.innerText = "送出中...";
             try {
                 await addDoc(leaveRequestsCol, {
-                    empId: user.empId || user.uid,
+                    empId: currentUserId,
                     name: user.name,
                     type: type,
                     startTime: start,
                     endTime: end,
                     reason: reason,
-                    status: '待審核', // 狀態改為 待審核
+                    status: '待審核',
                     createdAt: new Date().toISOString()
                 });
                 leaveModal.classList.replace('flex', 'hidden');
-                // 清空表單
                 document.getElementById('leaveStart').value = ""; 
                 document.getElementById('leaveEnd').value = "";
                 document.getElementById('leaveReason').value = "";
@@ -169,86 +194,108 @@
         };
         
         // ======= 📊 讀取與渲染列表邏輯 =======
-        let q;
-        if (!isManager) {
-            // 駕駛員只看自己的
-            q = query(leaveRequestsCol, where("empId", "==", user.empId));
-        } else {
-            // 主管看所有人的，依申請時間排序 (實務上可以依開始時間排序)
-            q = query(leaveRequestsCol, orderBy("createdAt", "desc"));
-        }
-        
-        onSnapshot(q, (snapshot) => {
-            const leaveBody = document.getElementById('leaveRequestsBody');
-            leaveBody.innerHTML = '';
+        let unsubscribeSnapshot = null;
 
-            let requests = [];
-            snapshot.forEach(docSnap => requests.push({ id: docSnap.id, ...docSnap.data() }));
-            
-            // 如果是透過 where 查詢 (無 orderBy)，需手動排序
-            if (!isManager) {
-                requests.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        function fetchData() {
+            if (unsubscribeSnapshot) unsubscribeSnapshot(); // 切換視角前先取消舊的監聽
+            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300";
+            dbStatusEl.innerText = "讀取中...";
+
+            let q;
+            if (currentView === 'personal') {
+                q = query(leaveRequestsCol, where("empId", "==", currentUserId));
+            } else {
+                q = query(leaveRequestsCol, orderBy("createdAt", "desc"));
             }
-
-            if (requests.length === 0) {
-                leaveBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">目前無任何申請紀錄。</td></tr>';
+            
+            unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+                allRequests = [];
+                snapshot.forEach(docSnap => allRequests.push({ id: docSnap.id, ...docSnap.data() }));
+                
+                // 個人視角需手動排序 (因為 where 不能跟不同欄位的 orderBy 混用除非建索引)
+                if (currentView === 'personal') {
+                    allRequests.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                }
+                
                 dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
                 dbStatusEl.innerText = "資料庫已連線";
+                
+                renderTable(); // 抓完資料後渲染畫面
+            }, (err) => {
+                console.error("Firebase讀取錯誤:", err);
+                dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
+                dbStatusEl.innerText = "連線失敗或權限不足";
+            });
+        }
+
+        function renderTable() {
+            const leaveBody = document.getElementById('leaveRequestsBody');
+            leaveBody.innerHTML = '';
+            const filterVal = document.getElementById('filterStatus').value;
+
+            // 前端過濾 (只在團隊視角套用)
+            let displayRequests = allRequests;
+            if (currentView === 'team' && filterVal !== 'all') {
+                displayRequests = allRequests.filter(req => req.status === filterVal);
+            }
+
+            if (displayRequests.length === 0) {
+                leaveBody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">目前無任何符合條件的申請紀錄。</td></tr>';
                 return;
             }
 
-            requests.forEach(data => {
+            displayRequests.forEach(data => {
                 const leaveId = data.id;
                 const tr = document.createElement('tr');
 
-                // 判斷狀態標籤
                 let statusHtml = '';
                 let actionBtns = '';
 
+                // 判斷按鈕權限：只有在團隊視角下，才能進行審核
+                const canApprove = (currentView === 'team');
+
                 switch(data.status) {
                     case '待審核':
-                    case '審核中': // 相容舊資料
+                    case '審核中':
                         statusHtml = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-300">待審核</span>';
-                        if (isManager) {
+                        if (canApprove) {
                             actionBtns = `
                                 <button class="btn-approve bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 rounded text-sm font-bold mr-1" data-id="${leaveId}">核准</button>
                                 <button class="btn-reject bg-rose-500 hover:bg-rose-600 text-white px-3 py-1 rounded text-sm font-bold mr-1" data-id="${leaveId}">退回</button>
                             `;
                         } else {
-                            // 申請人可以自己撤回
                             actionBtns = `<button class="btn-withdraw bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm font-bold" data-id="${leaveId}">撤回</button>`;
                         }
                         break;
-
                     case '已核准':
                         statusHtml = `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-300">已核准</span><div class="text-[10px] text-gray-400 mt-1">審核: ${escapeHTML(data.reviewedBy || '')}</div>`;
-                        if (isManager) {
-                            // 主管可以強制代為撤回/銷假
+                        if (canApprove) {
                             actionBtns = `<button class="btn-force-withdraw bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm font-bold" data-id="${leaveId}">代為撤回</button>`;
                         } else {
-                            // 實務上這裡可能會有「申請銷假」的按鈕，目前先照您的邏輯
                             actionBtns = `<span class="text-xs text-gray-400">無法撤回</span>`;
                         }
                         break;
-                    
                     case '已退回':
-                    case '退回': // 相容舊資料
+                    case '退回':
                         statusHtml = `<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold border border-red-300">已退回</span><div class="text-[10px] text-gray-400 mt-1">退回: ${escapeHTML(data.reviewedBy || '')}</div>`;
                         actionBtns = `<span class="text-gray-400">-</span>`;
                         break;
-                    
                     case '已撤回':
                         statusHtml = `<span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold border border-gray-300">已撤回</span><div class="text-[10px] text-gray-400 mt-1">由: ${escapeHTML(data.withdrawnBy || '申請人')}</div>`;
                         actionBtns = `<span class="text-gray-400">-</span>`;
                         break;
                 }
 
-                // 組合時間字串
                 const timeStr = `${formatDateTime(data.startTime)} ~ <br>${formatDateTime(data.endTime)}`;
+                
+                // 修正 4：員工編號(姓名) 格式。防呆：如果字串長度超過 10，代表存到的是 UID，改顯示 '系統帳號'
+                let displayId = escapeHTML(data.empId || '無');
+                if (displayId.length > 10) displayId = "UID"; 
+                const displayNameStr = `${displayId}(${escapeHTML(data.name)})`;
 
                 tr.innerHTML = `
                     <td>${statusHtml}</td>
-                    <td class="font-bold text-gray-800">${escapeHTML(data.empId)} <br><span class="text-sm font-normal">${escapeHTML(data.name)}</span></td>
+                    <td class="font-bold text-gray-800">${displayNameStr}</td>
                     <td class="font-bold text-purple-600">${escapeHTML(data.type)}</td>
                     <td class="font-mono text-sm text-gray-700">${timeStr}</td>
                     <td class="text-gray-600 text-sm">${escapeHTML(data.reason) || '-'}</td>
@@ -257,62 +304,36 @@
                 leaveBody.appendChild(tr);
             });
 
-            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
-            dbStatusEl.innerText = "資料庫已連線";
+            bindButtonEvents();
+        }
 
-            // --- 綁定事件處理 ---
-
-            // 1. 核准 (主管)
+        // 綁定按鈕事件 (抽出為獨立函式確保不會重複綁定)
+        function bindButtonEvents() {
             document.querySelectorAll('.btn-approve').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const id = e.target.dataset.id;
-                    if (confirm("確定要【核准】此申請嗎？")) {
-                        await updateStatus(id, '已核准', { reviewedBy: user.name });
-                    }
-                });
+                btn.onclick = async (e) => {
+                    if (confirm("確定要【核准】此申請嗎？")) await updateStatus(e.target.dataset.id, '已核准', { reviewedBy: user.name });
+                };
             });
-
-            // 2. 退回 (主管)
             document.querySelectorAll('.btn-reject').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const id = e.target.dataset.id;
-                    if (confirm("確定要【退回】此申請嗎？")) {
-                        await updateStatus(id, '已退回', { reviewedBy: user.name });
-                    }
-                });
+                btn.onclick = async (e) => {
+                    if (confirm("確定要【退回】此申請嗎？")) await updateStatus(e.target.dataset.id, '已退回', { reviewedBy: user.name });
+                };
             });
-
-            // 3. 撤回 (申請人)
             document.querySelectorAll('.btn-withdraw').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const id = e.target.dataset.id;
-                    if (confirm("確定要【撤回】這張假單嗎？")) {
-                        await updateStatus(id, '已撤回', { withdrawnBy: user.name });
-                    }
-                });
+                btn.onclick = async (e) => {
+                    if (confirm("確定要【撤回】這張假單嗎？")) await updateStatus(e.target.dataset.id, '已撤回', { withdrawnBy: user.name });
+                };
             });
-
-            // 4. 代為撤回 (主管)
             document.querySelectorAll('.btn-force-withdraw').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const id = e.target.dataset.id;
+                btn.onclick = async (e) => {
                     const reason = prompt("請輸入代為撤回的原因 (如：排班調度):");
                     if (reason !== null) {
-                        await updateStatus(id, '已撤回', { 
-                            withdrawnBy: user.name + '(主管代撤)',
-                            withdrawReason: reason 
-                        });
+                        await updateStatus(e.target.dataset.id, '已撤回', { withdrawnBy: user.name + '(主管代撤)', withdrawReason: reason });
                     }
-                });
+                };
             });
+        }
 
-        }, (err) => {
-            console.error(err);
-            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
-            dbStatusEl.innerText = "連線失敗";
-        });
-
-        // 封裝狀態更新函式 (不使用 deleteDoc)
         async function updateStatus(docId, newStatus, extraData = {}) {
             try {
                 const docRef = doc(db, "leave_requests", docId);
@@ -322,6 +343,9 @@
                 alert("處理失敗，請檢查網路連線！");
             }
         }
+
+        // 初次進入頁面，觸發資料讀取
+        fetchData();
 
     }).catch((err) => {
         console.error("權限不足或未登入", err);
