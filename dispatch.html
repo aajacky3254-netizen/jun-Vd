@@ -464,7 +464,10 @@
 
           tbody.innerHTML = currentTrips.map(data => {
               let isOff = currentOffDrivers.some(od => od.empId === data.assigned_empid);
-              let rowBgClass = isOff ? "bg-red-50" : "";
+              const isPendingOverride = data.status === 'pending_override'; // 🌟 判斷是否等待覆核
+              
+              // 如果是等待覆核，背景變橘黃色並閃爍
+              let rowBgClass = isOff ? "bg-red-50" : (isPendingOverride ? "bg-orange-50 border-2 border-orange-400" : "");
               let selectClass = isOff ? "bg-red-100 text-red-700 border-red-400 animate-pulse" : "border-gray-300";
               
               let drvOpts = `<option value="尚未指派">尚未指派</option>`;
@@ -488,6 +491,22 @@
                   <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}">${vehOpts}</select></td>
                   <td><button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold" data-id="${data.id}">刪除</button></td>
               </tr>`;
+            // 🌟 操作欄位按鈕邏輯
+              let actionBtns = '';
+              if (isPendingOverride) {
+                  actionBtns = `<button class="btn-approve-override bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold animate-pulse w-full mb-1" data-id="${data.id}">✅ 核准異常報到</button>`;
+              }
+              actionBtns += `<button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full" data-id="${data.id}">刪除車趟</button>`;
+
+              return `<tr class="${rowBgClass}">
+                  <td class="font-bold">${data.departure_time} ${data.arrival_time ? '~ '+data.arrival_time : ''}</td>
+                  <td class="text-blue-700 font-bold">${data.route}</td>
+                  <td class="font-bold text-gray-700">${data.trip_count || 1} 趟</td>
+                  <td>${data.start_point}</td><td>${data.end_point}</td>
+                  <td><select class="driver-select outline-none cursor-pointer p-1.5 border rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm ${selectClass}" data-id="${data.id}">${drvOpts}</select></td>
+                  <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}">${vehOpts}</select></td>
+                  <td class="flex flex-col gap-1">${actionBtns}</td>
+              </tr>`;
           }).join('') || '<tr><td colspan="8" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
       }
 
@@ -503,7 +522,30 @@
           if (e.target.classList.contains('vehicle-select')) { await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: e.target.value }); showToast("✅ 車輛已更新！"); }
       });
       
-      tbody.addEventListener('click', async (e) => { if (e.target.classList.contains('btn-delete-trip')) { await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id)); showToast("🗑️ 車趟已刪除！"); } });
+      tbody.addEventListener('click', async (e) => { 
+          // 處理刪除
+          if (e.target.classList.contains('btn-delete-trip')) { 
+              if(confirm("確定要刪除此車趟嗎？")) {
+                  await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id)); 
+                  showToast("🗑️ 車趟已刪除！"); 
+              }
+          }
+          // 🌟 處理站長核准異常報到
+          if (e.target.classList.contains('btn-approve-override')) {
+              if(confirm("確定核准這位駕駛的異常報到申請嗎？\n系統將記錄為「站長人工覆核」。")) {
+                  try {
+                      await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), {
+                          status: 'checked_in',
+                          check_in_time: serverTimestamp(),
+                          check_in_method: "站長人工覆核"
+                      });
+                      showToast("✅ 已成功核准異常報到！");
+                  } catch (err) {
+                      alert("核准失敗，請檢查網路。");
+                  }
+              }
+          }
+      });
 
       document.getElementById('addTripBtn').onclick = async () => {
           if(!document.getElementById('inputTime').value || !document.getElementById('inputRoute').value) return alert("發車時間與路線為必填！");
