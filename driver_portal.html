@@ -94,11 +94,13 @@
                 <hr class="flex-grow border-gray-300">
             </div>
             <div class="mb-4">
-                <input type="password" id="overridePin" placeholder="🔑 輸入站長授權碼 (手動覆核)" class="w-full border-2 border-gray-300 rounded-lg p-3 text-center font-bold tracking-widest outline-none focus:border-emerald-500 transition">
+                <button id="btnRequestOverride" class="w-full bg-orange-100 text-orange-700 border-2 border-orange-300 hover:bg-orange-200 font-bold py-3 rounded-lg shadow-sm transition">
+                    ⚠️ QR Code 無法掃描，申請站長人工覆核
+                </button>
             </div>
             
             <button id="btnSubmitPunch" class="w-full bg-emerald-500 text-white font-black py-4 rounded-xl shadow-lg opacity-50 cursor-not-allowed" disabled>
-                確認報到並領取電子憑單
+                確認報到並領取電子憑單 (需先掃描)
             </button>
         </div>
     </div>
@@ -130,7 +132,17 @@
     
     // 💡 新增變數：紀錄 QR 掃描狀態與站長密碼
     let isQrScanned = false; 
-    const STATION_MASTER_PIN = "8888"; 
+    // 這是 "8888" 經過 SHA-256 加密後的雜湊值 (Hash)
+    const PIN_HASH = "cf79d123d46777bd3685fba3993bf2e148e6c4664e106dbddcfa63a921d74ea4"; 
+    
+    // 建立一個將輸入文字轉為 Hash 值的輔助函數
+    async function hashInput(text) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
 
     const dateInput = document.getElementById('selectDate');
     const tripList = document.getElementById('trip-list');
@@ -202,12 +214,22 @@
 
         tripList.innerHTML = currentTrips.map(trip => {
             const isCheckedIn = trip.status === 'checked_in';
-            const statusClass = isCheckedIn ? 'status-checked' : 'status-pending';
-            const statusText = isCheckedIn ? '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 已報到</span>' : '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待報到</span>';
+            const isPendingOverride = trip.status === 'pending_override'; // 🌟 新增狀態判斷
             
-            const btnHtml = isCheckedIn 
-                ? `<button class="btn-view-voucher w-full mt-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg text-sm transition" data-id="${trip.id}">📜 查看電子憑單</button>`
-                : `<button class="btn-punch-in w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📱 進行報到 / 酒測</button>`;
+            // 根據狀態決定卡片顏色與標籤
+            let statusClass = 'status-pending';
+            let statusText = '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待報到</span>';
+            let btnHtml = `<button class="btn-punch-in w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📱 進行報到 / 酒測</button>`;
+
+            if (isCheckedIn) {
+                statusClass = 'status-checked';
+                statusText = '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 已報到</span>';
+                btnHtml = `<button class="btn-view-voucher w-full mt-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg text-sm transition" data-id="${trip.id}">📜 查看電子憑單</button>`;
+            } else if (isPendingOverride) {
+                statusClass = 'status-pending border-orange-400';
+                statusText = '<span class="text-orange-500 bg-orange-50 px-2 py-1 rounded font-bold text-xs animate-pulse">⚠️ 等待站長覆核中...</span>';
+                btnHtml = `<button class="w-full mt-3 bg-gray-200 text-gray-500 font-bold py-2.5 rounded-lg text-sm cursor-not-allowed" disabled>請請站長於調度台核准</button>`;
+            }
 
             return `
             <div class="trip-card ${statusClass}">
@@ -215,15 +237,12 @@
                     <div class="text-2xl font-black text-gray-800">${trip.departure_time}</div>
                     ${statusText}
                 </div>
-                
                 <div class="flex items-center gap-2 mb-3">
                     <span class="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-sm">${trip.route}</span>
                     <span class="text-gray-500 font-bold text-sm">| ${trip.trip_count || 1} 趟</span>
                 </div>
-                
                 <div class="text-gray-700 font-bold text-sm mb-1">📍 ${trip.start_point} ➔ ${trip.end_point}</div>
                 <div class="text-gray-600 font-bold text-sm mb-3">🚌 車號：<span class="text-blue-600">${trip.assigned_vehicle}</span></div>
-                
                 ${btnHtml}
             </div>
             `;
@@ -254,6 +273,59 @@
             btnSubmitPunch.classList.remove('hover:bg-emerald-600');
         }
     }
+       // 🌟 新增：申請站長人工覆核
+    document.getElementById('btnRequestOverride').addEventListener('click', async () => {
+        if (!selectedTripId || !chkAlcohol.checked || !chkHealth.checked) {
+            alert("請先勾選確認酒測與健康聲明！");
+            return;
+        }
+        if (confirm("確定要向調度台發送「人工覆核報到」申請嗎？")) {
+            const btn = document.getElementById('btnRequestOverride');
+            btn.innerText = "⏳ 申請發送中...";
+            btn.disabled = true;
+            try {
+                await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
+                    status: 'pending_override', // 改變狀態通知調度台
+                });
+                punchModal.style.display = 'none';
+                alert("申請已送出！請告知調度員或站長於系統上核准。");
+            } catch (err) {
+                alert('申請失敗，請檢查網路連線。');
+            } finally {
+                btn.innerText = "⚠️ QR Code 無法掃描，申請站長人工覆核";
+                btn.disabled = false;
+            }
+        }
+    });
+
+    // 🌟 修改：正常 QR Code 報到邏輯
+    btnSubmitPunch.addEventListener('click', async () => {
+        if (!selectedTripId) return;
+        
+        if (!isQrScanned) {
+            alert("❌ 無法報到！請確實「掃描車輛 QR Code」。若 QR Code 損毀，請使用人工覆核。");
+            return;
+        }
+        
+        btnSubmitPunch.innerText = "⏳ 正在處理簽到...";
+        btnSubmitPunch.disabled = true;
+
+        try {
+            await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
+                status: 'checked_in',
+                check_in_time: serverTimestamp(), 
+                check_in_method: "QR Code 掃描" 
+            });
+            
+            punchModal.style.display = 'none';
+            openVoucherModal(selectedTripId);
+        } catch (err) {
+            alert('報到連線失敗，請檢查網路。');
+        } finally {
+            btnSubmitPunch.innerText = "確認報到並領取電子憑單 (需先掃描)";
+            btnSubmitPunch.disabled = false;
+        }
+    });
 
     chkAlcohol.addEventListener('change', checkConditions);
     chkHealth.addEventListener('change', checkConditions);
@@ -314,15 +386,18 @@
         const pinInput = pinInputEl ? pinInputEl.value : "";
         let isVerified = false;
         let checkInMethod = "";
-
+    
+        // 🚀 將駕駛輸入的文字轉換為 Hash 值
+        const inputHashed = await hashInput(pinInput);
+    
         if (isQrScanned) {
             isVerified = true;
             checkInMethod = "QR Code 掃描";
-        } else if (pinInput === STATION_MASTER_PIN) {
+        } else if (inputHashed === PIN_HASH) { // 🚀 比對 Hash 值而不是明文
             isVerified = true;
             checkInMethod = "站長覆核碼";
         }
-
+    
         if (!isVerified) {
             alert("❌ 無法報到！請「掃描車輛 QR Code」或「輸入正確的站長授權碼」。");
             return;
