@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>車輛調度系統 - 週班表管理 (台灣客運實務版)</title>
+    <title>車輛調度系統 - 週班表管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="output.css">
     <style>
         body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
         .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
@@ -266,8 +267,12 @@
                 const cells = row.querySelectorAll('td');
                 for (let i = 1; i <= 7; i++) {
                     if (cells[i]) {
-                        const cellText = cells[i].innerText || cells[i].querySelector('select')?.value || "";
-                        if (cellText.trim() !== "" && !cellText.includes('OFF') && !cellText.includes('休')) {
+                        // 【修改處 2】優先抓取 select 目前選擇的值，如果沒有 select (例如被請假單鎖定) 才抓 innerText
+                        const selectEl = cells[i].querySelector('select');
+                        const cellText = selectEl ? selectEl.value : cells[i].innerText;
+                        
+                        // 判斷該儲存格不是空白，且不是休假，才計入可用人力
+                        if (cellText && cellText.trim() !== "" && !cellText.includes('OFF') && !cellText.includes('休')) {
                             availableCounts[i - 1]++; 
                         }
                     }
@@ -493,11 +498,14 @@
                     }
                     prevShift = currentShift; 
                 });
-
+                
+                // 判斷是否為老闆 (您可以保留變數供其他邏輯使用)
                 const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
-                if (offCount === 0 && !isBoss) {
+                
+                // 【修改處 3】移除 && !isBoss，強制所有人都必須符合七休一規定
+                if (offCount === 0) {
                     hasViolation = true;
-                    violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假！\n`;
+                    violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假 (違反七休一規定)！\n`;
                 }
             });
 
