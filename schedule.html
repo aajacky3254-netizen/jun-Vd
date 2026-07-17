@@ -65,7 +65,20 @@
                     </tr>
                 </thead>
                 <tbody id="roster-body"></tbody>
-            </table>
+                <!-- 🌟 新增：每日人力計算底欄 -->
+                <tfoot class="bg-gray-800 text-white font-bold text-sm">
+                  <tr>
+                    <td class="text-right py-3 px-4 rounded-bl-lg">📊 每日可用人力統計：</td>
+                    <td id="count-1" class="text-center py-3">--</td> <!-- 星期一 -->
+                    <td id="count-2" class="text-center py-3">--</td> <!-- 星期二 -->
+                    <td id="count-3" class="text-center py-3">--</td> <!-- 星期三 -->
+                    <td id="count-4" class="text-center py-3">--</td> <!-- 星期四 -->
+                    <td id="count-5" class="text-center py-3">--</td> <!-- 星期五 -->
+                    <td id="count-6" class="text-center py-3">--</td> <!-- 星期六 -->
+                    <td id="count-7" class="text-center py-3 rounded-br-lg">--</td> <!-- 星期日 -->
+                  </tr>
+                </tfoot>
+              </table>
         </div>
     </div>
 
@@ -411,6 +424,59 @@ document.getElementById('btn-save').addEventListener('click', async () => {
             } catch (err) { console.error(err); alert("讀取失敗。"); }
         });
     });
+       // 🌟 設定每日發車的最低人力需求 (水位線)
+// 假設你有 8 個駕駛，每天最少需要 6 人上班才能維持營運
+const MIN_REQUIRED_DRIVERS = 6; 
+
+function calculateDailyManpower() {
+    // 取得班表的 tbody (請確認你的 tbody id 是對應的，沒有的話要幫 tbody 加上 id="scheduleBody")
+    const tbody = document.getElementById('scheduleBody'); 
+    if (!tbody) return;
+
+    const rows = tbody.querySelectorAll('tr');
+    
+    // 準備一個陣列來記錄 週一 到 週日 的可用人數，初始為 [0,0,0,0,0,0,0]
+    let availableCounts = [0, 0, 0, 0, 0, 0, 0];
+
+    // 逐列掃描每位駕駛的班表
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        // 略過第 0 欄(駕駛姓名)，從第 1 欄(星期一) 到第 7 欄(星期日)
+        for (let i = 1; i <= 7; i++) {
+            if (cells[i]) {
+                // 取得格子內的文字，如果是下拉選單就取 value
+                const cellText = cells[i].innerText || cells[i].querySelector('select')?.value || "";
+                
+                // 判斷邏輯：如果這個格子「不是空的」，且「沒有 OFF 或是 休 的字眼」
+                if (cellText.trim() !== "" && !cellText.includes('OFF') && !cellText.includes('休')) {
+                    availableCounts[i - 1]++; // 人數 +1
+                }
+            }
+        }
+    });
+
+    // 將算出來的人數更新到畫面上，並依照水位線變換顏色
+    for (let i = 1; i <= 7; i++) {
+        const count = availableCounts[i - 1];
+        const countCell = document.getElementById(`count-${i}`);
+        
+        if (countCell) {
+            countCell.innerText = `${count} 人`;
+
+            // 顏色防呆視覺化
+            if (count >= MIN_REQUIRED_DRIVERS) {
+                // 人力充足：綠底白字
+                countCell.className = "text-center py-3 bg-emerald-600 text-white transition-colors"; 
+            } else if (count === MIN_REQUIRED_DRIVERS - 1) {
+                // 人力緊繃 (差1人就低於底線)：黃底黑字
+                countCell.className = "text-center py-3 bg-amber-400 text-gray-900 transition-colors"; 
+            } else {
+                // 人力不足 (低於底線)：紅底白字，加底線警告
+                countCell.className = "text-center py-3 bg-rose-600 text-white underline decoration-wavy transition-colors"; 
+            }
+        }
+    }
+}
    </script>
 </body>
 </html>
