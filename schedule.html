@@ -20,13 +20,13 @@
         select { width: 100%; height: 48px; border: none; outline: none; text-align: center; font-weight: bold; cursor: pointer; appearance: none; -webkit-appearance: none; padding: 0 10px; }
         
         /* 班別色彩管理 */
-        .shift-M { background-color: #93c5fd; color: #1e3a8a; }   /* 早班 */
-        .shift-A { background-color: #fde047; color: #854d0e; }   /* 中班 */
-        .shift-E { background-color: #fca5a5; color: #7f1d1d; }   /* 晚班 */
-        .shift-N { background-color: #c084fc; color: #4c1d95; }   /* 夜班 */
-        .shift-OFF { background-color: #e5e7eb; color: #374151; } /* 休假 */
-        .shift-STB { background-color: #cbd5e1; color: #334155; } /* 待命 */
-        .shift-REL { background-color: #f97316; color: #ffffff; } /* 替班 */
+        .shift-M { background-color: #93c5fd; color: #1e3a8a; }   
+        .shift-A { background-color: #fde047; color: #854d0e; }   
+        .shift-E { background-color: #fca5a5; color: #7f1d1d; }   
+        .shift-N { background-color: #c084fc; color: #4c1d95; }   
+        .shift-OFF { background-color: #e5e7eb; color: #374151; } 
+        .shift-STB { background-color: #cbd5e1; color: #334155; } 
+        .shift-REL { background-color: #f97316; color: #ffffff; } 
         
         .driver-cell { padding: 0 16px; text-align: left; font-weight: bold; color: #1f2937; background-color: #f8fafc; }
         .emp-id { color: #6b7280; font-family: monospace; margin-right: 8px; font-size: 13px; }
@@ -65,17 +65,16 @@
                     </tr>
                 </thead>
                 <tbody id="roster-body"></tbody>
-                <!-- 🌟 新增：每日人力計算底欄 -->
                 <tfoot class="bg-gray-800 text-white font-bold text-sm">
                   <tr>
                     <td class="text-right py-3 px-4 rounded-bl-lg">📊 每日可用人力統計：</td>
-                    <td id="count-1" class="text-center py-3">--</td> <!-- 星期一 -->
-                    <td id="count-2" class="text-center py-3">--</td> <!-- 星期二 -->
-                    <td id="count-3" class="text-center py-3">--</td> <!-- 星期三 -->
-                    <td id="count-4" class="text-center py-3">--</td> <!-- 星期四 -->
-                    <td id="count-5" class="text-center py-3">--</td> <!-- 星期五 -->
-                    <td id="count-6" class="text-center py-3">--</td> <!-- 星期六 -->
-                    <td id="count-7" class="text-center py-3 rounded-br-lg">--</td> <!-- 星期日 -->
+                    <td id="count-1" class="text-center py-3">--</td>
+                    <td id="count-2" class="text-center py-3">--</td>
+                    <td id="count-3" class="text-center py-3">--</td>
+                    <td id="count-4" class="text-center py-3">--</td>
+                    <td id="count-5" class="text-center py-3">--</td>
+                    <td id="count-6" class="text-center py-3">--</td>
+                    <td id="count-7" class="text-center py-3 rounded-br-lg">--</td>
                   </tr>
                 </tfoot>
               </table>
@@ -84,10 +83,11 @@
 
    <script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, setDoc, getDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { collection, query, doc, setDoc, getDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
     const allowedRoles = ['總公司', '站長', '調度員']; 
+    const MIN_REQUIRED_DRIVERS = 6; 
 
     checkAuthAndGetRole(allowedRoles).then((user) => {
         document.body.style.display = 'block';
@@ -95,9 +95,31 @@
 
         const dbStatusEl = document.getElementById('db-status');
         let isDirty = false;
-        
+        let currentDrivers = [];
+        let currentWeekId = "";
+        const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+        const shiftOptions = [
+            { val: "M (早)", class: "shift-M" },
+            { val: "A (中)", class: "shift-A" },
+            { val: "E (晚)", class: "shift-E" },
+            { val: "N (夜)", class: "shift-N" },
+            { val: "REL (替班)", class: "shift-REL" }, 
+            { val: "STB (待命)", class: "shift-STB" },
+            { val: "OFF (休)", class: "shift-OFF" }
+        ];
+
+        window.getShiftClass = function(val) {
+            const opt = shiftOptions.find(o => o.val === val);
+            return opt ? opt.class : 'shift-OFF';
+        };
+
+        // 監聽表格變動，觸發自動存檔與防呆檢查
         document.getElementById('roster-table').addEventListener('change', (e) => {
-            if (e.target.tagName === 'SELECT') silentAutoSave();
+            if (e.target.tagName === 'SELECT') {
+                silentAutoSave();
+                runScheduleChecks(); 
+            }
         });
 
         async function silentAutoSave() {
@@ -120,25 +142,6 @@
                 setTimeout(() => dbStatusEl.innerText = "資料庫已連線", 2000);
             } catch (err) { console.error("背景存檔失敗:", err); }
         }
-
-        let currentDrivers = [];
-        let currentWeekId = "";
-        const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-
-        const shiftOptions = [
-            { val: "M (早)", class: "shift-M" },
-            { val: "A (中)", class: "shift-A" },
-            { val: "E (晚)", class: "shift-E" },
-            { val: "N (夜)", class: "shift-N" },
-            { val: "REL (替班)", class: "shift-REL" }, 
-            { val: "STB (待命)", class: "shift-STB" },
-            { val: "OFF (休)", class: "shift-OFF" }
-        ];
-
-        window.getShiftClass = function(val) {
-            const opt = shiftOptions.find(o => o.val === val);
-            return opt ? opt.class : 'shift-OFF';
-        };
 
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('week-picker').value = today;
@@ -172,6 +175,21 @@
             document.getElementById('week-title').innerText = `本週班表看板 (${currentWeekId})`;
         }
 
+        function getWeekDatesFromPicker() {
+            const dateValue = document.getElementById('week-picker').value;
+            const d = new Date(dateValue);
+            const day = d.getDay() === 0 ? 7 : d.getDay();
+            const targetMon = new Date(d);
+            targetMon.setDate(d.getDate() - day + 1);
+            const dates = [];
+            for (let i = 0; i < 7; i++) {
+                const tempD = new Date(targetMon);
+                tempD.setDate(targetMon.getDate() + i);
+                dates.push(tempD.toISOString().split('T')[0]);
+            }
+            return dates;
+        }
+
         async function fetchDrivers() {
             try {
                 const qStr = query(collection(db, "Drivers"), where("status", "==", "active"));
@@ -200,7 +218,7 @@
                 optionsHtml += `<option value="${opt.val}" ${isSelected ? 'selected' : ''}>${opt.val}</option>`;
             });
             const safeEmpId = String(empId).replace(/[^a-zA-Z0-9]/g, '_');
-            return `<select id="sel-${safeEmpId}-${dayKey}" class="${currentClass}" onchange="this.className = window.getShiftClass(this.value); silentAutoSave();">${optionsHtml}</select>`;
+            return `<select id="sel-${safeEmpId}-${dayKey}" class="${currentClass}" onchange="this.className = window.getShiftClass(this.value);">${optionsHtml}</select>`;
         }
 
         async function loadSchedule(weekId) {
@@ -222,174 +240,281 @@
                     row.innerHTML = html;
                     tbody.appendChild(row);
                 });
-            } catch (error) { tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 font-bold">讀取錯誤</td></tr>'; }
+                
+                // 表格畫完後，打上假單補丁，並執行防呆檢查
+                await syncApprovedLeavesToSchedule(); 
+
+            } catch (error) { 
+                console.error(error);
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-red-500 font-bold">讀取錯誤</td></tr>'; 
+            }
         }
-// 💡 修正 1：按鈕 ID 改為正確的 'btn-auto'
-document.getElementById('btn-auto').addEventListener('click', async () => {
-    const dateValue = document.getElementById('week-picker').value; 
-    if (!dateValue) return alert("請先選擇日期！");
 
-    // 💡 修正 3：完全修復 Invalid time value 錯誤
-    // 直接將 "YYYY-MM-DD" 轉換並推算該週的「星期一」
-    const d = new Date(dateValue);
-    const day = d.getDay() === 0 ? 7 : d.getDay(); // 星期日換算為 7
-    const targetMon = new Date(d);
-    targetMon.setDate(d.getDate() - day + 1); // 推算出這週的星期一
-    
-    const weekDates = {}; 
-    const daysOfWeek = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-    
-    // 產生週一到週日的實際日期 (如: 2026-07-13, 2026-07-14...)
-    for (let i = 0; i < 7; i++) {
-        const tempD = new Date(targetMon);
-        tempD.setDate(targetMon.getDate() + i);
-        weekDates[daysOfWeek[i]] = tempD.toISOString().split('T')[0];
-    }
+        // ================= 統整防呆與視覺輔助 =================
+        function runScheduleChecks() {
+            calculateDailyManpower();  
+            checkRestTimeViolations(); 
+        }
 
-    const approvedLeaves = {}; 
-    
-    try {
-        const leaveQuery = query(collection(db, "leave_requests"), where("status", "==", "已核准"));
-        const leaveSnap = await getDocs(leaveQuery);
-        
-        leaveSnap.forEach(docSnap => {
-            const data = docSnap.data();
-            for (let dayKey of daysOfWeek) {
-                if (weekDates[dayKey] === data.date) {
-                    if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
-                    approvedLeaves[data.empId][dayKey] = data.type || "OFF (休)";
+        function calculateDailyManpower() {
+            const tbody = document.getElementById('roster-body'); 
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            let availableCounts = [0, 0, 0, 0, 0, 0, 0];
+
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                for (let i = 1; i <= 7; i++) {
+                    if (cells[i]) {
+                        const cellText = cells[i].innerText || cells[i].querySelector('select')?.value || "";
+                        if (cellText.trim() !== "" && !cellText.includes('OFF') && !cellText.includes('休')) {
+                            availableCounts[i - 1]++; 
+                        }
+                    }
+                }
+            });
+
+            for (let i = 1; i <= 7; i++) {
+                const count = availableCounts[i - 1];
+                const countCell = document.getElementById(`count-${i}`);
+                if (countCell) {
+                    countCell.innerText = `${count} 人`;
+                    if (count >= MIN_REQUIRED_DRIVERS) {
+                        countCell.className = "text-center py-3 bg-emerald-600 text-white transition-colors"; 
+                    } else if (count === MIN_REQUIRED_DRIVERS - 1) {
+                        countCell.className = "text-center py-3 bg-amber-400 text-gray-900 transition-colors"; 
+                    } else {
+                        countCell.className = "text-center py-3 bg-rose-600 text-white underline decoration-wavy transition-colors"; 
+                    }
                 }
             }
-        });
-    } catch (err) {
-        console.error("撈取請假單失敗:", err);
-        return alert("連線失敗，無法取得請假資料，終止自動排班！");
-    }
+        }
 
-    // 💡 修正 2：補齊「台灣客運實務排班演算法」
-    const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)"];
-    
-    currentDrivers.forEach((driver, index) => {
-        const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-        
-        // 判斷是否為老闆 (JUN)
-        const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
-        
-        // 決定該司機的「固定底班」(利用 index 循環分配)
-        const myBaseShift = baseShifts[index % baseShifts.length];
-        
-        // 隨機決定一天「散休」(0~6 對應週一到週日)
-        const randomOffDayIndex = Math.floor(Math.random() * 7);
-        const myOffDay = daysOfWeek[randomOffDayIndex];
+        function checkRestTimeViolations() {
+            const tbody = document.getElementById('roster-body'); 
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
 
-        daysOfWeek.forEach(day => {
-            const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-            if (!selectEl) return;
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                for (let i = 1; i <= 7; i++) {
+                    if (cells[i]) {
+                        cells[i].classList.remove('ring-4', 'ring-red-600', 'ring-inset', 'relative');
+                        const warningIcon = cells[i].querySelector('.violation-warning');
+                        if (warningIcon) warningIcon.remove();
+                    }
+                }
 
-            // 📍 優先級 1：防禦機制 (如果有請假，強制寫入假別並跳過)
-            if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
-                const leaveType = approvedLeaves[driver.empId][day];
-                selectEl.value = leaveType;
-                selectEl.className = window.getShiftClass(leaveType);
-                return; 
+                for (let i = 1; i <= 6; i++) {
+                    if (cells[i] && cells[i+1]) {
+                        const todayText = cells[i].innerText || cells[i].querySelector('select')?.value || "";
+                        const tomorrowText = cells[i+1].innerText || cells[i+1].querySelector('select')?.value || "";
+
+                        const isTodayLate = todayText.includes('E') || todayText.includes('N') || todayText.includes('晚') || todayText.includes('夜');
+                        const isTomorrowEarly = tomorrowText.includes('M') || tomorrowText.includes('早');
+
+                        if (isTodayLate && isTomorrowEarly) {
+                            cells[i].classList.add('ring-4', 'ring-red-600', 'ring-inset', 'relative');
+                            cells[i+1].classList.add('ring-4', 'ring-red-600', 'ring-inset', 'relative');
+                            if (!cells[i+1].querySelector('.violation-warning')) {
+                                cells[i+1].insertAdjacentHTML('beforeend', 
+                                    `<span class="violation-warning absolute top-1 right-1 text-[10px] cursor-help" title="⚠️ 法規地雷：晚接早，班距休息時間不足 10 小時！">🚨</span>`
+                                );
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function syncApprovedLeavesToSchedule() {
+            const leaveRequestsCol = collection(db, "leave_requests");
+            const q = query(leaveRequestsCol, where("status", "==", "已核准"));
+            const snapshot = await getDocs(q);
+            
+            const approvedLeaves = {};
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
+                approvedLeaves[data.empId][data.date] = data.type; 
+            });
+
+            const tbody = document.getElementById('roster-body');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            const currentWeekDates = getWeekDatesFromPicker();
+
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const driverInfo = cells[0].innerText; 
+                const empId = driverInfo.split(' ')[0]; 
+
+                if (approvedLeaves[empId]) {
+                    for (let i = 1; i <= 7; i++) {
+                        const cellDate = currentWeekDates[i - 1]; 
+                        if (approvedLeaves[empId][cellDate]) {
+                            const leaveType = approvedLeaves[empId][cellDate]; 
+                            const selectEl = cells[i].querySelector('select');
+                            if (selectEl) {
+                                selectEl.value = 'OFF (休)'; 
+                                selectEl.disabled = true; 
+                            }
+                            cells[i].className = "text-center py-2 bg-gray-200 opacity-80 cursor-not-allowed border-b border-gray-300 relative";
+                            cells[i].innerHTML = `
+                                <div class="flex flex-col items-center justify-center">
+                                    <span class="font-bold text-gray-500">OFF (休)</span>
+                                    <span class="mt-1 px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 font-bold rounded shadow-sm border border-purple-200">
+                                        🔒 ${leaveType}
+                                    </span>
+                                </div>
+                            `;
+                        }
+                    }
+                }
+            });
+
+            runScheduleChecks();
+        }
+
+        // ================= 按鈕事件 =================
+        document.getElementById('btn-auto').addEventListener('click', async () => {
+            const dateValue = document.getElementById('week-picker').value; 
+            if (!dateValue) return alert("請先選擇日期！");
+
+            const weekDatesArr = getWeekDatesFromPicker();
+            const weekDates = {};
+            for(let i=0; i<7; i++){
+                weekDates[daysOfWeek[i]] = weekDatesArr[i];
             }
 
-            // 📍 優先級 2：老闆永遠待命
-            if (isBoss) {
-                selectEl.value = "STB (待命)";
-                selectEl.className = window.getShiftClass("STB (待命)");
+            const approvedLeaves = {}; 
+            try {
+                const leaveQuery = query(collection(db, "leave_requests"), where("status", "==", "已核准"));
+                const leaveSnap = await getDocs(leaveQuery);
+                leaveSnap.forEach(docSnap => {
+                    const data = docSnap.data();
+                    for (let dayKey of daysOfWeek) {
+                        if (weekDates[dayKey] === data.date) {
+                            if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
+                            approvedLeaves[data.empId][dayKey] = data.type || "OFF (休)";
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("撈取請假單失敗:", err);
+                return alert("連線失敗，無法取得請假資料，終止自動排班！");
+            }
+
+            const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)"];
+            
+            currentDrivers.forEach((driver, index) => {
+                const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
+                const myBaseShift = baseShifts[index % baseShifts.length];
+                const randomOffDayIndex = Math.floor(Math.random() * 7);
+                const myOffDay = daysOfWeek[randomOffDayIndex];
+
+                daysOfWeek.forEach(day => {
+                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    if (!selectEl || selectEl.disabled) return; // 若已被假單鎖定則跳過
+
+                    if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
+                        return; // 保險機制
+                    }
+
+                    if (isBoss) {
+                        selectEl.value = "STB (待命)";
+                        selectEl.className = window.getShiftClass("STB (待命)");
+                        return;
+                    }
+
+                    if (day === myOffDay) {
+                        selectEl.value = "OFF (休)";
+                        selectEl.className = window.getShiftClass("OFF (休)");
+                        return;
+                    }
+
+                    selectEl.value = myBaseShift;
+                    selectEl.className = window.getShiftClass(myBaseShift);
+                });
+            });
+
+            isDirty = true;
+            silentAutoSave();
+            runScheduleChecks();
+            alert("✨ 智慧實務排班完成！\n已自動保留核准假單，並分配底班與散休。");
+        });
+
+        document.getElementById('btn-save').addEventListener('click', async () => {
+            const rosterToSave = {};
+            let hasViolation = false;
+            let violationMsg = "";
+
+            const d = new Date(document.getElementById('week-picker').value);
+            d.setDate(d.getDate() - 7);
+            const prevWeekId = getWeekStr(d.toISOString());
+            let lastWeekRoster = {};
+            try {
+                const snap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
+                if (snap.exists()) lastWeekRoster = snap.data().roster || {};
+            } catch (e) { console.warn("無法取得上週班表"); }
+
+            currentDrivers.forEach(driver => {
+                rosterToSave[driver.empId] = { name: driver.name };
+                let prevShift = (lastWeekRoster[driver.empId] && lastWeekRoster[driver.empId]['sun']) 
+                                ? lastWeekRoster[driver.empId]['sun'] 
+                                : "OFF (休)";
+                let offCount = 0; 
+                
+                daysOfWeek.forEach(day => {
+                    const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                    const tdEl = document.getElementById(`sel-${safeEmpId}-${day}`)?.parentElement;
+                    
+                    // 如果被鎖定(請假)，抓取內部字串判斷
+                    let currentShift = "OFF (休)";
+                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    
+                    if (selectEl) {
+                        currentShift = selectEl.value;
+                    } else if (tdEl && tdEl.innerText.includes("OFF")) {
+                        currentShift = "OFF (休)";
+                    }
+
+                    rosterToSave[driver.empId][day] = currentShift;
+                    if (currentShift.includes("OFF") || currentShift.includes("休")) offCount++;
+
+                    if (prevShift.includes("E") && (currentShift.includes("M") || currentShift.includes("A"))) {
+                        hasViolation = true;
+                        violationMsg += `⚠️ [${driver.name}] 違規：前日晚班，今日不可接早/中班！\n`;
+                    }
+                    if (prevShift.includes("N") && (currentShift.includes("M") || currentShift.includes("A") || currentShift.includes("E"))) {
+                        hasViolation = true;
+                        violationMsg += `⚠️ [${driver.name}] 違規：前日夜班，隔日不可連續常態出勤！\n`;
+                    }
+                    prevShift = currentShift; 
+                });
+
+                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
+                if (offCount === 0 && !isBoss) {
+                    hasViolation = true;
+                    violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假！\n`;
+                }
+            });
+
+            if (hasViolation) {
+                alert("❌ 儲存失敗！系統偵測到高風險/違法排班：\n\n" + violationMsg);
                 return;
             }
 
-            // 📍 優先級 3：排定散休 (避開已有請假的日子)
-            if (day === myOffDay) {
-                selectEl.value = "OFF (休)";
-                selectEl.className = window.getShiftClass("OFF (休)");
-                return;
-            }
-
-            // 📍 優先級 4：填入常態底班
-            selectEl.value = myBaseShift;
-            selectEl.className = window.getShiftClass(myBaseShift);
+            const btn = document.getElementById('btn-save');
+            btn.innerText = "⏳ 儲存中..."; btn.disabled = true;
+            try {
+                await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
+                isDirty = false; 
+                alert("✅ 班表已成功儲存！跨週法規檢核全數通過！");
+            } catch (err) { alert("❌ 儲存失敗！"); }
+            btn.innerText = "💾 儲存並發布"; btn.disabled = false;
         });
-    });
-
-    isDirty = true;
-    if (typeof silentAutoSave === "function") silentAutoSave();
-    alert("✨ 智慧實務排班完成！\n已自動保留核准假單，並分配底班與散休。");
-});
-
-        // ==========================================
-// 💾 修正後的儲存與嚴格跨週防呆審核
-// ==========================================
-document.getElementById('btn-save').addEventListener('click', async () => {
-    const rosterToSave = {};
-    let hasViolation = false;
-    let violationMsg = "";
-
-    // 1. 取得上週的 ID，用以撈取上週日班表
-    const d = new Date(document.getElementById('week-picker').value);
-    d.setDate(d.getDate() - 7);
-    const prevWeekId = getWeekStr(d.toISOString());
-    let lastWeekRoster = {};
-    try {
-        const snap = await getDoc(doc(db, "weekly_schedules", prevWeekId));
-        if (snap.exists()) lastWeekRoster = snap.data().roster || {};
-    } catch (e) { console.warn("無法取得上週班表，將跳過跨週檢核"); }
-
-    // 2. 開始檢核
-    currentDrivers.forEach(driver => {
-        rosterToSave[driver.empId] = { name: driver.name };
-        
-        // 🚀 關鍵修正：初始化 prevShift 為上週日的班別 (若無則預設為休假)
-        let prevShift = (lastWeekRoster[driver.empId] && lastWeekRoster[driver.empId]['sun']) 
-                        ? lastWeekRoster[driver.empId]['sun'] 
-                        : "OFF (休)";
-        
-        let offCount = 0; 
-        
-        daysOfWeek.forEach(day => {
-            const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-            const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-            if (selectEl) {
-                const currentShift = selectEl.value;
-                rosterToSave[driver.empId][day] = currentShift;
-                if (currentShift === "OFF (休)") offCount++;
-
-                // 防呆檢核邏輯
-                if (prevShift === "E (晚)" && (currentShift === "M (早)" || currentShift === "A (中)")) {
-                    hasViolation = true;
-                    violationMsg += `⚠️ [${driver.name}] 違規：前日晚班(E)，今日不可接早/中班，違反11小時休息間隔！\n`;
-                }
-                if (prevShift === "N (夜)" && (currentShift === "M (早)" || currentShift === "A (中)" || currentShift === "E (晚)")) {
-                    hasViolation = true;
-                    violationMsg += `⚠️ [${driver.name}] 違規：前日夜班(N)，隔日必須排休、待命或替班，不可連續常態出勤！\n`;
-                }
-                prevShift = currentShift; 
-            }
-        });
-
-        const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN') || driver.name.includes('老闆');
-        if (offCount === 0 && !isBoss) {
-            hasViolation = true;
-            violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假，違反七休一規定！\n`;
-        }
-    });
-
-    if (hasViolation) {
-        alert("❌ 儲存失敗！系統偵測到高風險/違法排班（包含跨週衝突）：\n\n" + violationMsg);
-        return;
-    }
-
-    const btn = document.getElementById('btn-save');
-    btn.innerText = "⏳ 儲存中..."; btn.disabled = true;
-    try {
-        await setDoc(doc(db, "weekly_schedules", currentWeekId), { roster: rosterToSave, updatedAt: new Date().toISOString() });
-        isDirty = false; 
-        alert("✅ 班表已成功儲存！跨週法規檢核全數通過！");
-    } catch (err) { alert("❌ 儲存失敗！"); }
-    btn.innerText = "💾 儲存並發布"; btn.disabled = false;
-});
 
         document.getElementById('btn-copy-prev').addEventListener('click', async () => { 
             if(!confirm("確定要載入「上週」底稿嗎？")) return;
@@ -408,7 +533,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
                                 const shift = data.roster[driver.empId][day];
                                 const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
                                 const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                                if (selectEl) {
+                                if (selectEl && !selectEl.disabled) {
                                     selectEl.value = shift;
                                     selectEl.className = window.getShiftClass(shift);
                                 }
@@ -417,6 +542,7 @@ document.getElementById('btn-save').addEventListener('click', async () => {
                     });
                     isDirty = true;
                     silentAutoSave();
+                    runScheduleChecks();
                     alert(`✅ 已載入上週 (${prevWeekId}) 班表！`);
                 } else {
                     alert(`⚠️ 雲端找不到上週 (${prevWeekId}) 紀錄！`);
@@ -424,200 +550,6 @@ document.getElementById('btn-save').addEventListener('click', async () => {
             } catch (err) { console.error(err); alert("讀取失敗。"); }
         });
     });
-       // 🌟 設定每日發車的最低人力需求 (水位線)
-// 假設你有 8 個駕駛，每天最少需要 6 人上班才能維持營運
-const MIN_REQUIRED_DRIVERS = 6; 
-
-function calculateDailyManpower() {
-    // 取得班表的 tbody (請確認你的 tbody id 是對應的，沒有的話要幫 tbody 加上 id="scheduleBody")
-    const tbody = document.getElementById('scheduleBody'); 
-    if (!tbody) return;
-
-    const rows = tbody.querySelectorAll('tr');
-    
-    // 準備一個陣列來記錄 週一 到 週日 的可用人數，初始為 [0,0,0,0,0,0,0]
-    let availableCounts = [0, 0, 0, 0, 0, 0, 0];
-
-    // 逐列掃描每位駕駛的班表
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        // 略過第 0 欄(駕駛姓名)，從第 1 欄(星期一) 到第 7 欄(星期日)
-        for (let i = 1; i <= 7; i++) {
-            if (cells[i]) {
-                // 取得格子內的文字，如果是下拉選單就取 value
-                const cellText = cells[i].innerText || cells[i].querySelector('select')?.value || "";
-                
-                // 判斷邏輯：如果這個格子「不是空的」，且「沒有 OFF 或是 休 的字眼」
-                if (cellText.trim() !== "" && !cellText.includes('OFF') && !cellText.includes('休')) {
-                    availableCounts[i - 1]++; // 人數 +1
-                }
-            }
-        }
-    });
-
-    // 將算出來的人數更新到畫面上，並依照水位線變換顏色
-    for (let i = 1; i <= 7; i++) {
-        const count = availableCounts[i - 1];
-        const countCell = document.getElementById(`count-${i}`);
-        
-        if (countCell) {
-            countCell.innerText = `${count} 人`;
-
-            // 顏色防呆視覺化
-            if (count >= MIN_REQUIRED_DRIVERS) {
-                // 人力充足：綠底白字
-                countCell.className = "text-center py-3 bg-emerald-600 text-white transition-colors"; 
-            } else if (count === MIN_REQUIRED_DRIVERS - 1) {
-                // 人力緊繃 (差1人就低於底線)：黃底黑字
-                countCell.className = "text-center py-3 bg-amber-400 text-gray-900 transition-colors"; 
-            } else {
-                // 人力不足 (低於底線)：紅底白字，加底線警告
-                countCell.className = "text-center py-3 bg-rose-600 text-white underline decoration-wavy transition-colors"; 
-            }
-        }
-    }
-}
-       // 🌟 階段二：檢查「晚接早」法規地雷 (休息時間不足10小時)
-function checkRestTimeViolations() {
-    const tbody = document.getElementById('scheduleBody'); 
-    if (!tbody) return;
-
-    const rows = tbody.querySelectorAll('tr');
-
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        
-        // 1. 每次檢查前，先清除舊的警告標記 (重置畫面)
-        for (let i = 1; i <= 7; i++) {
-            if (cells[i]) {
-                // 移除 Tailwind 的紅色邊框樣式
-                cells[i].classList.remove('ring-4', 'ring-red-600', 'ring-inset', 'relative');
-                // 移除警報小圖示
-                const warningIcon = cells[i].querySelector('.violation-warning');
-                if (warningIcon) warningIcon.remove();
-            }
-        }
-
-        // 2. 開始逐日比對：從星期一(1) 檢查到 星期六(6)
-        // 因為我們要看「今天」跟「明天」，所以迴圈走到 6 (星期六比對星期日) 就好
-        for (let i = 1; i <= 6; i++) {
-            if (cells[i] && cells[i+1]) {
-                // 取得今天與明天的班別文字
-                const todayText = cells[i].innerText || cells[i].querySelector('select')?.value || "";
-                const tomorrowText = cells[i+1].innerText || cells[i+1].querySelector('select')?.value || "";
-
-                // ⚠️ 定義什麼是「晚」：包含 E(晚)、N(夜)
-                const isTodayLate = todayText.includes('E') || todayText.includes('N') || todayText.includes('晚') || todayText.includes('夜');
-                
-                // ⚠️ 定義什麼是「早」：包含 M(早)
-                const isTomorrowEarly = tomorrowText.includes('M') || tomorrowText.includes('早');
-
-                // 如果觸發了「昨天晚班 + 今天早班」的地雷！
-                if (isTodayLate && isTomorrowEarly) {
-                    
-                    // 幫這兩天的格子加上紅色內邊框 (使用 Tailwind CSS)
-                    cells[i].classList.add('ring-4', 'ring-red-600', 'ring-inset', 'relative');
-                    cells[i+1].classList.add('ring-4', 'ring-red-600', 'ring-inset', 'relative');
-
-                    // 在「明天（接早班的那天）」的右上角貼上一個🚨警告小圖示
-                    // 加入 title 屬性，滑鼠移過去會顯示警告文字
-                    if (!cells[i+1].querySelector('.violation-warning')) {
-                        cells[i+1].insertAdjacentHTML('beforeend', 
-                            `<span class="violation-warning absolute top-1 right-1 text-[10px] cursor-help" title="⚠️ 法規地雷：晚接早，班距休息時間不足 10 小時！">🚨</span>`
-                        );
-                    }
-                }
-            }
-        }
-    });
-}
-       // 假設你畫面上目前顯示的這週日期長這樣 (你需要用你的行事曆程式碼去產生這個陣列)
-const currentWeekDates = [
-    '2026-08-03', // 星期一
-    '2026-08-04', // 星期二
-    '2026-08-05', // 星期三
-    '2026-08-06', // 星期四
-    '2026-08-07', // 星期五
-    '2026-08-08', // 星期六
-    '2026-08-09'  // 星期日
-];
-       // 🌟 階段三：同步核准假單到排班表
-async function syncApprovedLeavesToSchedule() {
-    const leaveRequestsCol = collection(db, "leave_requests");
-    
-    // 1. 只抓取「已核准」的假單
-    const q = query(leaveRequestsCol, where("status", "==", "已核准"));
-    const snapshot = await getDocs(q);
-    
-    // 2. 將假單整理成容易比對的物件格式
-    // 格式會變成： approvedLeaves["0001"]["2026-08-05"] = "特休"
-    const approvedLeaves = {};
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        if (!approvedLeaves[data.empId]) {
-            approvedLeaves[data.empId] = {};
-        }
-        // 記錄該員工哪天請了什麼假
-        approvedLeaves[data.empId][data.date] = data.type; 
-    });
-
-    // 3. 開始掃描畫面上的排班表
-    const tbody = document.getElementById('scheduleBody');
-    if (!tbody) return;
-    const rows = tbody.querySelectorAll('tr');
-
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        
-        // 假設第 0 欄(姓名欄) 的文字長這樣："0001 Hannes Idrissi"
-        const driverInfo = cells[0].innerText; 
-        // 萃取出最前面的員工編號 "0001" (請依據你的實際排版微調截取方式)
-        const empId = driverInfo.split(' ')[0]; 
-
-        // 如果這個員工有被核准的假單
-        if (approvedLeaves[empId]) {
-            
-            // 從星期一(欄位1) 檢查到 星期日(欄位7)
-            for (let i = 1; i <= 7; i++) {
-                const cellDate = currentWeekDates[i - 1]; // 對應這格的實際日期
-                
-                // 如果他在這一天有請假！
-                if (approvedLeaves[empId][cellDate]) {
-                    const leaveType = approvedLeaves[empId][cellDate]; // 取得假別(事假、特休...)
-
-                    // (A) 如果格子裡是下拉選單，我們把它改成 OFF 並且「鎖死禁用」
-                    const selectEl = cells[i].querySelector('select');
-                    if (selectEl) {
-                        selectEl.value = 'OFF'; // 你的下拉選單 value 需包含 OFF
-                        selectEl.disabled = true; // 鎖住，調度員不能改
-                    }
-
-                    // (B) 改變格子的外觀：貼上鎖頭與假別標籤，並變成灰色背景
-                    cells[i].className = "text-center py-2 bg-gray-200 opacity-80 cursor-not-allowed border-b border-gray-300";
-                    cells[i].innerHTML = `
-                        <div class="flex flex-col items-center justify-center">
-                            <span class="font-bold text-gray-500">OFF (休)</span>
-                            <span class="mt-1 px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 font-bold rounded shadow-sm border border-purple-200">
-                                🔒 ${leaveType}
-                            </span>
-                        </div>
-                    `;
-                }
-            }
-        }
-    });
-
-    // 🌟 4. 最重要的一步：假單鎖定完畢後，重新計算一次人力與防呆！
-    runScheduleChecks();
-}
-       // 假設這是你原本畫班表的流程：
-async function renderScheduleBoard() {
-    await loadScheduleData();   // 1. 載入原始排班資料
-    buildTableHTML();           // 2. 畫出 HTML 表格
-    
-    // 3. 打上假單補丁
-    await syncApprovedLeavesToSchedule(); 
-}
    </script>
 </body>
 </html>
