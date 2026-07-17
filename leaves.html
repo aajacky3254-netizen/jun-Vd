@@ -289,8 +289,8 @@
                 const timeStr = `${formatDateTime(data.startTime)} ~ <br>${formatDateTime(data.endTime)}`;
                 
                 // 修正 4：員工編號(姓名) 格式。防呆：如果字串長度超過 10，代表存到的是 UID，改顯示 '系統帳號'
+                // 移除防呆妥協寫法，直接顯示正確的員工編號
                 let displayId = escapeHTML(data.empId || '無');
-                if (displayId.length > 10) displayId = "UID"; 
                 const displayNameStr = `${displayId}(${escapeHTML(data.name)})`;
 
                 tr.innerHTML = `
