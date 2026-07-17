@@ -477,6 +477,147 @@ function calculateDailyManpower() {
         }
     }
 }
+       // 🌟 階段二：檢查「晚接早」法規地雷 (休息時間不足10小時)
+function checkRestTimeViolations() {
+    const tbody = document.getElementById('scheduleBody'); 
+    if (!tbody) return;
+
+    const rows = tbody.querySelectorAll('tr');
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        
+        // 1. 每次檢查前，先清除舊的警告標記 (重置畫面)
+        for (let i = 1; i <= 7; i++) {
+            if (cells[i]) {
+                // 移除 Tailwind 的紅色邊框樣式
+                cells[i].classList.remove('ring-4', 'ring-red-600', 'ring-inset', 'relative');
+                // 移除警報小圖示
+                const warningIcon = cells[i].querySelector('.violation-warning');
+                if (warningIcon) warningIcon.remove();
+            }
+        }
+
+        // 2. 開始逐日比對：從星期一(1) 檢查到 星期六(6)
+        // 因為我們要看「今天」跟「明天」，所以迴圈走到 6 (星期六比對星期日) 就好
+        for (let i = 1; i <= 6; i++) {
+            if (cells[i] && cells[i+1]) {
+                // 取得今天與明天的班別文字
+                const todayText = cells[i].innerText || cells[i].querySelector('select')?.value || "";
+                const tomorrowText = cells[i+1].innerText || cells[i+1].querySelector('select')?.value || "";
+
+                // ⚠️ 定義什麼是「晚」：包含 E(晚)、N(夜)
+                const isTodayLate = todayText.includes('E') || todayText.includes('N') || todayText.includes('晚') || todayText.includes('夜');
+                
+                // ⚠️ 定義什麼是「早」：包含 M(早)
+                const isTomorrowEarly = tomorrowText.includes('M') || tomorrowText.includes('早');
+
+                // 如果觸發了「昨天晚班 + 今天早班」的地雷！
+                if (isTodayLate && isTomorrowEarly) {
+                    
+                    // 幫這兩天的格子加上紅色內邊框 (使用 Tailwind CSS)
+                    cells[i].classList.add('ring-4', 'ring-red-600', 'ring-inset', 'relative');
+                    cells[i+1].classList.add('ring-4', 'ring-red-600', 'ring-inset', 'relative');
+
+                    // 在「明天（接早班的那天）」的右上角貼上一個🚨警告小圖示
+                    // 加入 title 屬性，滑鼠移過去會顯示警告文字
+                    if (!cells[i+1].querySelector('.violation-warning')) {
+                        cells[i+1].insertAdjacentHTML('beforeend', 
+                            `<span class="violation-warning absolute top-1 right-1 text-[10px] cursor-help" title="⚠️ 法規地雷：晚接早，班距休息時間不足 10 小時！">🚨</span>`
+                        );
+                    }
+                }
+            }
+        }
+    });
+}
+       // 假設你畫面上目前顯示的這週日期長這樣 (你需要用你的行事曆程式碼去產生這個陣列)
+const currentWeekDates = [
+    '2026-08-03', // 星期一
+    '2026-08-04', // 星期二
+    '2026-08-05', // 星期三
+    '2026-08-06', // 星期四
+    '2026-08-07', // 星期五
+    '2026-08-08', // 星期六
+    '2026-08-09'  // 星期日
+];
+       // 🌟 階段三：同步核准假單到排班表
+async function syncApprovedLeavesToSchedule() {
+    const leaveRequestsCol = collection(db, "leave_requests");
+    
+    // 1. 只抓取「已核准」的假單
+    const q = query(leaveRequestsCol, where("status", "==", "已核准"));
+    const snapshot = await getDocs(q);
+    
+    // 2. 將假單整理成容易比對的物件格式
+    // 格式會變成： approvedLeaves["0001"]["2026-08-05"] = "特休"
+    const approvedLeaves = {};
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        if (!approvedLeaves[data.empId]) {
+            approvedLeaves[data.empId] = {};
+        }
+        // 記錄該員工哪天請了什麼假
+        approvedLeaves[data.empId][data.date] = data.type; 
+    });
+
+    // 3. 開始掃描畫面上的排班表
+    const tbody = document.getElementById('scheduleBody');
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll('tr');
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        
+        // 假設第 0 欄(姓名欄) 的文字長這樣："0001 Hannes Idrissi"
+        const driverInfo = cells[0].innerText; 
+        // 萃取出最前面的員工編號 "0001" (請依據你的實際排版微調截取方式)
+        const empId = driverInfo.split(' ')[0]; 
+
+        // 如果這個員工有被核准的假單
+        if (approvedLeaves[empId]) {
+            
+            // 從星期一(欄位1) 檢查到 星期日(欄位7)
+            for (let i = 1; i <= 7; i++) {
+                const cellDate = currentWeekDates[i - 1]; // 對應這格的實際日期
+                
+                // 如果他在這一天有請假！
+                if (approvedLeaves[empId][cellDate]) {
+                    const leaveType = approvedLeaves[empId][cellDate]; // 取得假別(事假、特休...)
+
+                    // (A) 如果格子裡是下拉選單，我們把它改成 OFF 並且「鎖死禁用」
+                    const selectEl = cells[i].querySelector('select');
+                    if (selectEl) {
+                        selectEl.value = 'OFF'; // 你的下拉選單 value 需包含 OFF
+                        selectEl.disabled = true; // 鎖住，調度員不能改
+                    }
+
+                    // (B) 改變格子的外觀：貼上鎖頭與假別標籤，並變成灰色背景
+                    cells[i].className = "text-center py-2 bg-gray-200 opacity-80 cursor-not-allowed border-b border-gray-300";
+                    cells[i].innerHTML = `
+                        <div class="flex flex-col items-center justify-center">
+                            <span class="font-bold text-gray-500">OFF (休)</span>
+                            <span class="mt-1 px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 font-bold rounded shadow-sm border border-purple-200">
+                                🔒 ${leaveType}
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+        }
+    });
+
+    // 🌟 4. 最重要的一步：假單鎖定完畢後，重新計算一次人力與防呆！
+    runScheduleChecks();
+}
+       // 假設這是你原本畫班表的流程：
+async function renderScheduleBoard() {
+    await loadScheduleData();   // 1. 載入原始排班資料
+    buildTableHTML();           // 2. 畫出 HTML 表格
+    
+    // 3. 打上假單補丁
+    await syncApprovedLeavesToSchedule(); 
+}
    </script>
 </body>
 </html>
