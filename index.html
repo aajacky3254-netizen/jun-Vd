@@ -127,9 +127,12 @@
     import { collection, query, doc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
 
-    // 計算本週第一天 (假設週一為一週開始)
+    // 計算本週第一天 (假設週一為一週開始，修正週日 getDay() 為 0 的問題)
     const today = new Date();
-    const firstDay = new Date(today.setDate(today.getDate() - today.getDay() + 1)).toISOString().split('T')[0];
+    const currentDay = today.getDay();
+    // 如果是週日(0)，則往前推6天；其他日子則往前推 (currentDay - 1) 天
+    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+    const firstDay = new Date(today.setDate(diff)).toISOString().split('T')[0];
     
     // 💡 修正：補上計算工時必須用到的時間轉換函數
     const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
