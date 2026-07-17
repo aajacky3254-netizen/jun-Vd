@@ -2,7 +2,7 @@
   "name": "豐東交通客運 | 智慧車輛調度與個人作業台",
   "short_name": "豐東客運 差勤",
   "description": "豐東交通客運 - 駕駛長個人作業與調度系統",
-  "start_url": "./personal.html",
+  "start_url": "./driver_portal.html",
   "display": "standalone",
   "background_color": "#f3f4f6",
   "theme_color": "#1f2937",
