@@ -398,31 +398,6 @@
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
-    import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-// 當管理員點擊「新增員工」送出時
-async function onCreateEmployee(email, password, empId, name, role) {
-    try {
-        // 1. 先在 Firebase Auth 建立這名員工的登入憑證
-        // 注意：這會讓當前管理員短暫登出，實務上通常會透過 Firebase Admin SDK (後端) 處理
-        // 如果純前端開發，建議引導員工首次登入時「按文件 ID 綁定」，或採用下方的方案 B
-        
-        // 2. 核心邏輯：寫入 Firestore 時，不要用 addDoc，改用 setDoc，並將文件 ID 設為該員工的認證 UID
-        const newUserUid = authResult.user.uid; // 假設取得了新建立的 uid
-        
-        await setDoc(doc(db, "drivers", newUserUid), {
-            empId: empId,  // 這裡放您輸入的 0002
-            name: name,
-            role: role,
-            createdAt: new Date().toISOString()
-        });
-        
-        alert("員工帳號與人事資料同步建立成功！");
-    } catch (error) {
-        console.error(error);
-    }
-}
   </script>
 </body>
 </html>
