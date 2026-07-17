@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>車輛調度系統 - 週班表管理</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="output.css">
+    <link rel="icon" href="data:,">
     <style>
-        body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
-        .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+        body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }        .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
         .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
         .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
         .navbar a.nav-link:hover { background-color: #374151; color: white; }
@@ -428,8 +427,14 @@
                     }
 
                     if (isBoss) {
-                        selectEl.value = "STB (待命)";
-                        selectEl.className = window.getShiftClass("STB (待命)");
+                        // 讓老闆也遵循系統抽出的隨機休假日 (myOffDay)
+                        if (day === myOffDay) {
+                            selectEl.value = "OFF (休)";
+                            selectEl.className = window.getShiftClass("OFF (休)");
+                        } else {
+                            selectEl.value = "STB (待命)";
+                            selectEl.className = window.getShiftClass("STB (待命)");
+                        }
                         return;
                     }
 
