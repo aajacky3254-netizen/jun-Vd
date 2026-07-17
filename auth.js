@@ -93,6 +93,7 @@ export function checkAuthAndGetRole(allowedRoles = []) {
                         if (allowedRoles.length === 0 || allowedRoles.includes(driverData.role)) {
                             resolve({ 
                                 uid: user.uid, 
+                                empId: empId,  // 🌟 補上這行，將擷取出的員工編號回傳
                                 name: driverData.name, 
                                 role: driverData.role,
                                 empRole: driverData.empRole,
