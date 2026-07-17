@@ -11,16 +11,15 @@
         .app-header { background: linear-gradient(135deg, #1e293b, #334155); color: white; padding: 16px 20px; position: sticky; top: 0; z-index: 50; box-shadow: 0 4px 10px rgba(0,0,0,0.15); display: flex; justify-content: space-between; align-items: center; }
         .trip-card { background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; overflow: hidden; border: 1px solid #e5e7eb; }
         .trip-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background-color: #cbd5e1; transition: background-color 0.3s; }
-        .status-pending::before { background-color: #f59e0b; } /* 待報到：橘色 */
-        .status-checked::before { background-color: #10b981; } /* 已報到：綠色 */
-        .status-completed::before { background-color: #64748b; } /* 已結班：灰色 */
+        .status-pending::before { background-color: #f59e0b; }
+        .status-checked::before { background-color: #10b981; }
+        .status-completed::before { background-color: #64748b; }
         
         .modal-overlay { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); position: fixed; inset: 0; z-index: 100; display: none; justify-content: center; align-items: flex-end; }
         .modal-content { background: white; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 24px; animation: slideUp 0.3s ease-out; }
         
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         
-        /* 電子憑單 (收據風格) */
         .e-voucher { background: #fffbe8; border: 2px dashed #fbbf24; border-radius: 12px; padding: 20px; position: relative; }
         .e-voucher::before, .e-voucher::after { content: ''; position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; top: 50%; transform: translateY(-50%); }
         .e-voucher::before { left: -10px; border-right: 2px dashed #fbbf24; }
@@ -130,12 +129,9 @@
     let selectedTripId = null;
     let html5QrcodeScanner = null;
     
-    // 💡 新增變數：紀錄 QR 掃描狀態與站長密碼
     let isQrScanned = false; 
-    // 這是 "8888" 經過 SHA-256 加密後的雜湊值 (Hash)
     const PIN_HASH = "cf79d123d46777bd3685fba3993bf2e148e6c4664e106dbddcfa63a921d74ea4"; 
     
-    // 建立一個將輸入文字轉為 Hash 值的輔助函數
     async function hashInput(text) {
         const encoder = new TextEncoder();
         const data = encoder.encode(text);
@@ -214,9 +210,8 @@
 
         tripList.innerHTML = currentTrips.map(trip => {
             const isCheckedIn = trip.status === 'checked_in';
-            const isPendingOverride = trip.status === 'pending_override'; // 🌟 新增狀態判斷
+            const isPendingOverride = trip.status === 'pending_override';
             
-            // 根據狀態決定卡片顏色與標籤
             let statusClass = 'status-pending';
             let statusText = '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待報到</span>';
             let btnHtml = `<button class="btn-punch-in w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📱 進行報到 / 酒測</button>`;
@@ -273,7 +268,7 @@
             btnSubmitPunch.classList.remove('hover:bg-emerald-600');
         }
     }
-       // 🌟 新增：申請站長人工覆核
+       
     document.getElementById('btnRequestOverride').addEventListener('click', async () => {
         if (!selectedTripId || !chkAlcohol.checked || !chkHealth.checked) {
             alert("請先勾選確認酒測與健康聲明！");
@@ -285,7 +280,7 @@
             btn.disabled = true;
             try {
                 await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                    status: 'pending_override', // 改變狀態通知調度台
+                    status: 'pending_override', 
                 });
                 punchModal.style.display = 'none';
                 alert("申請已送出！請告知調度員或站長於系統上核准。");
@@ -298,39 +293,9 @@
         }
     });
 
-    // 🌟 修改：正常 QR Code 報到邏輯
-    btnSubmitPunch.addEventListener('click', async () => {
-        if (!selectedTripId) return;
-        
-        if (!isQrScanned) {
-            alert("❌ 無法報到！請確實「掃描車輛 QR Code」。若 QR Code 損毀，請使用人工覆核。");
-            return;
-        }
-        
-        btnSubmitPunch.innerText = "⏳ 正在處理簽到...";
-        btnSubmitPunch.disabled = true;
-
-        try {
-            await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                status: 'checked_in',
-                check_in_time: serverTimestamp(), 
-                check_in_method: "QR Code 掃描" 
-            });
-            
-            punchModal.style.display = 'none';
-            openVoucherModal(selectedTripId);
-        } catch (err) {
-            alert('報到連線失敗，請檢查網路。');
-        } finally {
-            btnSubmitPunch.innerText = "確認報到並領取電子憑單 (需先掃描)";
-            btnSubmitPunch.disabled = false;
-        }
-    });
-
     chkAlcohol.addEventListener('change', checkConditions);
     chkHealth.addEventListener('change', checkConditions);
 
-    // 💡 注意：整個檔案只能有這一個 openPunchModal 函數
     function openPunchModal(tripId) {
         selectedTripId = tripId;
         chkAlcohol.checked = false;
@@ -360,7 +325,8 @@
         btnStartScan.style.display = 'none';
         document.getElementById('qr-reader').classList.remove('hidden');
         
-        html5QrcodeScanner = new Html5QrcodeScanType("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
+        // 修正：已修正建構子名稱為正確的 Html5QrcodeScanner
+        html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
         html5QrcodeScanner.render((decodedText) => {
             html5QrcodeScanner.clear().catch(e => console.error(e));
             html5QrcodeScanner = null;
@@ -379,6 +345,7 @@
         }, (err) => {});
     });
 
+    // 修正：已移除重複綁定的事件，整合為單一監聽器處理 QR Code 與覆核密碼
     btnSubmitPunch.addEventListener('click', async () => {
         if (!selectedTripId) return;
         
@@ -387,19 +354,19 @@
         let isVerified = false;
         let checkInMethod = "";
     
-        // 🚀 將駕駛輸入的文字轉換為 Hash 值
-        const inputHashed = await hashInput(pinInput);
-    
         if (isQrScanned) {
             isVerified = true;
             checkInMethod = "QR Code 掃描";
-        } else if (inputHashed === PIN_HASH) { // 🚀 比對 Hash 值而不是明文
-            isVerified = true;
-            checkInMethod = "站長覆核碼";
+        } else if (pinInput !== "") {
+            const inputHashed = await hashInput(pinInput);
+            if (inputHashed === PIN_HASH) { 
+                isVerified = true;
+                checkInMethod = "站長覆核碼";
+            }
         }
     
         if (!isVerified) {
-            alert("❌ 無法報到！請「掃描車輛 QR Code」或「輸入正確的站長授權碼」。");
+            alert("❌ 無法報到！請確實「掃描車輛 QR Code」。若 QR Code 損毀，請點擊下方申請站長人工覆核。");
             return;
         }
         
