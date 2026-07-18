@@ -313,18 +313,13 @@ chkAlcohol.addEventListener('change', checkConditions);
 chkHealth.addEventListener('change', checkConditions);
 inspectCheckboxes.forEach(chk => chk.addEventListener('change', checkConditions));
 
-// ----------------------------------------------------
-// 在 btnSubmitPunch 的 click 事件中加入 GPS 邏輯
-// ----------------------------------------------------
 btnSubmitPunch.addEventListener('click', async () => {
     if (!selectedTripId) return;
     
-    // ... (保留原本的 QR Code/密碼驗證邏輯) ...
-
-    btnSubmitPunch.innerText = "⏳ 正在抓取 GPS 與處理簽到...";
+    btnSubmitPunch.innerText = "⏳ 正在處理定位與驗證...";
     btnSubmitPunch.disabled = true;
 
-    // 抓取 GPS 定位
+    // 1. 先進行 GPS 定位抓取
     let gpsLocation = "未授權或無法取得定位";
     if (navigator.geolocation) {
         try {
@@ -334,16 +329,42 @@ btnSubmitPunch.addEventListener('click', async () => {
             gpsLocation = `${position.coords.latitude}, ${position.coords.longitude}`;
         } catch (error) {
             console.warn("GPS 獲取失敗", error);
-            // 實務上可根據需求決定 GPS 失敗是否阻擋報到
+            // 若設定 GPS 失敗仍可繼續後續流程，則保留此 catch 區塊即可
         }
     }
 
+    // 2. 進行 QR Code 或站長覆核碼是否正確的驗證
+    const pinInputEl = document.getElementById('overridePin');
+    const pinInput = pinInputEl ? pinInputEl.value : "";
+    let isVerified = false;
+    let checkInMethod = "";
+
+    if (isQrScanned) {
+        isVerified = true;
+        checkInMethod = "QR Code 掃描";
+    } else if (pinInput !== "") {
+        const inputHashed = await hashInput(pinInput);
+        if (inputHashed === PIN_HASH) { 
+            isVerified = true;
+            checkInMethod = "站長覆核碼";
+        }
+    }
+
+    // 驗證失敗的防呆阻擋
+    if (!isVerified) {
+        alert("❌ 無法報到！請確實「掃描車輛 QR Code」。若 QR Code 損毀，請點擊下方申請站長人工覆核。");
+        btnSubmitPunch.innerText = "確認報到並領取電子憑單";
+        btnSubmitPunch.disabled = false;
+        return;
+    }
+    
+    // 3. 所有驗證通過，寫入資料庫
     try {
         await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
             status: 'checked_in',
             check_in_time: serverTimestamp(), 
             check_in_method: checkInMethod,
-            gps_location: gpsLocation // 寫入 GPS 座標
+            gps_location: gpsLocation // 寫入剛才抓取的 GPS 座標
         });
         
         punchModal.style.display = 'none';
