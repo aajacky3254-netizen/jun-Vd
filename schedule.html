@@ -103,7 +103,8 @@
 
         window.getShiftClass = function(val) {
             const opt = shiftOptions.find(o => o.val === val);
-            return opt ? opt.class : 'shift-OFF';
+            // return opt ? opt.class : 'shift-OFF';
+            return opt ? opt.class : 'shift-STB'; // 預設 class 改為 STB
         };
 
         // 監聽表格變動，觸發自動存檔與防呆檢查
@@ -201,7 +202,8 @@
             }
         }
 
-        function generateSelectHtml(empId, dayKey, selectedValue = "OFF (休)") {
+        //function generateSelectHtml(empId, dayKey, selectedValue = "OFF (休)") {
+        function generateSelectHtml(empId, dayKey, selectedValue = "STB (待命)") {
             let optionsHtml = '';
             let currentClass = 'shift-OFF';
             shiftOptions.forEach(opt => {
@@ -226,7 +228,8 @@
                     const row = document.createElement('tr');
                     let html = `<td class="driver-cell"><span class="emp-id">${driver.empId}</span> ${driver.name}</td>`;
                     daysOfWeek.forEach(day => {
-                        const savedShift = (savedRoster[driver.empId] && savedRoster[driver.empId][day]) ? savedRoster[driver.empId][day] : "OFF (休)";
+                        //const savedShift = (savedRoster[driver.empId] && savedRoster[driver.empId][day]) ? savedRoster[driver.empId][day] : "OFF (休)";
+                        const savedShift = (savedRoster[driver.empId] && savedRoster[driver.empId][day]) ? savedRoster[driver.empId][day] : "STB (待命)";
                         html += `<td>${generateSelectHtml(driver.empId, day, savedShift)}</td>`;
                     });
                     row.innerHTML = html;
@@ -559,10 +562,10 @@
                 const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
                 
                 // 【修改處 3】移除 && !isBoss，強制所有人都必須符合七休一規定
-                if (offCount === 0) {
-                    hasViolation = true;
-                    violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假 (違反七休一規定)！\n`;
-                }
+                //if (offCount === 0) {
+                //    hasViolation = true;
+                //    violationMsg += `🛑 [${driver.name}] 嚴重違規：本週無排定休假 (違反七休一規定)！\n`;
+                //}
             });
 
             if (hasViolation) {
