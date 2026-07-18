@@ -28,15 +28,21 @@
      <div class="bg-white p-6 rounded-xl w-[450px] shadow-2xl">
         <h3 class="text-xl font-bold mb-4">📝 新增請假 / 排休</h3>
         <div class="mb-3">
-           <label class="block text-sm font-bold mb-1">假別</label>
-           <select id="leaveType" class="w-full border rounded p-2 outline-none focus:border-blue-500">
-               <option>排休</option>
-               <option>特休</option>
-               <option>事假</option>
-               <option>病假</option>
-               <option>公假</option>
-           </select>
-        </div>
+   <label class="block text-sm font-bold mb-1">申請類別</label>
+   <select id="leaveType" class="w-full border rounded p-2 outline-none focus:border-blue-500 font-bold text-blue-700 bg-blue-50">
+       <optgroup label="請假 / 排休">
+           <option value="排休">排休</option>
+           <option value="特休">特休</option>
+           <option value="事假">事假</option>
+           <option value="病假">病假</option>
+           <option value="公假">公假</option>
+       </optgroup>
+       <optgroup label="加班申請">
+           <option value="延長工時(加班)">➕ 延長工時 (加班)</option>
+           <option value="休息日出勤">➕ 休息日出勤</option>
+       </optgroup>
+   </select>
+</div>
         
         <!-- 時間區間 -->
         <div class="grid grid-cols-2 gap-4 mb-3">
