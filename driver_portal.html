@@ -35,7 +35,14 @@
         </div>
         <button id="btnLogout" class="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg text-sm font-bold backdrop-blur-sm transition">登出</button>
     </header>
-
+<main class="p-4 max-w-md mx-auto">
+    <!-- 新增：即時公告跑馬燈 -->
+    <div id="announcement-bar" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl shadow-sm text-sm font-bold flex items-center gap-2">
+        <span class="text-xl animate-bounce">📢</span>
+        <marquee scrollamount="4" id="announcement-text" class="flex-grow tracking-wide">目前無最新公告</marquee>
+    </div>
+    
+    <!-- ... (保留原本的選擇日期與統計區塊) ... -->
     <main class="p-4 max-w-md mx-auto">
         <div class="flex justify-between items-center mb-5 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
             <span class="font-bold text-gray-700">📅 選擇日期</span>
@@ -70,17 +77,28 @@
                 <button id="btnCloseModal" class="text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
             </div>
             
-            <div class="space-y-4 mb-6">
-                <label class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer">
-                    <input type="checkbox" id="chkAlcohol" class="w-5 h-5 text-emerald-600 rounded">
-                    <span class="font-bold text-gray-700">我已完成酒測，數值為 0.00 mg/L</span>
-                </label>
-                <label class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer">
-                    <input type="checkbox" id="chkHealth" class="w-5 h-5 text-emerald-600 rounded">
-                    <span class="font-bold text-gray-700">我今日精神狀況良好，適宜駕駛</span>
-                </label>
-            </div>
-
+            <div class="space-y-4 mb-4">
+    <!-- 原有：酒測與健康聲明 -->
+    <label class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer">
+        <input type="checkbox" id="chkAlcohol" class="w-5 h-5 text-emerald-600 rounded">
+        <span class="font-bold text-gray-700">我已完成酒測，數值為 0.00 mg/L</span>
+    </label>
+    <label class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer">
+        <input type="checkbox" id="chkHealth" class="w-5 h-5 text-emerald-600 rounded">
+        <span class="font-bold text-gray-700">我今日精神狀況良好，適宜駕駛</span>
+    </label>
+    
+    <!-- 新增：行車前數位檢查表 -->
+    <div class="border-t border-gray-200 pt-4">
+        <h4 class="text-sm font-black text-gray-800 mb-2">📋 數位行車前檢查 (請全數勾選)</h4>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">胎壓與胎紋正常</label>
+            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">煞車系統作動正常</label>
+            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">車內外燈光正常</label>
+            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">車門防夾作動正常</label>
+        </div>
+    </div>
+</div>
             <div id="qr-reader" class="w-full bg-black rounded-lg overflow-hidden mb-4 hidden"></div>
             
             <button id="btnStartScan" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl mb-3 shadow-lg flex items-center justify-center gap-2">
@@ -139,7 +157,23 @@
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
+// 在 `<script type="module">` 內合適位置加入
+const announcementsCol = collection(db, "announcements");
+const qAnnouncements = query(announcementsCol, where("status", "==", "active")); // 只抓取啟用的公告
 
+onSnapshot(qAnnouncements, (snapshot) => {
+    const bar = document.getElementById('announcement-bar');
+    const text = document.getElementById('announcement-text');
+    
+    if (snapshot.empty) {
+        bar.classList.add('hidden');
+    } else {
+        // 組合多筆公告
+        let allMsgs = snapshot.docs.map(doc => `【${doc.data().title}】${doc.data().content}`).join(" ｜ ");
+        text.innerText = allMsgs;
+        bar.classList.remove('hidden');
+    }
+});
     const dateInput = document.getElementById('selectDate');
     const tripList = document.getElementById('trip-list');
     
@@ -257,17 +291,71 @@
     const btnSubmitPunch = document.getElementById('btnSubmitPunch');
     const btnStartScan = document.getElementById('btnStartScan');
 
-    function checkConditions() {
-        if (chkAlcohol.checked && chkHealth.checked) {
-            btnSubmitPunch.disabled = false;
-            btnSubmitPunch.classList.remove('opacity-50', 'cursor-not-allowed');
-            btnSubmitPunch.classList.add('hover:bg-emerald-600');
-        } else {
-            btnSubmitPunch.disabled = true;
-            btnSubmitPunch.classList.add('opacity-50', 'cursor-not-allowed');
-            btnSubmitPunch.classList.remove('hover:bg-emerald-600');
+    // 取得所有檢查表 checkbox
+const inspectCheckboxes = document.querySelectorAll('.chk-inspect');
+
+function checkConditions() {
+    // 檢查酒測、健康，以及所有數位檢查表是否都已打勾
+    const isInspectAllChecked = Array.from(inspectCheckboxes).every(chk => chk.checked);
+    
+    if (chkAlcohol.checked && chkHealth.checked && isInspectAllChecked) {
+        btnSubmitPunch.disabled = false;
+        btnSubmitPunch.classList.remove('opacity-50', 'cursor-not-allowed');
+        btnSubmitPunch.classList.add('hover:bg-emerald-600');
+    } else {
+        btnSubmitPunch.disabled = true;
+        btnSubmitPunch.classList.add('opacity-50', 'cursor-not-allowed');
+        btnSubmitPunch.classList.remove('hover:bg-emerald-600');
+    }
+}
+
+// 為所有檢查項目綁定監聽事件
+chkAlcohol.addEventListener('change', checkConditions);
+chkHealth.addEventListener('change', checkConditions);
+inspectCheckboxes.forEach(chk => chk.addEventListener('change', checkConditions));
+
+// ----------------------------------------------------
+// 在 btnSubmitPunch 的 click 事件中加入 GPS 邏輯
+// ----------------------------------------------------
+btnSubmitPunch.addEventListener('click', async () => {
+    if (!selectedTripId) return;
+    
+    // ... (保留原本的 QR Code/密碼驗證邏輯) ...
+
+    btnSubmitPunch.innerText = "⏳ 正在抓取 GPS 與處理簽到...";
+    btnSubmitPunch.disabled = true;
+
+    // 抓取 GPS 定位
+    let gpsLocation = "未授權或無法取得定位";
+    if (navigator.geolocation) {
+        try {
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            });
+            gpsLocation = `${position.coords.latitude}, ${position.coords.longitude}`;
+        } catch (error) {
+            console.warn("GPS 獲取失敗", error);
+            // 實務上可根據需求決定 GPS 失敗是否阻擋報到
         }
     }
+
+    try {
+        await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
+            status: 'checked_in',
+            check_in_time: serverTimestamp(), 
+            check_in_method: checkInMethod,
+            gps_location: gpsLocation // 寫入 GPS 座標
+        });
+        
+        punchModal.style.display = 'none';
+        openVoucherModal(selectedTripId);
+    } catch (err) {
+        alert('報到連線失敗，請檢查網路。');
+    } finally {
+        btnSubmitPunch.innerText = "確認報到並領取電子憑單";
+        btnSubmitPunch.disabled = false;
+    }
+});
        
     document.getElementById('btnRequestOverride').addEventListener('click', async () => {
         if (!selectedTripId || !chkAlcohol.checked || !chkHealth.checked) {
