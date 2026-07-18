@@ -203,7 +203,8 @@
 
             let q;
             if (currentView === 'personal') {
-                q = query(leaveRequestsCol, where("empId", "==", currentUserId));
+                // 🚀 修正：同時抓取新版 empId 與舊版 uid 綁定的歷史紀錄
+                q = query(leaveRequestsCol, where("empId", "in", [user.empId, user.uid]));
             } else {
                 q = query(leaveRequestsCol, orderBy("createdAt", "desc"));
             }
