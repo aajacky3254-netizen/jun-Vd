@@ -373,6 +373,65 @@
         }
 
         // --- 以下為優化後的自動排班邏輯 ---
+        // --- 以下為優化後的自動排班邏輯 ---
+        document.getElementById('btn-auto').addEventListener('click', () => {
+            if(!confirm("確定要執行智慧實務排班嗎？此動作將會覆蓋畫面上的當前班表。")) return;
+
+            // 1. 計算每日休假人數上限 (確保人力平均)
+            const regularDriversCount = currentDrivers.length - 1; 
+            const dailyOffLimit = Math.ceil(regularDriversCount / 7) + 1;
+            let dailyOffCount = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+            
+            // 2. 移除固定的 REL 底班，只保留正規班別
+            const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)"];
+            
+            currentDrivers.forEach((driver, index) => {
+                const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
+                
+                const myBaseShift = baseShifts[index % baseShifts.length];
+
+                let myOffDay = "";
+                let availableOffDays = daysOfWeek.filter(day => dailyOffCount[day] < dailyOffLimit);
+                if (availableOffDays.length === 0) availableOffDays = daysOfWeek; 
+                myOffDay = availableOffDays[Math.floor(Math.random() * availableOffDays.length)];
+                dailyOffCount[myOffDay]++; 
+
+                let myReliefDay = "";
+                if (!isBoss) {
+                    let availableReliefDays = daysOfWeek.filter(day => day !== myOffDay);
+                    myReliefDay = availableReliefDays[Math.floor(Math.random() * availableReliefDays.length)];
+                }
+
+                daysOfWeek.forEach(day => {
+                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                    if (!selectEl || selectEl.disabled) return; 
+
+                    if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
+                        dailyOffCount[day]++; 
+                        return; 
+                    }
+
+                    if (isBoss) {
+                        if (day === myOffDay) selectEl.value = "OFF (休)";
+                        else selectEl.value = "STB (待命)";
+                        selectEl.className = window.getShiftClass(selectEl.value);
+                        return;
+                    }
+
+                    if (day === myOffDay) selectEl.value = "OFF (休)";
+                    else if (day === myReliefDay) selectEl.value = "REL (替班)";
+                    else selectEl.value = myBaseShift;
+                    selectEl.className = window.getShiftClass(selectEl.value);
+                });
+            });
+
+            isDirty = true;
+            silentAutoSave();
+            runScheduleChecks();
+            alert("✨ 智慧實務排班完成！\n已優化每日休假人數，並將替班任務平均分散給各駕駛。");
+        });
+        // --- 優化邏輯結束 ---
 
             // 1. 計算每日休假人數上限 (確保人力平均)
             // 排除老闆後，剩下的駕駛平均分配到 7 天休假
