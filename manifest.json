@@ -8,12 +8,12 @@
   "theme_color": "#1f2937",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png",
+      "src": "./images/logo.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png",
+      "src": "./images/logo.png",
       "sizes": "512x512",
       "type": "image/png"
     }

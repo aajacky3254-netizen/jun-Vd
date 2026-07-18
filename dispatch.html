@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 綜合調度總覽 (完美修復版)</title>
+  <title>豐東交通客運 - 綜合調度總覽</title>
   <link rel="stylesheet" href="./output.css">
   <style>
     /* ========== 共用與導覽列樣式 ========== */
@@ -596,35 +596,46 @@
           } catch (err) { alert("清空失敗。"); }
       });
       
-      // ✨ 智慧調度按鈕 (修復非法迴圈與跨日負數 Bug 版)
+      // ✨ 智慧調度按鈕 (時間分片優化版：絕不卡死瀏覽器)
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           const tripsToDispatch = currentTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
           if (tripsToDispatch.length === 0) return alert("畫面中無空缺車趟可調度！");
           
+          // 🚀 最佳化：阻擋重複點擊並顯示 UI 運算狀態
+          const autoBtn = document.getElementById('btnAutoDispatch');
+          const originalText = autoBtn.innerText;
+          autoBtn.disabled = true;
+          autoBtn.className = autoBtn.className.replace('bg-indigo-600', 'bg-gray-400');
+
           let driverSchedules = {}; 
           let vehicleSchedules = {}; 
           const batch = writeBatch(db); 
           let changes = 0;
+          let processCount = 0;
 
-          // ⚠️ 嚴格使用 for...of 迴圈，絕對不能用 .forEach
           for (let trip of tripsToDispatch) {
+              processCount++;
+              
+              // 💡 核心效能修正：每處理 20 筆就將控制權交還給瀏覽器更新 UI 一次
+              if (processCount % 20 === 0) {
+                  autoBtn.innerText = `⏳ 運算中 (${Math.round((processCount / tripsToDispatch.length) * 100)}%)`;
+                  await new Promise(resolve => setTimeout(resolve, 0));
+              }
+
               let assigned_driver = trip.assigned_driver;
               let assigned_empid = trip.assigned_empid;
               let assigned_vehicle = trip.assigned_vehicle;
               
-              // 🚀 使用營業日函數處理時間，解決午夜跨日產生負數的 Bug
               let tStart = getBusinessMin(trip.departure_time);
               let tEnd = getBusinessMin(trip.arrival_time || trip.departure_time) + 20; 
-              if (tEnd < tStart) tEnd += 1440; // 雙重保險
+              if (tEnd < tStart) tEnd += 1440; 
               
               let tripDuration = tEnd - tStart; 
 
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
                   let bestDriver = null;
-                  
                   for (let d of currentAvailableDrivers) {
                       let sched = driverSchedules[d.empId] || [];
-                      
                       if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue;
                       
                       let totalDriving = sched.reduce((tot, s) => tot + (s.end - s.start), 0);
@@ -690,6 +701,11 @@
           } else { 
               alert("目前無符合勞基法規範之駕駛/車輛可供調度。"); 
           }
+          
+          // 還原按鈕狀態
+          autoBtn.innerText = originalText;
+          autoBtn.disabled = false;
+          autoBtn.className = autoBtn.className.replace('bg-gray-400', 'bg-indigo-600');
       });
   }).catch(err => console.error(err));
 </script>
