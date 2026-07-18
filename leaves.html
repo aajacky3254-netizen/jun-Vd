@@ -4,9 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 差假簽核管理</title>
-  <link rel="stylesheet" href="./output.css">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
+    .navbar a.nav-link:hover { background-color: #374151; color: white; }
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+    .content-area { padding: 0 20px; max-width: 1200px; margin: 0 auto;}
+    table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
+    th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; transition: background-color 0.2s; }
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
+    tr:hover { background-color: #f8fafc; }
   </style>
 </head>
 <body>
@@ -69,7 +79,7 @@
         <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
       </div>
     </div>
-<div class="table-wrapper">
+
     <!-- 表格區塊 -->
     <table>
       <thead>
@@ -88,7 +98,6 @@
       </tbody>
     </table>
   </div>
-</div>
 
  <script type="module">
     import { db } from './firebase-init.js';
@@ -194,8 +203,7 @@
 
             let q;
             if (currentView === 'personal') {
-                // 🚀 修正：同時抓取新版 empId 與舊版 uid 綁定的歷史紀錄
-                q = query(leaveRequestsCol, where("empId", "in", [user.empId, user.uid]));
+                q = query(leaveRequestsCol, where("empId", "==", currentUserId));
             } else {
                 q = query(leaveRequestsCol, orderBy("createdAt", "desc"));
             }

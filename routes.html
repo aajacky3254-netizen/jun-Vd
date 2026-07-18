@@ -4,9 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 路線與站點管理</title>
-  <link rel="stylesheet" href="./output.css">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f4f6f9; margin: 0; }
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; height: 64px; }
+    .navbar a { color: #e2e8f0; text-decoration: none; padding: 0 15px; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; background: #fff; text-align: left; }
+    th, td { border: 1px solid #e2e8f0; padding: 12px; }
+    th { background-color: #1e293b; color: white; }
   </style>
 </head>
 <body>
@@ -28,9 +33,7 @@
             <input type="text" id="inpRoute" class="border p-2 rounded w-full" placeholder="路線 (例: 100)">
             <button id="btnAddRoute" class="bg-blue-600 text-white px-4 rounded font-bold">新增</button>
         </div>
-        <div class="table-wrapper">
         <table id="tblRoutes"><tbody></tbody></table>
-        </div>
       </div>
 
       <div class="bg-white p-6 rounded shadow border">
@@ -39,9 +42,7 @@
             <input type="text" id="inpStation" class="border p-2 rounded w-full" placeholder="站點 (例: Alexanderplatz)">
             <button id="btnAddStation" class="bg-teal-600 text-white px-4 rounded font-bold">新增</button>
         </div>
-        <div class="table-wrapper">
         <table id="tblStations"><tbody></tbody></table>
-      </div>
       </div>
     </div>
   </div>

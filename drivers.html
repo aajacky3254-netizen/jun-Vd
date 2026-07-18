@@ -3,29 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 人事管理系統</title>
-  
-  <!-- 引入我們剛才編譯好的全站共用 CSS -->
-  <link rel="stylesheet" href="./output.css">
+  <title>豐東交通客運 - 人事管理系統 (含一鍵開通版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 保留該頁面專屬的特殊邏輯樣式 */
-    body { display: none; }
+    body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
+        .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+        .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
+        .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
+        .navbar a.nav-link:hover { background-color: #374151; color: white; }
+        .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+
+    .content-area { padding: 0 20px; max-width: 1400px; margin: 0 auto;}
+    
+    .control-panel {
+      background: #fff; padding: 24px; border-radius: 12px; 
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 24px;
+      display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0;
+    }
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
+    .input-group input, .input-group select {
+      padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none; background-color: #f8fafc;
+    }
+    .input-group input:focus, .input-group select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background-color: #fff;}
+
+    table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
+    th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; transition: background-color 0.2s; }
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
+    tr:hover { background-color: #f8fafc; }
+    
+    .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
     .status-active { background-color: #dcfce7; color: #166534; }
     .status-inactive { background-color: #f1f5f9; color: #64748b; }
   </style>
 </head>
 <body>
 
-  <!-- 導覽列 -->
   <nav class="navbar" id="main-nav"></nav>
 
   <div class="content-area">
     <div class="flex justify-between items-center mt-6 mb-2">
-      <h2 class="text-2xl font-bold text-slate-800">👨‍✈️ 駕駛長與內勤人事管理系統</h2>
+      <h2>👨‍✈️ 駕駛長與內勤人事管理系統</h2>
       <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
     </div>
 
-    <!-- 控制面板 1：基本資料 -->
     <div class="control-panel">
       <div class="input-group" style="width: 140px;">
         <label>員工編號</label>
@@ -63,11 +84,10 @@
       </div>
     </div>
 
-    <!-- 控制面板 2：職稱與專案 -->
     <div class="control-panel">
       <div class="input-group" style="width: 180px;">
         <label>實際編制職稱</label>
-        <select id="empRole" class="font-bold text-slate-700">
+        <select id="empRole" class="font-bold text-gray-700">
           <option value="駕駛長">🚌 駕駛長</option>
           <option value="站務員">🎫 站務員</option>
           <option value="站長">🏢 站長</option>
@@ -94,37 +114,35 @@
       </button>
     </div>
 
-    <!-- 表格區塊：套用共用模組 table-wrapper -->
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 12%;">員工編號</th>
-            <th style="width: 18%;">員工姓名</th>
-            <th style="width: 13%;">所屬場站</th>
-            <th style="width: 22%;">實際職稱 / 專案進度</th>
-            <th style="width: 13%;">系統權限</th>
-            <th style="width: 12%;">在職狀態</th>
-            <th style="width: 10%; text-align: center;">操作</th>
-          </tr>
-        </thead>
-        <tbody id="driverBody">
-          <tr><td colspan="7" class="text-center py-8 text-gray-500 font-bold">載入中...</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 12%;">員工編號</th>
+          <th style="width: 18%;">員工姓名</th>
+          <th style="width: 13%;">所屬場站</th>
+          <th style="width: 22%;">實際職稱 / 專案進度</th>
+          <th style="width: 13%;">系統權限</th>
+          <th style="width: 12%;">在職狀態</th>
+          <th style="width: 10%; text-align: center;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="driverBody">
+        <tr><td colspan="7" class="text-center py-8 text-gray-500 font-bold">載入中...</td></tr>
+      </tbody>
+    </table>
   </div>
   
   <script type="module">
+    // 🔥 引入完整的 app 來做雙開實例 (不影響當前登入的 Admin)
     import { app, db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
     
-    // 💡 免費版救星：引入 Secondary App 模組，允許在前端偷建帳號且不影響主帳號登入狀態
+    // 🛡️ 引入 Secondary App 所需的模組
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signOut as secSignOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-    // 建立次要的 Firebase App 實例
+    // 建立一個次要的 Firebase App 實例，專門用來建帳號
     const secondaryApp = initializeApp(app.options, "SecondaryApp");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -134,7 +152,6 @@
         document.body.style.display = 'block'; 
 
         const nav = document.querySelector('.navbar');
-        // 加入您的 Logo，並指向本地圖片資源 (前面第 5 點的修改)
         nav.innerHTML += `
             <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
                 <span>👤 ${user.name} (${user.role})</span>
@@ -145,6 +162,7 @@
         
         const driversCol = collection(db, "Drivers");
         const dbStatusEl = document.getElementById('db-status');
+
         let currentDrivers = [];
 
         document.getElementById('empRole').addEventListener('change', (e) => {
@@ -159,9 +177,13 @@
 
         onSnapshot(driversCol, (snapshot) => {
             currentDrivers = [];
-            snapshot.forEach(doc => { currentDrivers.push({ id: doc.id, ...doc.data() }); });
+            snapshot.forEach(doc => {
+                currentDrivers.push({ id: doc.id, ...doc.data() });
+            });
+
             currentDrivers.sort((a, b) => a.id.localeCompare(b.id));
             renderTable();
+            
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
             dbStatusEl.innerText = "資料庫已連線";
         }, (error) => {
@@ -182,28 +204,39 @@
 
             currentDrivers.forEach(driver => {
                 const tr = document.createElement('tr');
+                
                 const statusHtml = driver.status === 'active' 
                     ? `<span class="status-badge status-active">● 在職中</span>` 
                     : `<span class="status-badge status-inactive">休假 / 離職</span>`;
 
                 let milestoneText = "";
                 if ((driver.empRole === '駕駛長' || !driver.empRole) && driver.empMilestone && driver.empMilestone !== 'none') {
-                    const milestoneMap = { 'training': '受訓中', 'month_1': '就業滿1M', 'month_3': '就業滿3M', 'month_5': '就業滿5M', 'completed': '結案' };
-                    milestoneText = ` <span class="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-bold ml-1">🎯 ${milestoneMap[driver.empMilestone]}</span>`;
+                    const milestoneMap = {
+                        'training': '受訓中',
+                        'month_1': '就業滿1M',
+                        'month_3': '就業滿3M',
+                        'month_5': '就業滿5M',
+                        'completed': '結案'
+                    };
+                    milestoneText = ` <span class="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-bold ml-1" title="擴大徵才專案進度">🎯 ${milestoneMap[driver.empMilestone]}</span>`;
                 }
 
                 tr.innerHTML = `
-                    <td class="font-mono text-[16px] font-bold text-slate-600">${escapeHTML(driver.id)}</td>
-                    <td class="font-bold text-slate-900 text-[16px]">${escapeHTML(driver.name)}</td>
-                    <td class="text-slate-600 font-semibold">${escapeHTML(driver.station) || '未指定'}</td>
-                    <td class="text-emerald-700 font-semibold text-[15px]">${escapeHTML(driver.empRole) || '駕駛長'}${milestoneText}</td>
-                    <td class="text-blue-600 font-semibold">${escapeHTML(driver.role) || '駕駛長'}</td>
+                    <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${escapeHTML(driver.id)}</td>
+                    <td style="font-weight: bold; color: #0f172a; font-size: 16px;">${escapeHTML(driver.name)}</td>
+                    <td style="color: #475569; font-weight: 600;">${escapeHTML(driver.station) || '未指定'}</td>
+                    <td style="color: #047857; font-weight: 600; font-size: 15px;">${escapeHTML(driver.empRole) || '駕駛長'}${milestoneText}</td>
+                    <td style="color: #3b82f6; font-weight: 600;">${escapeHTML(driver.role) || '駕駛長'}</td>
                     <td>${statusHtml}</td>
-                    <td class="text-center space-x-1">
-                        <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" 
-                                data-id="${escapeHTML(driver.id)}" data-name="${escapeHTML(driver.name)}" data-status="${escapeHTML(driver.status)}" 
-                                data-station="${escapeHTML(driver.station)}" data-role="${escapeHTML(driver.role)}"
-                                data-emprole="${escapeHTML(driver.empRole) || '駕駛長'}" data-empmilestone="${escapeHTML(driver.empMilestone) || 'none'}">編輯</button>
+                    <td style="text-align: center;">
+                        <button class="btn-edit bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-sm font-bold mr-2 transition-colors" 
+                                data-id="${escapeHTML(driver.id)}" 
+                                data-name="${escapeHTML(driver.name)}" 
+                                data-status="${escapeHTML(driver.status)}" 
+                                data-station="${escapeHTML(driver.station)}" 
+                                data-role="${escapeHTML(driver.role)}"
+                                data-emprole="${escapeHTML(driver.empRole) || '駕駛長'}"
+                                data-empmilestone="${escapeHTML(driver.empMilestone) || 'none'}">編輯</button>
                         <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${escapeHTML(driver.id)}">刪除</button>
                     </td>
                 `;
@@ -214,26 +247,34 @@
                 const btnData = e.target.dataset;
                 document.getElementById('inpEmpId').value = btnData.id;
                 document.getElementById('inpEmpId').disabled = true; 
-                document.getElementById('inpEmpId').classList.add('bg-slate-200');
+                document.getElementById('inpEmpId').style.backgroundColor = '#e2e8f0';
                 document.getElementById('inpName').value = btnData.name;
                 document.getElementById('inpStatus').value = btnData.status;
                 document.getElementById('inpStation').value = btnData.station || '東海站';
                 document.getElementById('inpRole').value = btnData.role || '駕駛長';
-                document.getElementById('empRole').value = btnData.emprole;
+                
+                const loadedEmpRole = btnData.emprole;
+                document.getElementById('empRole').value = loadedEmpRole;
                 document.getElementById('empMilestone').value = btnData.empmilestone;
                 
                 const milestoneGroup = document.getElementById('milestoneGroup');
-                if (btnData.emprole === '駕駛長') milestoneGroup.style.display = 'flex';
-                else milestoneGroup.style.display = 'none';
+                if (loadedEmpRole === '駕駛長') {
+                    milestoneGroup.style.display = 'flex';
+                } else {
+                    milestoneGroup.style.display = 'none';
+                }
                 
-                const saveBtn = document.getElementById('btnSaveDriver');
-                saveBtn.innerHTML = "💾 更新人員資料";
-                saveBtn.className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
+                document.getElementById('btnSaveDriver').innerHTML = "💾 更新人員資料";
+                document.getElementById('btnSaveDriver').className = "bg-gradient-to-b from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }));
 
             document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', async (e) => {
                 if(confirm(`⚠️ 警告！刪除員工將無法復原，確定要刪除編號 ${e.target.dataset.id} 嗎？`)) {
-                    try { await deleteDoc(doc(db, "Drivers", e.target.dataset.id)); } catch (err) { alert("刪除失敗，請檢查網路！"); }
+                    try {
+                        await deleteDoc(doc(db, "Drivers", e.target.dataset.id));
+                    } catch (err) {
+                        alert("刪除失敗，請檢查網路！");
+                    }
                 }
             }));
         }
@@ -248,6 +289,7 @@
             const empMilestone = document.getElementById('empMilestone').value;
 
             if(!empId || !name) { alert("請填寫員工編號與姓名！"); return; }
+
             const btn = document.getElementById('btnSaveDriver');
             
             try {
@@ -257,13 +299,13 @@
                 const docRef = doc(db, "Drivers", empId);
                 const docSnap = await getDoc(docRef);
 
-                // 💡 使用 SecondaryApp 在前端無痛開通帳號 (免費方案作法)
+                // 🛡️ 雙開防護機制：如果員工不存在，利用 secondaryAuth 建立帳號
                 if (!docSnap.exists()) {
                     try {
                         const email = `${empId}@fengdong.com`;
                         await createUserWithEmailAndPassword(secondaryAuth, email, "123456");
-                        await secSignOut(secondaryAuth); // 建立完馬上登出次要帳號，保護主帳號登入狀態
-                        console.log("前端免費版：帳號開通成功");
+                        await secSignOut(secondaryAuth); // 建立完馬上登出，確保站長不被踢下線
+                        console.log("登入帳號建立成功");
                     } catch (apiErr) {
                         if (apiErr.code !== 'auth/email-already-in-use') {
                             alert("建立登入帳號失敗：" + apiErr.message);
@@ -272,13 +314,20 @@
                     }
                 }
 
-                // 寫入 Firestore 資料庫
-                await setDoc(docRef, { name, status, station, role, empRole, empMilestone }, { merge: true });
+                const driverData = {
+                    name: name,
+                    status: status,
+                    station: station,
+                    role: role,
+                    empRole: empRole,
+                    empMilestone: empMilestone
+                };
 
-                // 重置表單
+                await setDoc(docRef, driverData, { merge: true });
+
                 document.getElementById('inpEmpId').value = '';
                 document.getElementById('inpEmpId').disabled = false;
-                document.getElementById('inpEmpId').classList.remove('bg-slate-200');
+                document.getElementById('inpEmpId').style.backgroundColor = '#f8fafc';
                 document.getElementById('inpName').value = '';
                 document.getElementById('inpStatus').value = 'active';
                 document.getElementById('empRole').value = '駕駛長';
@@ -286,12 +335,13 @@
                 document.getElementById('milestoneGroup').style.display = 'flex';
                 
                 if (!docSnap.exists()) {
-                    alert(`✅ 員工建立成功！\n\n系統已為該員配發登入資格。\n預設密碼皆為 123456，現在可以直接登入。`);
+                    alert(`✅ 員工帳號建立成功！\n\n登入帳號(編號): ${empId}\n預設密碼: 123456\n所屬場站: ${station}\n編制職稱: ${empRole}\n\n該員工現在可以直接登入系統了！`);
                 } else {
                     alert(`✅ 員工資料已成功更新！`);
                 }
             } catch (err) {
-                alert("儲存失敗，請確認權限或網路。");
+                console.error("寫入失敗:", err);
+                alert("儲存失敗，請檢查權限或網路。");
             } finally {
                 btn.innerHTML = "💾 儲存人員資料";
                 btn.disabled = false;
@@ -300,7 +350,7 @@
         });
 
         // ==========================================
-        // 🚀 一鍵批次開通全體員工帳號 (免費版)
+        // 🚀 一鍵批次開通全體員工登入帳號 (救星按鈕)
         // ==========================================
         setTimeout(() => {
             const syncBtn = document.createElement('button');
@@ -309,36 +359,45 @@
             document.body.appendChild(syncBtn);
 
             syncBtn.addEventListener('click', async () => {
-                if(!confirm("確定要批次開通列表中所有同仁的系統帳號嗎？\n密碼皆預設為 123456。")) return;
+                if(!confirm("確定要幫列表上【所有還不能登入的員工】批次開通帳號嗎？\n開通後，他們的預設密碼皆為 123456")) return;
                 
                 syncBtn.innerText = "⏳ 系統批次處理中，請勿關閉網頁...";
                 syncBtn.disabled = true;
-                syncBtn.classList.replace('bg-purple-600', 'bg-slate-500');
+                syncBtn.classList.replace('bg-purple-600', 'bg-gray-500');
 
                 let successCount = 0;
                 let existCount = 0;
 
                 try {
                     for (let driver of currentDrivers) {
+                        // admin 帳號不在此次批次處理範圍
                         if(driver.id === 'admin') continue; 
+                        
                         const email = `${driver.id}@fengdong.com`;
                         try {
                             await createUserWithEmailAndPassword(secondaryAuth, email, "123456");
                             await secSignOut(secondaryAuth);
                             successCount++;
                         } catch (e) {
-                            if (e.code === 'auth/email-already-in-use') existCount++;
-                            else console.warn(`員工 ${driver.id} 建立異常`, e);
+                            if (e.code === 'auth/email-already-in-use') {
+                                existCount++;
+                            } else {
+                                console.error(`員工 ${driver.id} 建立失敗:`, e);
+                            }
                         }
                     }
-                    alert(`✅ 批次帳號處理完成！\n\n🟢 新開通：${successCount} 人\n🟡 已存在：${existCount} 人\n\n未註冊的同仁現皆可使用工號與預設密碼 123456 登入！`);
+                    alert(`✅ 批次帳號開通完成！\n\n🟢 成功新開通：${successCount} 人\n🟡 原本已開通：${existCount} 人\n\n現在大家都可以用自己的【員工編號】搭配密碼【123456】登入系統了！`);
                 } catch (error) {
-                    alert("批次處理失敗，請檢查連線。");
-                } finally { syncBtn.remove(); }
+                    alert("執行過程中發生錯誤，請檢查網路連線。");
+                } finally {
+                    syncBtn.remove(); // 執行完畢後隱藏按鈕
+                }
             });
-        }, 1500);
+        }, 1500); // 延遲 1.5 秒等表格跑完再出現按鈕
 
-    }).catch((err) => { console.error("驗證失敗或未登入", err); });
+    }).catch((err) => {
+        console.error("驗證失敗或未登入", err);
+    });
   </script>
 </body>
 </html>

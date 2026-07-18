@@ -8,11 +8,17 @@
     
   <meta property="og:title" content="豐東交通客運 | 智慧車輛調度與個人作業台">
   <meta property="og:description" content="豐東客運專屬營運入口網，請登入以查看最新班表、派車資訊與差勤紀錄。">
-  <meta property="og:image" content="./images/logo.png">
+  <meta property="og:image" content="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png">
   
   <link rel="stylesheet" href="./output.css">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; }
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
+    .navbar a.nav-link:hover { background-color: #374151; color: white; }
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
   </style>
 </head>
 <body>
@@ -23,7 +29,7 @@
   </div>
   <nav class="navbar" id="main-nav">
     <a href="index.html" class="navbar-brand flex items-center">
-      <img src="./images/logo.png" alt="LOGO" class="h-8 mr-3 object-contain">
+      <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="LOGO" class="h-8 mr-3 object-contain">
       豐東交通客運 | 智慧車輛調度系統
     </a>
   </nav>

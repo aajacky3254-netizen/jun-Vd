@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東客運 - 車場調度系統登入</title>
-  <link rel="stylesheet" href="./output.css">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { 
       /* 背景圖可自行替換回您的公車圖 */
@@ -27,11 +27,15 @@
       box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
       text-align: center; 
     }
-    </style>
+    .input-group { margin-bottom: 20px; text-align: left; }
+    .input-group label { display: block; font-size: 13px; font-weight: bold; color: #475569; margin-bottom: 8px; }
+    .input-group input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; outline: none; transition: 0.3s; background: #f8fafc; }
+    .input-group input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.2); background: #fff; }
+  </style>
 </head>
 <body>
   <div class="login-card">
-    <img src="./images/logo.png" alt="Logo" class="h-16 mx-auto mb-4 object-contain">
+    <img src="https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png" alt="Logo" class="h-16 mx-auto mb-4 object-contain">
     <h2 class="text-2xl font-black text-gray-800 mb-1">車場調度系統</h2>
     <p class="text-sm text-gray-500 font-bold mb-8">請輸入員工編號登入</p>
     

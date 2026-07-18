@@ -3,12 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 綜合調度總覽</title>
-  <link rel="stylesheet" href="./output.css">
+  <title>豐東交通客運 - 綜合調度總覽 (完美修復版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     /* ========== 共用與導覽列樣式 ========== */
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; }
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
+    .navbar a.nav-link:hover { background-color: #374151; color: white; }
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
     
+    /* ========== 總控台與表格樣式 ========== */
+    .content-area { padding: 0 20px; max-width: 100%; }
+    .control-panel { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+    .input-row { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
+    .input-group input, .input-group select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; outline: none; }
+    table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; border-radius: 8px; overflow: hidden; font-size: 14px;}
+    th, td { border: 1px solid #e2e8f0; padding: 12px; transition: background 0.3s;}
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 10; }
+
     /* ========== 🚀 28小時甘特圖看板樣式 ========== */
     .gantt-container { display: flex; flex-direction: column; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto; border: 1px solid #e2e8f0; }
     .gantt-header { display: flex; background: #1e293b; color: #fff; font-weight: bold; position: sticky; top: 0; z-index: 20; }
@@ -122,14 +138,12 @@
 
     <div class="content-area pb-12">
       <h2 class="text-xl font-bold text-gray-800 mb-3 ml-2">📝 詳細發車時刻表</h2>
-      <div class="table-wrapper">
       <table id="dispatchTable">
         <thead>
           <tr><th>發車~到達區間</th><th>路線 (Tour)</th><th>趟數</th><th>起站</th><th>終站</th><th>駕駛長指派 (含替補)</th><th>車輛配置</th><th>操作</th></tr>
         </thead>
         <tbody id="dispatchBody"></tbody>
       </table>
-      </div>
     </div>
 
   </div>
@@ -596,46 +610,35 @@
           } catch (err) { alert("清空失敗。"); }
       });
       
-      // ✨ 智慧調度按鈕 (時間分片優化版：絕不卡死瀏覽器)
+      // ✨ 智慧調度按鈕 (修復非法迴圈與跨日負數 Bug 版)
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           const tripsToDispatch = currentTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
           if (tripsToDispatch.length === 0) return alert("畫面中無空缺車趟可調度！");
           
-          // 🚀 最佳化：阻擋重複點擊並顯示 UI 運算狀態
-          const autoBtn = document.getElementById('btnAutoDispatch');
-          const originalText = autoBtn.innerText;
-          autoBtn.disabled = true;
-          autoBtn.className = autoBtn.className.replace('bg-indigo-600', 'bg-gray-400');
-
           let driverSchedules = {}; 
           let vehicleSchedules = {}; 
           const batch = writeBatch(db); 
           let changes = 0;
-          let processCount = 0;
 
+          // ⚠️ 嚴格使用 for...of 迴圈，絕對不能用 .forEach
           for (let trip of tripsToDispatch) {
-              processCount++;
-              
-              // 💡 核心效能修正：每處理 20 筆就將控制權交還給瀏覽器更新 UI 一次
-              if (processCount % 20 === 0) {
-                  autoBtn.innerText = `⏳ 運算中 (${Math.round((processCount / tripsToDispatch.length) * 100)}%)`;
-                  await new Promise(resolve => setTimeout(resolve, 0));
-              }
-
               let assigned_driver = trip.assigned_driver;
               let assigned_empid = trip.assigned_empid;
               let assigned_vehicle = trip.assigned_vehicle;
               
+              // 🚀 使用營業日函數處理時間，解決午夜跨日產生負數的 Bug
               let tStart = getBusinessMin(trip.departure_time);
               let tEnd = getBusinessMin(trip.arrival_time || trip.departure_time) + 20; 
-              if (tEnd < tStart) tEnd += 1440; 
+              if (tEnd < tStart) tEnd += 1440; // 雙重保險
               
               let tripDuration = tEnd - tStart; 
 
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
                   let bestDriver = null;
+                  
                   for (let d of currentAvailableDrivers) {
                       let sched = driverSchedules[d.empId] || [];
+                      
                       if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue;
                       
                       let totalDriving = sched.reduce((tot, s) => tot + (s.end - s.start), 0);
@@ -701,11 +704,6 @@
           } else { 
               alert("目前無符合勞基法規範之駕駛/車輛可供調度。"); 
           }
-          
-          // 還原按鈕狀態
-          autoBtn.innerText = originalText;
-          autoBtn.disabled = false;
-          autoBtn.className = autoBtn.className.replace('bg-gray-400', 'bg-indigo-600');
       });
   }).catch(err => console.error(err));
 </script>
