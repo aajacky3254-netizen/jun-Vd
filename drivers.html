@@ -3,36 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>豐東交通客運 - 人事管理系統 (含一鍵開通版)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>豐東交通客運 - 人事管理系統</title>
+  <link rel="stylesheet" href="./output.css">
+  <!-- 2. 原本落落長的 <style> 已經全部移除 -->
   <style>
-    body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
-        .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
-        .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
-        .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
-        .navbar a.nav-link:hover { background-color: #374151; color: white; }
-        .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
-
-    .content-area { padding: 0 20px; max-width: 1400px; margin: 0 auto;}
-    
-    .control-panel {
-      background: #fff; padding: 24px; border-radius: 12px; 
-      box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 24px;
-      display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid #e2e8f0;
-    }
-    .input-group { display: flex; flex-direction: column; gap: 6px; }
-    .input-group label { font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;}
-    .input-group input, .input-group select {
-      padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; transition: 0.2s; outline: none; background-color: #f8fafc;
-    }
-    .input-group input:focus, .input-group select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background-color: #fff;}
-
-    table { width: 100%; border-collapse: collapse; text-align: left; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden;}
-    th, td { border-bottom: 1px solid #e2e8f0; padding: 16px; transition: background-color 0.2s; }
-    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
-    tr:hover { background-color: #f8fafc; }
-    
-    .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+    /* 這裡只留下針對這個頁面超級特殊的樣式，例如您隱藏 body 等待權限驗證的機制 */
+    body { display: none; }
     .status-active { background-color: #dcfce7; color: #166534; }
     .status-inactive { background-color: #f1f5f9; color: #64748b; }
   </style>
@@ -113,7 +89,7 @@
         💾 儲存人員資料
       </button>
     </div>
-
+<div class="table-wrapper">
     <table>
       <thead>
         <tr>
@@ -131,6 +107,7 @@
       </tbody>
     </table>
   </div>
+</div>
   
   <script type="module">
     // 🔥 引入完整的 app 來做雙開實例 (不影響當前登入的 Admin)

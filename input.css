@@ -1,3 +1,77 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 基礎設定：全站字體與背景 */
+@layer base {
+  body {
+    @apply m-0 p-0 bg-[#f4f6f9];
+    font-family: "Noto Sans TC", "微軟正黑體", sans-serif;
+  }
+}
+
+/* 共用元件設定 */
+@layer components {
+  /* ========== 導覽列 (Navbar) ========== */
+  .navbar {
+    @apply flex items-center px-5 bg-[#2a2f3e] shadow-md h-16;
+  }
+  .navbar-brand {
+    @apply flex items-center mr-[30px] text-yellow-400 text-xl font-bold tracking-wide no-underline;
+  }
+  .navbar .nav-link {
+    @apply inline-block px-5 text-slate-200 text-[15px] whitespace-nowrap no-underline leading-[64px] transition-colors duration-300;
+  }
+  .navbar .nav-link:hover {
+    @apply bg-gray-700 text-white;
+  }
+  .navbar .nav-link.active {
+    @apply bg-[#1e222d] text-white border-b-4 border-blue-500 font-bold;
+  }
+
+  /* ========== 佈局 (Layout) ========== */
+  .content-area {
+    @apply px-5 mx-auto max-w-[1400px];
+  }
+
+  /* ========== 控制面板 (Control Panel) ========== */
+  .control-panel {
+    @apply flex flex-wrap items-end gap-[15px] p-6 mb-6 bg-white border border-slate-200 rounded-xl shadow-sm;
+  }
+  .input-group {
+    @apply flex flex-col gap-1.5;
+  }
+  .input-group label {
+    @apply text-[13px] font-extrabold text-slate-500 uppercase tracking-wide;
+  }
+  .input-group input, 
+  .input-group select {
+    @apply px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-[15px] outline-none transition-all duration-200;
+  }
+  .input-group input:focus, 
+  .input-group select:focus {
+    @apply bg-white border-blue-500;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  /* ========== 表格 (Table) ========== */
+  /* 使用 .table-wrapper 包覆來套用共用表格樣式 */
+  .table-wrapper table {
+    @apply w-full text-left bg-white border-collapse rounded-lg shadow-sm overflow-hidden;
+  }
+  .table-wrapper th, 
+  .table-wrapper td {
+    @apply p-4 border-b border-slate-200 transition-colors duration-200;
+  }
+  .table-wrapper th {
+    @apply bg-slate-800 text-slate-50 font-semibold tracking-wide;
+  }
+  .table-wrapper tr:hover {
+    @apply bg-slate-50;
+  }
+
+  /* ========== 狀態標籤 (Badges) ========== */
+  .status-badge {
+    @apply inline-block px-2.5 py-1 rounded-full text-[13px] font-bold;
+  }
+}
