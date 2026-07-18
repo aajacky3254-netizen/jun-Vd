@@ -380,80 +380,80 @@
             runScheduleChecks();
         }
 
-        // ================= 按鈕事件 =================
-        document.getElementById('btn-auto').addEventListener('click', async () => {
-            const dateValue = document.getElementById('week-picker').value; 
-            if (!dateValue) return alert("請先選擇日期！");
+        // --- 以下為優化後的自動排班邏輯 ---
 
-            const weekDatesArr = getWeekDatesFromPicker();
-            const weekDates = {};
-            for(let i=0; i<7; i++){
-                weekDates[daysOfWeek[i]] = weekDatesArr[i];
-            }
-
-            const approvedLeaves = {}; 
-            try {
-                const leaveQuery = query(collection(db, "leave_requests"), where("status", "==", "已核准"));
-                const leaveSnap = await getDocs(leaveQuery);
-                leaveSnap.forEach(docSnap => {
-                    const data = docSnap.data();
-                    for (let dayKey of daysOfWeek) {
-                        if (weekDates[dayKey] === data.date) {
-                            if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
-                            approvedLeaves[data.empId][dayKey] = data.type || "OFF (休)";
-                        }
-                    }
-                });
-            } catch (err) {
-                console.error("撈取請假單失敗:", err);
-                return alert("連線失敗，無法取得請假資料，終止自動排班！");
-            }
-
-            const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)"];
+            // 1. 計算每日休假人數上限 (確保人力平均)
+            // 排除老闆後，剩下的駕駛平均分配到 7 天休假
+            const regularDriversCount = currentDrivers.length - 1; 
+            const dailyOffLimit = Math.ceil(regularDriversCount / 7) + 1; // 每天最多容許的休假人數
+            let dailyOffCount = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+            
+            // 2. 移除固定的 REL 底班，只保留正規班別
+            const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)"];
             
             currentDrivers.forEach((driver, index) => {
                 const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
                 const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
+                
+                // 決定該駕駛的底班
                 const myBaseShift = baseShifts[index % baseShifts.length];
-                const randomOffDayIndex = Math.floor(Math.random() * 7);
-                const myOffDay = daysOfWeek[randomOffDayIndex];
+
+                // 決定休假日 (加入配額防呆機制)
+                let myOffDay = "";
+                let availableOffDays = daysOfWeek.filter(day => dailyOffCount[day] < dailyOffLimit);
+                
+                // 如果大家都滿了 (理論上不會，但做個保護)，就隨機挑一天
+                if (availableOffDays.length === 0) availableOffDays = daysOfWeek; 
+                
+                myOffDay = availableOffDays[Math.floor(Math.random() * availableOffDays.length)];
+                dailyOffCount[myOffDay]++; // 該日休假人數 +1
+
+                // 決定替班日：隨機賦予該駕駛一天做「替班」，避免連續替班，也避免永遠同一人替班
+                let myReliefDay = "";
+                if (!isBoss) {
+                    let availableReliefDays = daysOfWeek.filter(day => day !== myOffDay);
+                    myReliefDay = availableReliefDays[Math.floor(Math.random() * availableReliefDays.length)];
+                }
 
                 daysOfWeek.forEach(day => {
                     const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
                     if (!selectEl || selectEl.disabled) return; // 若已被假單鎖定則跳過
 
+                    // 假單保護機制
                     if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
-                        return; // 保險機制
+                        dailyOffCount[day]++; // 已請假也算佔用休假名額
+                        return; 
                     }
 
+                    // 老闆專屬邏輯 (維持待命與隨機散休)
                     if (isBoss) {
-                        // 讓老闆也遵循系統抽出的隨機休假日 (myOffDay)
                         if (day === myOffDay) {
                             selectEl.value = "OFF (休)";
-                            selectEl.className = window.getShiftClass("OFF (休)");
                         } else {
                             selectEl.value = "STB (待命)";
-                            selectEl.className = window.getShiftClass("STB (待命)");
                         }
+                        selectEl.className = window.getShiftClass(selectEl.value);
                         return;
                     }
 
+                    // 一般駕駛班別寫入
                     if (day === myOffDay) {
                         selectEl.value = "OFF (休)";
-                        selectEl.className = window.getShiftClass("OFF (休)");
-                        return;
+                    } else if (day === myReliefDay) {
+                        selectEl.value = "REL (替班)";
+                    } else {
+                        selectEl.value = myBaseShift;
                     }
-
-                    selectEl.value = myBaseShift;
-                    selectEl.className = window.getShiftClass(myBaseShift);
+                    selectEl.className = window.getShiftClass(selectEl.value);
                 });
             });
 
             isDirty = true;
             silentAutoSave();
             runScheduleChecks();
-            alert("✨ 智慧實務排班完成！\n已自動保留核准假單，並分配底班與散休。");
-        });
+            alert("✨ 智慧實務排班完成！\n已優化每日休假人數，並將替班任務平均分散給各駕駛。");
+            
+            // --- 優化邏輯結束 ---
 
         document.getElementById('btn-save').addEventListener('click', async () => {
             const rosterToSave = {};
