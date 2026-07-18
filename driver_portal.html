@@ -61,6 +61,78 @@
         <div id="trip-list" class="space-y-4">
             <div class="text-center py-10 text-gray-400 font-bold animate-pulse">連線中，請稍候...</div>
         </div>
+
+        <!-- ================= 新增：系統功能指南區塊 ================= -->
+        <div class="mt-8 mb-4">
+            <h2 class="text-lg font-black text-gray-800 mb-3 flex items-center gap-2">💡 駕駛醫生 2.0 系統指南</h2>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden text-sm">
+                
+                <!-- a. 營業部門：勤務管理 -->
+                <div class="border-b border-gray-100">
+                    <button class="w-full px-4 py-3 text-left font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition flex justify-between items-center" onclick="toggleGuide('guide-ops')">
+                        <span>a. 營業部門：勤務管理 [01:32]</span>
+                        <span id="icon-guide-ops">▼</span>
+                    </button>
+                    <div id="guide-ops" class="hidden px-4 py-3 text-gray-600 leading-relaxed bg-white">
+                        <p class="mb-2 font-semibold">提供駕駛全方位的勤務與工作資訊，主要功能包含：</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><strong>GPS 線上打卡機制：</strong>打破地域限制，駕駛只需打開手機啟用 GPS 定位，無論在維修站或無人管理的站區，都能輕鬆完成打卡 [01:53]。</li>
+                            <li><strong>數位化檢查與班表：</strong>提供數位式行車前檢查表、個人班表查詢、休息輪替查詢等功能 [01:39]。</li>
+                            <li><strong>加班申請：</strong>線上進行加班排隊申請。</li>
+                            <li><strong>即時公告與反饋：</strong>駕駛能透過手機即時接收公司最新公告，讓在外站服務的駕駛也能與總站資訊同步 [02:09]。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- b. 機務部門：車輛管理 -->
+                <div class="border-b border-gray-100">
+                    <button class="w-full px-4 py-3 text-left font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 transition flex justify-between items-center" onclick="toggleGuide('guide-maintenance')">
+                        <span>b. 機務部門：車輛管理 [02:22]</span>
+                        <span id="icon-guide-maintenance">▼</span>
+                    </button>
+                    <div id="guide-maintenance" class="hidden px-4 py-3 text-gray-600 leading-relaxed bg-white">
+                        <p class="mb-2 font-semibold">讓駕駛能像照顧自己的車一樣，隨時掌握車輛狀況，資訊完全透明化：</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><strong>保養與檢驗提醒：</strong>提供車輛定期檢驗與保養的時間提醒。</li>
+                            <li><strong>維修狀態查詢：</strong>駕駛可快速查詢負責車輛的維修進度，確切掌握二級保養或定期檢驗的時程。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- c. 勞安部門：勞工安全管理 -->
+                <div class="border-b border-gray-100">
+                    <button class="w-full px-4 py-3 text-left font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition flex justify-between items-center" onclick="toggleGuide('guide-safety')">
+                        <span>c. 勞安部門：勞工安全管理 [02:45]</span>
+                        <span id="icon-guide-safety">▼</span>
+                    </button>
+                    <div id="guide-safety" class="hidden px-4 py-3 text-gray-600 leading-relaxed bg-white">
+                        <p class="mb-2 font-semibold">將駕駛的工作表現與安全紀錄清晰記錄在平台上：</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><strong>肇事與違規紀錄：</strong>提供事故事件、違規罰款以及交通局的記點狀況查詢。</li>
+                            <li><strong>權益與懲處查詢：</strong>包含內部懲處紀錄，以及勤務受傷相關的保險給付查詢，讓駕駛清楚自身的工作責任與權益。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- d. 行政部門：薪資與請假管理 -->
+                <div>
+                    <button class="w-full px-4 py-3 text-left font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 transition flex justify-between items-center" onclick="toggleGuide('guide-hr')">
+                        <span>d. 行政部門：薪資與請假管理 [03:04]</span>
+                        <span id="icon-guide-hr">▼</span>
+                    </button>
+                    <div id="guide-hr" class="hidden px-4 py-3 text-gray-600 leading-relaxed bg-white">
+                        <p class="mb-2 font-semibold">讓駕駛能安心、透明地了解自身的財務與福利狀況：</p>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <li><strong>薪資與考績查詢：</strong>可即時查詢個人薪資與考績明細。</li>
+                            <li><strong>差勤與福利資訊：</strong>提供請假、加班相關手續，並可檢視各項津貼福利與勞健保資訊。</li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- ================= 系統功能指南區塊 結束 ================= -->
+        
     </main>
 
     <div id="punchModal" class="modal-overlay">
@@ -426,5 +498,19 @@
         voucherModal.style.display = 'none';
     });
 </script>
+<!-- 請將這段 script 放在 </body> 標籤前 -->
+    <script>
+        function toggleGuide(id) {
+            const el = document.getElementById(id);
+            const icon = document.getElementById('icon-' + id);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.innerText = '▲';
+            } else {
+                el.classList.add('hidden');
+                icon.innerText = '▼';
+            }
+        }
+    </script>
 </body>
 </html>
