@@ -195,17 +195,44 @@
       toast.style.opacity = '1';
       setTimeout(() => toast.style.opacity = '0', 2500);
   };
-// 🌟 全新絕對有效的路線顏色生成器 (改用內聯 HSL 色相，徹底繞過 Tailwind CDN 限制)
+// 🌟 全新絕對有效的路線顏色生成器 (加入柏林真實路線色盤)
   const getRouteColorStyle = (routeName) => {
       if (!routeName) return "background-color: #64748b; border-color: #475569;";
+
+      // 1. 定義 The Bus (柏林 BVG) 真實路線對應顏色
+      const predefinedColors = {
+          "100": { bg: "#E3001B", border: "#B30015" }, // 紅色
+          "200": { bg: "#F3791F", border: "#C75E14" }, // 橘色
+          "300": { bg: "#81308A", border: "#5E2165" }, // 紫色
+          "TXL": { bg: "#009BD9", border: "#007BAE" }, // 天藍色
+          "123": { bg: "#F2A900", border: "#C48A00" }, // 黃橘色
+          "142": { bg: "#E0007B", border: "#B00060" }, // 桃紅色
+          "147": { bg: "#85522B", border: "#633B1E" }, // 咖啡色
+          "245": { bg: "#009E4A", border: "#007A39" }  // 綠色
+      };
+
+      // 2. 處理包含子路線的情況 (例如 "200(T5)" -> 只取 "200" 來比對顏色)
+      let baseRoute = routeName.split('(')[0].trim();
+
+      // 3. 判斷是否為夜班車 (以 N 開頭)，統一給予深色系
+      if (baseRoute.startsWith("N")) {
+          return "background-color: #1e293b; border-color: #0f172a;";
+      }
+
+      // 4. 如果在預設名單內，直接使用真實顏色
+      if (predefinedColors[baseRoute]) {
+          return `background-color: ${predefinedColors[baseRoute].bg}; border-color: ${predefinedColors[baseRoute].border};`;
+      }
+
+      // 5. 如果是未來新增的未知路線，回退使用雜湊自動產生顏色 (保留原本的邏輯)
       let hash = 0;
       for (let i = 0; i < routeName.length; i++) {
           hash = routeName.charCodeAt(i) + ((hash << 5) - hash);
       }
-      // 計算出 0~360 度的色相值，並維持高飽和度與適中亮度
       const hue = Math.abs(hash) % 360;
       return `background-color: hsl(${hue}, 65%, 50%); border-color: hsl(${hue}, 70%, 40%);`;
   };
+  
   let currentAvailableDrivers = [];
   let currentStandbyDrivers = []; 
   let currentOffDrivers = [];     
@@ -408,17 +435,13 @@
               let colorClass = "";
               let inlineColorStyle = "";
               
-              // 判斷是否為特殊狀態或特殊路線 (保留 Tailwind 的警示顏色)
+             // 修正後的程式碼：將常規路線全權交給 getRouteColorStyle 處理
               if (isWarning) {
                   colorClass = "bg-red-600 border-red-700 animate-pulse";
               } else if (isUnassigned) {
                   colorClass = "bg-amber-500 border-amber-600 animate-pulse";
-              } else if ((trip.route || "").includes("N")) {
-                  colorClass = "bg-purple-600 border-purple-700";
-              } else if (trip.route === "TXL") {
-                  colorClass = "bg-orange-600 border-orange-700";
               } else {
-                  // 一般路線使用原生 CSS 顏色，確保 100% 顯示
+                  // 所有已指派的路線皆使用動態 CSS 顏色
                   inlineColorStyle = getRouteColorStyle(trip.route);
               }
               
