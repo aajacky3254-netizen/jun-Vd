@@ -415,7 +415,7 @@
                   colorClass = "bg-red-600 border-red-700 animate-pulse";
               } else if (isUnassigned) {
                   colorClass = "bg-amber-500 border-amber-600 animate-pulse";
-              } else if (trip.route.includes("N")) {
+              } else if ((trip.route || "").includes("N")) {
                   colorClass = "bg-purple-600 border-purple-700";
               } else if (trip.route === "TXL") {
                   colorClass = "bg-orange-600 border-orange-700";
