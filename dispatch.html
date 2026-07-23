@@ -61,7 +61,19 @@
         <span id="db-status" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300 shadow-sm">連線中...</span>
       </div>
       
-      
+      <!-- 👇 路線圖區塊必須放在這裡，包在 content-area 裡面 👇 -->
+      <div class="mb-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <details class="group">
+              <summary class="font-bold text-indigo-700 cursor-pointer p-3 hover:bg-indigo-50 transition outline-none flex items-center gap-2 select-none">
+                  🗺️ 點擊展開 / 收起《The Bus 柏林路線圖》輔助參考
+                  <span class="text-xs text-gray-400 font-normal ml-2">(支援滾輪上下左右滑動)</span>
+              </summary>
+              <div class="overflow-auto border-t border-gray-200 bg-gray-100 p-2" style="max-height: 500px;">
+                  <img src="THEBUS路線圖.jpg" alt="柏林路線圖" class="w-full min-w-[1200px] object-contain rounded shadow-sm">
+              </div>
+          </details>
+      </div>
+      <!-- 👆 路線圖區塊結束 👆 -->
 
       <div class="control-panel">
         <div class="input-row w-full">
@@ -113,20 +125,6 @@
         <datalist id="stationsList"></datalist>
       </div>
     </div>
-    <!-- 👇 新增：路線圖輔助參考區塊 👇 -->
-          <div class="mb-4 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <details class="group">
-                  <summary class="font-bold text-indigo-700 cursor-pointer p-3 hover:bg-indigo-50 transition outline-none flex items-center gap-2 select-none">
-                      🗺️ 點擊展開 / 收起《The Bus 柏林路線圖》輔助參考
-                      <span class="text-xs text-gray-400 font-normal ml-2">(支援滾輪上下左右滑動)</span>
-                  </summary>
-                  <div class="overflow-auto border-t border-gray-200 bg-gray-100 p-2" style="max-height: 500px;">
-                      <!-- 確保圖片名稱與你的檔案完全一致，並設定最小寬度防止縮小糊掉 -->
-                      <img src="THEBUS路線圖.jpg" alt="柏林路線圖" class="w-full min-w-[1200px] object-contain rounded shadow-sm">
-                  </div>
-              </details>
-          </div>
-          <!-- 👆 新增：路線圖輔助參考區塊 👆 -->
     <div class="content-area mb-8">
       <div class="flex justify-between items-center mb-3 ml-2">
         <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📊 動態畫布 (04:00~隔日08:00)</h2>
