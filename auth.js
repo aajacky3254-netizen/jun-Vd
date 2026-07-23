@@ -74,10 +74,16 @@ export function checkAuthAndGetRole(allowedRoles = []) {
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 try {
-                    // 🔥 核心修正：將 email (例如 admin@fengdong.com) 拆解回員工編號 (admin)
-                    const empId = user.email ? user.email.split('@')[0] : user.uid;
-                    const docRef = doc(db, "Drivers", empId);
-                    const docSnap = await getDoc(docRef);
+                    let empId = user.email ? user.email.split('@')[0] : user.uid;
+                    let docRef = doc(db, "Drivers", empId);
+                    let docSnap = await getDoc(docRef);
+                    
+                    // 🚀 關鍵修復：解決 Firebase Auth 強制將 Email 轉小寫，導致抓不到大寫帳號 (如 A001) 的 Bug
+                    if (!docSnap.exists() && empId !== empId.toUpperCase()) {
+                        empId = empId.toUpperCase();
+                        docRef = doc(db, "Drivers", empId);
+                        docSnap = await getDoc(docRef);
+                    }
                     
                     if (docSnap.exists()) {
                         const driverData = docSnap.data();
