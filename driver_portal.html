@@ -183,22 +183,8 @@ onSnapshot(qAnnouncements, (snapshot) => {
         const driverName = user.name || user.displayName || user.email?.split('@')[0] || "未知駕駛"; 
         document.getElementById('driver-greeting').innerText = `👨‍✈️ 駕駛長：${driverName}`;
         
-        try {
-            const docSnap = await getDoc(doc(db, "Drivers", user.uid || ""));
-            if (docSnap.exists()) {
-                driverEmpId = docSnap.id;
-            } else {
-                const qD = query(collection(db, "Drivers"), where("name", "==", driverName));
-                const snapD = await getDocs(qD);
-                if (!snapD.empty) {
-                    driverEmpId = snapD.docs[0].id;
-                } else {
-                    driverEmpId = driverName; 
-                }
-            }
-        } catch(e) {
-            driverEmpId = driverName;
-        }
+        // 👇 直接使用 auth.js 傳來的精準 empId，瞬間完成載入！
+        driverEmpId = user.empId;
         
         loadMyTrips(dateInput.value, driverEmpId);
     }).catch(err => {
