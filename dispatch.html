@@ -216,6 +216,13 @@ function renderTable() {
         if (isPendingOverride) {
             actionBtns = `<button class="btn-approve-override bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold animate-pulse w-full mb-1" data-id="${data.id}">✅ 核准異常報到</button>`;
         }
+        // 🆕 使用 flex 與 gap-1 將「修改」與「刪除」按鈕水平並排，並使用 flex-1 讓它們各佔一半寬度
+        actionBtns += `
+        <div class="flex gap-1 w-full">
+            <button class="btn-edit-trip flex-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1.5 rounded transition shadow-sm text-sm font-bold" data-id="${data.id}">✏️ 修改</button>
+            <button class="btn-delete-trip flex-1 bg-red-500 hover:bg-red-600 text-white px-2 py-1.5 rounded transition shadow-sm text-sm font-bold" data-id="${data.id}">🗑️ 刪除</button>
+        </div>`;
+
         // 🆕 加入「✏️ 編輯車趟」按鈕
         actionBtns += `<button class="btn-edit-trip bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full mb-1" data-id="${data.id}">✏️ 編輯車趟</button>`;
         actionBtns += `<button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full" data-id="${data.id}">刪除車趟</button>`;
@@ -235,7 +242,8 @@ function renderTable() {
             ${displayRouteHtml}
             <td><select class="driver-select outline-none cursor-pointer p-1.5 border rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm ${selectClass}" data-id="${data.id}">${drvOpts}</select></td>
             <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}">${vehOpts}</select></td>
-            <td class="flex flex-col gap-1">${actionBtns}</td>
+            <!-- 注意這裡的 td 容器樣式保持為 flex flex-col 即可 -->
+            <td class="flex flex-col gap-1 justify-center">${actionBtns}</td>
         </tr>`;
     }).join('') || '<tr><td colspan="8" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
 }
@@ -243,31 +251,41 @@ function renderTable() {
 // ==========================================
 // 2. 表格點擊事件處理 (新增編輯按鈕監聽)
 // ==========================================
-tbody.addEventListener('click', async (e) => { 
-    // 🆕 處理點擊編輯
-    if (e.target.classList.contains('btn-edit-trip')) {
-        const tripId = e.target.dataset.id;
-        const trip = currentTrips.find(t => t.id === tripId);
-        if (trip) {
-            editingTripId = tripId;
-            document.getElementById('inputTime').value = trip.departure_time || '';
-            document.getElementById('inputEndTime').value = trip.arrival_time || '';
-            document.getElementById('inputRoute').value = trip.route || '';
-            document.getElementById('inputTrips').value = trip.trip_count || 1;
-            document.getElementById('inputStart').value = trip.start_point || '';
-            document.getElementById('inputEnd').value = trip.end_point || '';
+// 處理表格內按鈕點擊事件
+      tbody.addEventListener('click', async (e) => { 
+          // ✏️ 處理點擊修改
+          if (e.target.classList.contains('btn-edit-trip')) {
+              const tripId = e.target.dataset.id;
+              const trip = currentTrips.find(t => t.id === tripId);
+              if (trip) {
+                  editingTripId = tripId; // 記錄目前正在編輯的 ID
+                  // 將資料帶回上方輸入框
+                  document.getElementById('inputTime').value = trip.departure_time || '';
+                  document.getElementById('inputEndTime').value = trip.arrival_time || '';
+                  document.getElementById('inputRoute').value = trip.route || '';
+                  document.getElementById('inputTrips').value = trip.trip_count || 1;
+                  document.getElementById('inputStart').value = trip.start_point || '';
+                  document.getElementById('inputEnd').value = trip.end_point || '';
 
-            // 變更新增按鈕外觀為「儲存修改」
-            const addBtn = document.getElementById('addTripBtn');
-            addBtn.innerText = "💾 儲存修改";
-            addBtn.className = "bg-amber-600 text-white px-5 rounded-lg font-bold hover:bg-amber-700 transition shadow-sm h-[46px]";
-            
-            // 顯示取消按鈕，並將畫面平滑滾動至頂部控制台
-            const cancelBtn = document.getElementById('cancelEditBtn');
-            if (cancelBtn) cancelBtn.classList.remove('hidden');
-            document.querySelector('.control-panel').scrollIntoView({ behavior: 'smooth' });
-        }
-    }
+                  // 變更新增按鈕外觀為「儲存修改」
+                  const addBtn = document.getElementById('addTripBtn');
+                  addBtn.innerText = "💾 儲存修改";
+                  addBtn.className = "bg-amber-600 text-white px-5 rounded-lg font-bold hover:bg-amber-700 transition shadow-sm h-[46px]";
+                  
+                  // 顯示取消按鈕，並將畫面平滑滾動至頂部
+                  const cancelBtn = document.getElementById('cancelEditBtn');
+                  if (cancelBtn) cancelBtn.classList.remove('hidden');
+                  document.querySelector('.control-panel').scrollIntoView({ behavior: 'smooth' });
+              }
+          }
+
+          // 🗑️ 處理刪除 (原本的邏輯)
+          if (e.target.classList.contains('btn-delete-trip')) { 
+              if(confirm("確定要刪除此車趟嗎？")) {
+                  await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id)); 
+                  showToast("🗑️ 車趟已刪除！"); 
+              }
+          }
 
     // 處理刪除
     if (e.target.classList.contains('btn-delete-trip')) { 
