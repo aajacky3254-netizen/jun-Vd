@@ -88,6 +88,7 @@
             <div class="input-group"><label>起始點</label><input type="text" id="inputStart" list="stationsList" style="width: 130px;"></div>
             <div class="input-group"><label>終點站</label><input type="text" id="inputEnd" list="stationsList" style="width: 130px;"></div>
             <button id="addTripBtn" class="bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-700 transition shadow-sm h-[46px]">＋ 新增車趟</button>
+            <button id="cancelEditBtn" class="bg-gray-400 text-white px-3 rounded-lg font-bold hover:bg-gray-500 transition shadow-sm h-[46px] hidden">取消</button>
             
             <div style="flex-grow: 1;"></div> 
             
@@ -168,6 +169,182 @@
   import { db } from './firebase-init.js';
   import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";  
   import { checkAuthAndGetRole, renderNavbar } from './auth.js';
+
+    // 🆕 在 script 開頭附近加入編輯狀態變數
+let editingTripId = null;
+
+// ==========================================
+// 1. 修改 renderTable 中的操作按鈕 (actionBtns)
+// ==========================================
+function renderTable() {
+    // ... [前面程式碼保持不變] ...
+
+    tbody.innerHTML = currentTrips.map(data => {
+        let isOff = currentOffDrivers.some(od => od.empId === data.assigned_empid);
+        const isPendingOverride = data.status === 'pending_override'; 
+        
+        let rowBgClass = isOff ? "bg-red-50" : (isPendingOverride ? "bg-orange-50 border-2 border-orange-400" : "");
+        let selectClass = isOff ? "bg-red-100 text-red-700 border-red-400 animate-pulse" : "border-gray-300";
+        
+        let drvOpts = `<option value="尚未指派">尚未指派</option>`;
+        if (isOff) {
+            drvOpts += `<option value="${data.assigned_driver}" data-empid="${data.assigned_empid}" selected>🚨 ${data.assigned_empid} ${data.assigned_driver} (休假需替班)</option>`;
+        }
+        drvOpts += currentAvailableDrivers.map(d => {
+            let displayTag = d.isPrevNight ? `昨夜` : getChineseShift(d.shift);
+            let isSelected = (!isOff && data.assigned_empid === d.empId) ? 'selected' : '';
+            return `<option value="${d.name}" data-empid="${d.empId}" ${isSelected}>${d.empId} ${d.name} (${displayTag})</option>`;
+        }).join('');
+        
+        let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
+        
+        let actionBtns = '';
+        if (isPendingOverride) {
+            actionBtns += `<button class="btn-approve-override bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold animate-pulse w-full mb-1" data-id="${data.id}">✅ 核准異常報到</button>`;
+        }
+        // 🆕 加入「✏️ 編輯車趟」按鈕
+        actionBtns += `<button class="btn-edit-trip bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full mb-1" data-id="${data.id}">✏️ 編輯車趟</button>`;
+        actionBtns += `<button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full" data-id="${data.id}">刪除車趟</button>`;
+
+        let tripCount = parseInt(data.trip_count) || 1;
+        let displayRouteHtml = '';
+        if (tripCount > 1) {
+            displayRouteHtml = `<td colspan="2" class="font-bold bg-blue-50/50">📍 ${data.start_point} <span class="text-blue-600 font-black mx-1 text-lg">⇌</span> ${data.end_point}</td>`;
+        } else {
+            displayRouteHtml = `<td colspan="2" class="text-gray-600">📍 ${data.start_point} <span class="text-gray-400 mx-1">➔</span> ${data.end_point}</td>`;
+        }
+
+        return `<tr class="${rowBgClass}">
+            <td class="font-bold">${data.departure_time} ${data.arrival_time ? '~ '+data.arrival_time : ''}</td>
+            <td class="text-blue-700 font-bold">${data.route}</td>
+            <td class="font-bold text-gray-700">${tripCount} 趟</td>
+            ${displayRouteHtml}
+            <td><select class="driver-select outline-none cursor-pointer p-1.5 border rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm ${selectClass}" data-id="${data.id}">${drvOpts}</select></td>
+            <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}">${vehOpts}</select></td>
+            <td class="flex flex-col gap-1">${actionBtns}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="8" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
+}
+
+// ==========================================
+// 2. 表格點擊事件處理 (新增編輯按鈕監聽)
+// ==========================================
+tbody.addEventListener('click', async (e) => { 
+    // 🆕 處理點擊編輯
+    if (e.target.classList.contains('btn-edit-trip')) {
+        const tripId = e.target.dataset.id;
+        const trip = currentTrips.find(t => t.id === tripId);
+        if (trip) {
+            editingTripId = tripId;
+            document.getElementById('inputTime').value = trip.departure_time || '';
+            document.getElementById('inputEndTime').value = trip.arrival_time || '';
+            document.getElementById('inputRoute').value = trip.route || '';
+            document.getElementById('inputTrips').value = trip.trip_count || 1;
+            document.getElementById('inputStart').value = trip.start_point || '';
+            document.getElementById('inputEnd').value = trip.end_point || '';
+
+            // 變更新增按鈕外觀為「儲存修改」
+            const addBtn = document.getElementById('addTripBtn');
+            addBtn.innerText = "💾 儲存修改";
+            addBtn.className = "bg-amber-600 text-white px-5 rounded-lg font-bold hover:bg-amber-700 transition shadow-sm h-[46px]";
+            
+            // 顯示取消按鈕，並將畫面平滑滾動至頂部控制台
+            const cancelBtn = document.getElementById('cancelEditBtn');
+            if (cancelBtn) cancelBtn.classList.remove('hidden');
+            document.querySelector('.control-panel').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
+    // 處理刪除
+    if (e.target.classList.contains('btn-delete-trip')) { 
+        if(confirm("確定要刪除此車趟嗎？")) {
+            await deleteDoc(doc(doc(db, "daily_dispatches", e.target.dataset.id))); 
+            showToast("🗑️ 車趟已刪除！"); 
+        }
+    }
+
+    // 處理站長核准異常報到
+    if (e.target.classList.contains('btn-approve-override')) {
+        if(confirm("確定核准這位駕駛的異常報到申請嗎？\n系統將記錄為「站長人工覆核」。")) {
+            try {
+                await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), {
+                    status: 'checked_in',
+                    check_in_time: serverTimestamp(),
+                    check_in_method: "站長人工覆核"
+                });
+                showToast("✅ 已成功核准異常報到！");
+            } catch (err) {
+                alert("核准失敗，請檢查網路。");
+            }
+        }
+    }
+});
+
+// ==========================================
+// 3. 重置控制台表單輔助函式
+// ==========================================
+function resetEditForm() {
+    editingTripId = null;
+    document.getElementById('inputTime').value = '';
+    document.getElementById('inputEndTime').value = '';
+    document.getElementById('inputRoute').value = '';
+    document.getElementById('inputTrips').value = 1;
+    document.getElementById('inputStart').value = '';
+    document.getElementById('inputEnd').value = '';
+
+    const addBtn = document.getElementById('addTripBtn');
+    addBtn.innerText = "＋ 新增車趟";
+    addBtn.className = "bg-blue-600 text-white px-5 rounded-lg font-bold hover:bg-blue-700 transition shadow-sm h-[46px]";
+    
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    if (cancelBtn) cancelBtn.classList.add('hidden');
+}
+
+// 綁定取消按鈕事件
+const cancelBtn = document.getElementById('cancelEditBtn');
+if (cancelBtn) cancelBtn.onclick = resetEditForm;
+
+// ==========================================
+// 4. 更新新增 / 儲存按鈕處理邏輯
+// ==========================================
+document.getElementById('addTripBtn').onclick = async () => {
+    const departure_time = document.getElementById('inputTime').value;
+    const route = document.getElementById('inputRoute').value;
+    
+    if(!departure_time || !route) return alert("發車時間與路線為必填！");
+
+    const payload = {
+        date: globalDateInput.value,
+        departure_time: departure_time,
+        arrival_time: document.getElementById('inputEndTime').value,
+        route: route,
+        trip_count: document.getElementById('inputTrips').value || 1,
+        start_point: document.getElementById('inputStart').value,
+        end_point: document.getElementById('inputEnd').value
+    };
+
+    try {
+        if (editingTripId) {
+            // ✏️ 模式：更新現有車趟
+            await updateDoc(doc(db, "daily_dispatches", editingTripId), payload);
+            showToast("✅ 車趟內容已成功修改！");
+        } else {
+            // ＋ 模式：建立新車趟
+            await addDoc(dispatchesCol, {
+                ...payload,
+                assigned_driver: "尚未指派",
+                assigned_empid: "",
+                assigned_vehicle: "尚未指派",
+                status: "pending"
+            });
+            showToast("✅ 車趟已新增！");
+        }
+        resetEditForm();
+    } catch (err) {
+        console.error("儲存失敗:", err);
+        alert("儲存變更失敗，請檢查網路連線。");
+    }
+};
 
   const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
   const timeToMins = (t) => { if(!t) return 0; let [h, m] = t.split(':').map(Number); return h * 60 + m; };
