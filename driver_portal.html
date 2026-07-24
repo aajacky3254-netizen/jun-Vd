@@ -5,25 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>豐東客運 - 駕駛員專屬入口網</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
         .app-header { background: linear-gradient(135deg, #1e293b, #334155); color: white; padding: 16px 20px; position: sticky; top: 0; z-index: 50; box-shadow: 0 4px 10px rgba(0,0,0,0.15); display: flex; justify-content: space-between; align-items: center; }
         .trip-card { background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; overflow: hidden; border: 1px solid #e5e7eb; }
         .trip-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background-color: #cbd5e1; transition: background-color 0.3s; }
         .status-pending::before { background-color: #f59e0b; }
-        .status-checked::before { background-color: #10b981; }
-        .status-completed::before { background-color: #64748b; }
+        .status-completed::before { background-color: #10b981; }
         
         .modal-overlay { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); position: fixed; inset: 0; z-index: 100; display: none; justify-content: center; align-items: flex-end; }
-        .modal-content { background: white; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 24px; animation: slideUp 0.3s ease-out; }
+        .modal-content { background: white; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 24px; animation: slideUp 0.3s ease-out; max-height: 90vh; overflow-y: auto;}
         
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        
-        .e-voucher { background: #fffbe8; border: 2px dashed #fbbf24; border-radius: 12px; padding: 20px; position: relative; }
-        .e-voucher::before, .e-voucher::after { content: ''; position: absolute; width: 20px; height: 20px; background: white; border-radius: 50%; top: 50%; transform: translateY(-50%); }
-        .e-voucher::before { left: -10px; border-right: 2px dashed #fbbf24; }
-        .e-voucher::after { right: -10px; border-left: 2px dashed #fbbf24; }
     </style>
 </head>
 <body class="pb-24">
@@ -35,166 +28,167 @@
         </div>
         <button id="btnLogout" class="bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg text-sm font-bold backdrop-blur-sm transition">登出</button>
     </header>
+
 <main class="p-4 max-w-md mx-auto">
-    <!-- 新增：即時公告跑馬燈 -->
+    <!-- 跑馬燈 -->
     <div id="announcement-bar" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl shadow-sm text-sm font-bold items-center gap-2">
         <span class="text-xl animate-bounce">📢</span>
         <marquee scrollamount="4" id="announcement-text" class="flex-grow tracking-wide">目前無最新公告</marquee>
     </div>
     
-    <!-- ... (保留原本的選擇日期與統計區塊) ... -->
-        <div class="flex justify-between items-center mb-5 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
-            <span class="font-bold text-gray-700">📅 選擇日期</span>
-            <input type="date" id="selectDate" class="border-none outline-none font-bold text-blue-600 bg-transparent text-right">
-        </div>
+    <!-- 📅 選擇日期 -->
+    <div class="flex justify-between items-center mb-4 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
+        <span class="font-bold text-gray-700">📅 選擇日期</span>
+        <input type="date" id="selectDate" class="border-none outline-none font-bold text-blue-600 bg-transparent text-right">
+    </div>
 
-        <div class="grid grid-cols-3 gap-3 mb-6">
-            <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-                <div class="text-xl font-black text-blue-700" id="count-total">0</div>
-                <div class="text-[10px] font-bold text-blue-500 mt-1">今日總趟數</div>
-            </div>
-            <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
-                <div class="text-xl font-black text-orange-600" id="count-pending">0</div>
-                <div class="text-[10px] font-bold text-orange-500 mt-1">待報到</div>
-            </div>
-            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                <div class="text-xl font-black text-emerald-600" id="count-checked">0</div>
-                <div class="text-[10px] font-bold text-emerald-500 mt-1">已報到</div>
-            </div>
-        </div>
+    <!-- 🌅 晨間報到區塊 (每日一次) -->
+    <div id="morning-checkin-section" class="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <div class="text-gray-400 font-bold animate-pulse py-2">檢查今日報到狀態中...</div>
+    </div>
 
-        <h2 class="text-lg font-black text-gray-800 mb-3 flex items-center gap-2">🚌 我的派車清單</h2>
-        <div id="trip-list" class="space-y-4">
-            <div class="text-center py-10 text-gray-400 font-bold animate-pulse">連線中，請稍候...</div>
+    <!-- 統計區塊 -->
+    <div class="grid grid-cols-3 gap-3 mb-6">
+        <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+            <div class="text-xl font-black text-blue-700" id="count-total">0</div>
+            <div class="text-[10px] font-bold text-blue-500 mt-1">今日總趟數</div>
         </div>
-    </main>
+        <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
+            <div class="text-xl font-black text-orange-600" id="count-pending">0</div>
+            <div class="text-[10px] font-bold text-orange-500 mt-1">待發車</div>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+            <div class="text-xl font-black text-emerald-600" id="count-completed">0</div>
+            <div class="text-[10px] font-bold text-emerald-500 mt-1">已填寫憑單</div>
+        </div>
+    </div>
 
-    <div id="punchModal" class="modal-overlay">
+    <h2 class="text-lg font-black text-gray-800 mb-3 flex items-center gap-2">🚌 我的車趟憑單</h2>
+    <div id="trip-list" class="space-y-4">
+        <div class="text-center py-10 text-gray-400 font-bold animate-pulse">連線中，請稍候...</div>
+    </div>
+</main>
+
+    <!-- Modal 1: 晨間統一報到 -->
+    <div id="morningModal" class="modal-overlay">
         <div class="modal-content pb-10">
             <div class="flex justify-between items-center mb-5">
-                <h3 class="text-2xl font-black text-gray-800">📋 線上報到與酒測</h3>
-                <button id="btnCloseModal" class="text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
+                <h3 class="text-2xl font-black text-gray-800">🌅 晨間出勤報到</h3>
+                <button id="btnCloseMorning" class="text-gray-400 hover:text-gray-600 font-bold text-2xl">&times;</button>
             </div>
-            
-            <div class="space-y-4 mb-4">
-    <!-- 原有：酒測與健康聲明 -->
-    <label class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer">
-        <input type="checkbox" id="chkAlcohol" class="w-5 h-5 text-emerald-600 rounded">
-        <span class="font-bold text-gray-700">我已完成酒測，數值為 0.00 mg/L</span>
-    </label>
-    <label class="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer">
-        <input type="checkbox" id="chkHealth" class="w-5 h-5 text-emerald-600 rounded">
-        <span class="font-bold text-gray-700">我今日精神狀況良好，適宜駕駛</span>
-    </label>
-    
-    <!-- 新增：行車前數位檢查表 -->
-    <div class="border-t border-gray-200 pt-4">
-        <h4 class="text-sm font-black text-gray-800 mb-2">📋 數位行車前檢查 (請全數勾選)</h4>
-        <div class="grid grid-cols-2 gap-2 text-sm">
-            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">胎壓與胎紋正常</label>
-            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">煞車系統作動正常</label>
-            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">車內外燈光正常</label>
-            <label class="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-100"><input type="checkbox" class="chk-inspect w-4 h-4 text-blue-600">車門防夾作動正常</label>
-        </div>
-    </div>
-</div>
-            <div id="qr-reader" class="w-full bg-black rounded-lg overflow-hidden mb-4 hidden"></div>
-            
-            <button id="btnStartScan" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl mb-3 shadow-lg flex items-center justify-center gap-2">
-                📷 掃描車輛 QR Code
-            </button>
-            
-            <div class="flex items-center gap-2 my-4">
-                <hr class="flex-grow border-gray-300">
-                <span class="text-xs text-gray-400 font-bold">或 (無QR Code時)</span>
-                <hr class="flex-grow border-gray-300">
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">酒測值 (mg/L)</label>
+                    <input type="number" id="inpAlcohol" value="0.00" step="0.01" class="w-full border-2 border-gray-300 rounded-lg p-3 font-black text-xl text-emerald-600 bg-gray-50 outline-none focus:border-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">體溫 (°C)</label>
+                        <input type="number" id="inpTemp" value="36.5" step="0.1" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">血壓 (收縮/舒張)</label>
+                        <input type="text" id="inpBP" placeholder="例: 120/80" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                    </div>
+                </div>
             </div>
-            <div class="mb-4">
-                <button id="btnRequestOverride" class="w-full bg-orange-100 text-orange-700 border-2 border-orange-300 hover:bg-orange-200 font-bold py-3 rounded-lg shadow-sm transition">
-                    ⚠️ QR Code 無法掃描，申請站長人工覆核
-                </button>
-            </div>
-            
-            <button id="btnSubmitPunch" class="w-full bg-emerald-500 text-white font-black py-4 rounded-xl shadow-lg opacity-50 cursor-not-allowed" disabled>
-                確認報到並領取電子憑單 (需先掃描)
+            <button id="btnSubmitMorning" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg hover:bg-blue-700 transition">
+                確認回報
             </button>
         </div>
     </div>
 
+    <!-- Modal 2: 單趟到達憑單填寫 -->
     <div id="voucherModal" class="modal-overlay">
-        <div class="modal-content pb-10 flex flex-col items-center">
-            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mb-3">✅</div>
-            <h3 class="text-xl font-black text-gray-800 mb-6">報到成功</h3>
-            
-            <div class="e-voucher w-full" id="voucherContent">
+        <div class="modal-content pb-10">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-black text-gray-800">📝 填寫到達憑單</h3>
+                <button id="btnCloseVoucher" class="text-gray-400 hover:text-gray-600 font-bold text-2xl">&times;</button>
             </div>
             
-            <button id="btnCloseVoucher" class="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg">
-                關閉並開始執勤
+            <!-- 🚨 客運業安全宣導 -->
+            <div class="bg-red-50 border-2 border-red-500 rounded-xl p-4 mb-5 shadow-sm">
+                <h4 class="text-red-600 font-black text-lg text-center mb-3 tracking-wide">【路口轉彎停看行，禮讓行人優先行】</h4>
+                <ol class="list-decimal list-inside text-[13px] text-gray-800 font-bold space-y-1.5 mb-4 leading-relaxed">
+                    <li>不急、不趕、路口減速暫停、安全再轉</li>
+                    <li>遠離機車，遠離危險</li>
+                    <li>行車中嚴禁看手機及平板</li>
+                    <li>開關車門時務必廣播提醒乘客才可起步</li>
+                    <li>每單發車前車機要手動設定往返定位後再出發</li>
+                    <li>候車亭服務燈亮起一定要暫停確認</li>
+                </ol>
+                <h4 class="text-blue-700 font-black text-lg text-center tracking-wide">【離開駕駛座拉好手煞車】</h4>
+            </div>
+
+            <!-- 憑單回報表單 -->
+            <div class="space-y-4 mb-6">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">實際到達時間</label>
+                        <input type="time" id="inpArrivalTime" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">總搭車人數</label>
+                        <input type="number" id="inpPassenger" placeholder="0" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">到達剩餘電量 % <span class="text-xs text-gray-400 font-normal">(電車必填)</span></label>
+                    <input type="number" id="inpBattery" placeholder="例: 85" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">備註 <span class="text-xs text-gray-400 font-normal">(選填，如路況、塞車)</span></label>
+                    <textarea id="inpRemarks" rows="2" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500"></textarea>
+                </div>
+            </div>
+            
+            <button id="btnSubmitVoucher" class="w-full bg-emerald-500 text-white font-black py-4 rounded-xl shadow-lg hover:bg-emerald-600 transition">
+                確認送出憑單
             </button>
         </div>
     </div>
 
-   <script type="module">
+<script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, updateDoc, where, getDocs, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { collection, query, onSnapshot, doc, updateDoc, setDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
 
     let currentUser = null;
     let driverEmpId = ""; 
     let currentTrips = [];
     let selectedTripId = null;
-    let html5QrcodeScanner = null;
-    
-    let isQrScanned = false; 
-    const PIN_HASH = "cf79d123d46777bd3685fba3993bf2e148e6c4664e106dbddcfa63a921d74ea4"; 
-    
-    async function hashInput(text) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(text);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-// 在 `<script type="module">` 內合適位置加入
-const announcementsCol = collection(db, "announcements");
-const qAnnouncements = query(announcementsCol, where("status", "==", "active")); // 只抓取啟用的公告
+    let previousTripsMap = new Map(); 
+    let isFirstLoad = true; 
 
-onSnapshot(qAnnouncements, (snapshot) => {
-    const bar = document.getElementById('announcement-bar');
-    const text = document.getElementById('announcement-text');
-    
-    if (snapshot.empty) {
-        // Hide the bar and remove flex layout
-        bar.classList.add('hidden');
-        bar.classList.remove('flex');
-    } else {
-        // Combine multiple announcements
-        let allMsgs = snapshot.docs.map(doc => `【${doc.data().title}】${doc.data().content}`).join(" ｜ ");
-        text.innerText = allMsgs;
-        
-        // Remove hidden and apply flex layout
-        bar.classList.remove('hidden');
-        bar.classList.add('flex');
-    }
-});
+    // 公告推播
+    const announcementsCol = collection(db, "announcements");
+    onSnapshot(query(announcementsCol, where("status", "==", "active")), (snapshot) => {
+        const bar = document.getElementById('announcement-bar');
+        const text = document.getElementById('announcement-text');
+        if (snapshot.empty) {
+            bar.classList.add('hidden');
+            bar.classList.remove('flex');
+        } else {
+            text.innerText = snapshot.docs.map(doc => `【${doc.data().title}】${doc.data().content}`).join(" ｜ ");
+            bar.classList.remove('hidden');
+            bar.classList.add('flex');
+        }
+    });
+
     const dateInput = document.getElementById('selectDate');
     const tripList = document.getElementById('trip-list');
-    
     dateInput.value = new Date().toISOString().split('T')[0];
 
-    // 🚀 新增：請求瀏覽器通知權限
     function requestNotificationPermission() {
-        if (!("Notification" in window)) {
-            console.log("此瀏覽器不支援桌面通知");
-            return;
-        }
+        if (!("Notification" in window)) return;
         if (Notification.permission === "default") {
-            Notification.requestPermission().then(permission => {
-                if (permission === "granted") {
-                    console.log("✅ 駕駛已允許通知推播！");
-                }
-            });
+            Notification.requestPermission();
+        }
+    }
+
+    function sendNotification(title, body) {
+        if (Notification.permission === "granted") {
+            new Notification(title, { body: body, icon: "https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png", vibrate: [200, 100, 200] });
         }
     }
 
@@ -204,28 +198,92 @@ onSnapshot(qAnnouncements, (snapshot) => {
         document.getElementById('driver-greeting').innerText = `👨‍✈️ 駕駛長：${driverName}`;
         driverEmpId = user.empId;
         
-        // 請求通知權限
         requestNotificationPermission();
         
+        loadMorningCheckin(dateInput.value, driverEmpId);
         loadMyTrips(dateInput.value, driverEmpId);
     }).catch(err => {
         document.body.innerHTML = `<div class="p-10 text-center"><h2 class="text-red-500 font-bold mb-4">請先完成登入</h2><a href="login.html" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold">前往登入</a></div>`;
     });
 
     document.getElementById('btnLogout').addEventListener('click', () => { logout(); });
-    dateInput.addEventListener('change', (e) => { loadMyTrips(e.target.value, driverEmpId); });
+    
+    dateInput.addEventListener('change', (e) => { 
+        loadMorningCheckin(e.target.value, driverEmpId);
+        loadMyTrips(e.target.value, driverEmpId); 
+    });
 
-    let previousTripsMap = new Map(); // 🚀 新增：用來記錄上一次的車趟狀態
-    let isFirstLoad = true; // 🚀 新增：防止第一次載入網頁時狂跳通知
+    // ====== 🌅 晨間報到邏輯 ======
+    function loadMorningCheckin(dateStr, empId) {
+        const checkinId = `${dateStr}_${empId}`;
+        const checkinRef = doc(db, "daily_checkins", checkinId);
+        
+        onSnapshot(checkinRef, (docSnap) => {
+            const section = document.getElementById('morning-checkin-section');
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                section.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xl">✅</div>
+                            <div class="text-left">
+                                <div class="font-black text-gray-800 text-lg">今日已完成晨間報到</div>
+                                <div class="text-xs font-bold text-gray-500">酒測 ${data.alcohol} ｜ 體溫 ${data.temp}°C ｜ 血壓 ${data.blood_pressure}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                section.innerHTML = `
+                    <button id="btnOpenMorning" class="w-full bg-orange-100 hover:bg-orange-200 border-2 border-orange-400 text-orange-700 font-black py-4 rounded-xl shadow-sm transition flex justify-center items-center gap-2 text-lg">
+                        🌅 進行今日晨間報到 (測量輸入)
+                    </button>
+                `;
+                document.getElementById('btnOpenMorning').addEventListener('click', () => {
+                    document.getElementById('morningModal').style.display = 'flex';
+                });
+            }
+        });
+    }
 
+    document.getElementById('btnCloseMorning').addEventListener('click', () => { document.getElementById('morningModal').style.display = 'none'; });
+    
+    document.getElementById('btnSubmitMorning').addEventListener('click', async () => {
+        const btn = document.getElementById('btnSubmitMorning');
+        btn.innerText = "⏳ 傳送中...";
+        btn.disabled = true;
+
+        const dateStr = dateInput.value;
+        const checkinId = `${dateStr}_${driverEmpId}`;
+        const data = {
+            date: dateStr,
+            empId: driverEmpId,
+            name: currentUser.name,
+            alcohol: document.getElementById('inpAlcohol').value,
+            temp: document.getElementById('inpTemp').value,
+            blood_pressure: document.getElementById('inpBP').value || '未填寫',
+            timestamp: serverTimestamp()
+        };
+
+        try {
+            await setDoc(doc(db, "daily_checkins", checkinId), data);
+            document.getElementById('morningModal').style.display = 'none';
+        } catch (err) {
+            alert('報到失敗，請檢查網路。');
+        } finally {
+            btn.innerText = "確認回報";
+            btn.disabled = false;
+        }
+    });
+
+    // ====== 🚌 車趟與到達憑單邏輯 ======
     function loadMyTrips(dateStr, empId) {
         const q = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
         
         onSnapshot(q, (snapshot) => {
             currentTrips = [];
             let pendingCount = 0;
-            let checkedCount = 0;
-            
+            let completedCount = 0;
             let newTripsMap = new Map();
 
             snapshot.forEach(docSnap => {
@@ -235,49 +293,29 @@ onSnapshot(qAnnouncements, (snapshot) => {
                     currentTrips.push(tripData);
                     newTripsMap.set(tripData.id, tripData);
 
-                    if (data.status === 'checked_in') checkedCount++;
+                    // status: 'completed' 代表憑單已填寫
+                    if (data.status === 'completed' || data.status === 'checked_in') completedCount++;
                     else pendingCount++;
                 }
             });
 
-            // 🚀 推播通知邏輯 (比對新舊資料)
             if (!isFirstLoad && Notification.permission === "granted") {
                 newTripsMap.forEach((newTrip, tripId) => {
                     const oldTrip = previousTripsMap.get(tripId);
-                    
-                    // 狀況 A：這是一筆全新的派車 (調度員剛派給他)
-                    if (!oldTrip) {
-                        sendNotification("🚌 新車趟指派！", `調度台已派發 ${newTrip.departure_time} 的 ${newTrip.route} 路線給您，請留意報到時間。`);
-                    } 
-                    // 狀況 B：站長核准了異常報到
-                    else if (oldTrip.status === 'pending_override' && newTrip.status === 'checked_in') {
-                        sendNotification("✅ 報到已核准", `站長已核准您 ${newTrip.departure_time} 車趟的異常報到申請！`);
-                    }
+                    if (!oldTrip) sendNotification("🚌 新車趟指派！", `調度台已派發 ${newTrip.departure_time} 的 ${newTrip.route} 給您。`);
                 });
             }
 
-            // 更新快取與旗標
             previousTripsMap = newTripsMap;
             isFirstLoad = false;
-
             currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
 
             document.getElementById('count-total').innerText = currentTrips.length;
             document.getElementById('count-pending').innerText = pendingCount;
-            document.getElementById('count-checked').innerText = checkedCount;
+            document.getElementById('count-completed').innerText = completedCount;
 
             renderTripCards();
         });
-    }
-
-    // 🚀 新增：發送通知的共用函式
-    function sendNotification(title, body) {
-        const options = {
-            body: body,
-            icon: "https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png",
-            vibrate: [200, 100, 200] // 手機震動模式
-        };
-        new Notification(title, options);
     }
 
     function renderTripCards() {
@@ -287,22 +325,16 @@ onSnapshot(qAnnouncements, (snapshot) => {
         }
 
         tripList.innerHTML = currentTrips.map(trip => {
-            const isCheckedIn = trip.status === 'checked_in';
-            const isPendingOverride = trip.status === 'pending_override';
+            const isCompleted = trip.status === 'completed' || trip.status === 'checked_in';
             
-            let statusClass = 'status-pending';
-            let statusText = '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待報到</span>';
-            let btnHtml = `<button class="btn-punch-in w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📱 進行報到 / 酒測</button>`;
-
-            if (isCheckedIn) {
-                statusClass = 'status-checked';
-                statusText = '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 已報到</span>';
-                btnHtml = `<button class="btn-view-voucher w-full mt-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-lg text-sm transition" data-id="${trip.id}">📜 查看電子憑單</button>`;
-            } else if (isPendingOverride) {
-                statusClass = 'status-pending border-orange-400';
-                statusText = '<span class="text-orange-500 bg-orange-50 px-2 py-1 rounded font-bold text-xs animate-pulse">⚠️ 等待站長覆核中...</span>';
-                btnHtml = `<button class="w-full mt-3 bg-gray-200 text-gray-500 font-bold py-2.5 rounded-lg text-sm cursor-not-allowed" disabled>請請站長於調度台核准</button>`;
-            }
+            let statusClass = isCompleted ? 'status-completed' : 'status-pending';
+            let statusText = isCompleted 
+                ? '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 憑單已繳</span>'
+                : '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待發車/行駛中</span>';
+            
+            let btnHtml = isCompleted 
+                ? `<button class="w-full mt-3 bg-gray-100 text-gray-500 font-bold py-2.5 rounded-lg text-sm cursor-not-allowed" disabled>已完成回報</button>`
+                : `<button class="btn-fill-voucher w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📝 抵達並填寫憑單</button>`;
 
             return `
             <div class="trip-card ${statusClass}">
@@ -321,263 +353,51 @@ onSnapshot(qAnnouncements, (snapshot) => {
             `;
         }).join('');
 
-        document.querySelectorAll('.btn-punch-in').forEach(btn => {
-            btn.addEventListener('click', (e) => openPunchModal(e.target.dataset.id));
-        });
-        document.querySelectorAll('.btn-view-voucher').forEach(btn => {
-            btn.addEventListener('click', (e) => openVoucherModal(e.target.dataset.id));
-        });
-    }
-
-    const punchModal = document.getElementById('punchModal');
-    const chkAlcohol = document.getElementById('chkAlcohol');
-    const chkHealth = document.getElementById('chkHealth');
-    const btnSubmitPunch = document.getElementById('btnSubmitPunch');
-    const btnStartScan = document.getElementById('btnStartScan');
-
-    // 取得所有檢查表 checkbox
-const inspectCheckboxes = document.querySelectorAll('.chk-inspect');
-
-function checkConditions() {
-    // 檢查酒測、健康，以及所有數位檢查表是否都已打勾
-    const isInspectAllChecked = Array.from(inspectCheckboxes).every(chk => chk.checked);
-    
-    if (chkAlcohol.checked && chkHealth.checked && isInspectAllChecked) {
-        btnSubmitPunch.disabled = false;
-        btnSubmitPunch.classList.remove('opacity-50', 'cursor-not-allowed');
-        btnSubmitPunch.classList.add('hover:bg-emerald-600');
-    } else {
-        btnSubmitPunch.disabled = true;
-        btnSubmitPunch.classList.add('opacity-50', 'cursor-not-allowed');
-        btnSubmitPunch.classList.remove('hover:bg-emerald-600');
-    }
-}
-
-// 為所有檢查項目綁定監聽事件
-chkAlcohol.addEventListener('change', checkConditions);
-chkHealth.addEventListener('change', checkConditions);
-inspectCheckboxes.forEach(chk => chk.addEventListener('change', checkConditions));
-
-btnSubmitPunch.addEventListener('click', async () => {
-    if (!selectedTripId) return;
-    
-    btnSubmitPunch.innerText = "⏳ 正在處理定位與驗證...";
-    btnSubmitPunch.disabled = true;
-
-    // 1. 先進行 GPS 定位抓取
-    let gpsLocation = "未授權或無法取得定位";
-    if (navigator.geolocation) {
-        try {
-            const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+        document.querySelectorAll('.btn-fill-voucher').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                selectedTripId = e.target.dataset.id;
+                // 自動帶入現在時間
+                const now = new Date();
+                document.getElementById('inpArrivalTime').value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                document.getElementById('inpPassenger').value = '';
+                document.getElementById('inpBattery').value = '';
+                document.getElementById('inpRemarks').value = '';
+                document.getElementById('voucherModal').style.display = 'flex';
             });
-            gpsLocation = `${position.coords.latitude}, ${position.coords.longitude}`;
-        } catch (error) {
-            console.warn("GPS 獲取失敗", error);
-            // 若設定 GPS 失敗仍可繼續後續流程，則保留此 catch 區塊即可
-        }
-    }
-
-    // 2. 進行 QR Code 或站長覆核碼是否正確的驗證
-    const pinInputEl = document.getElementById('overridePin');
-    const pinInput = pinInputEl ? pinInputEl.value : "";
-    let isVerified = false;
-    let checkInMethod = "";
-
-    if (isQrScanned) {
-        isVerified = true;
-        checkInMethod = "QR Code 掃描";
-    } else if (pinInput !== "") {
-        const inputHashed = await hashInput(pinInput);
-        if (inputHashed === PIN_HASH) { 
-            isVerified = true;
-            checkInMethod = "站長覆核碼";
-        }
-    }
-
-    // 驗證失敗的防呆阻擋
-    if (!isVerified) {
-        alert("❌ 無法報到！請確實「掃描車輛 QR Code」。若 QR Code 損毀，請點擊下方申請站長人工覆核。");
-        btnSubmitPunch.innerText = "確認報到並領取電子憑單";
-        btnSubmitPunch.disabled = false;
-        return;
-    }
-    
-    // 3. 所有驗證通過，寫入資料庫
-    try {
-        await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-            status: 'checked_in',
-            check_in_time: serverTimestamp(), 
-            check_in_method: checkInMethod,
-            gps_location: gpsLocation // 寫入剛才抓取的 GPS 座標
         });
-        
-        punchModal.style.display = 'none';
-        openVoucherModal(selectedTripId);
-    } catch (err) {
-        alert('報到連線失敗，請檢查網路。');
-    } finally {
-        btnSubmitPunch.innerText = "確認報到並領取電子憑單";
-        btnSubmitPunch.disabled = false;
-    }
-});
-       
-    document.getElementById('btnRequestOverride').addEventListener('click', async () => {
-        if (!selectedTripId || !chkAlcohol.checked || !chkHealth.checked) {
-            alert("請先勾選確認酒測與健康聲明！");
-            return;
-        }
-        if (confirm("確定要向調度台發送「人工覆核報到」申請嗎？")) {
-            const btn = document.getElementById('btnRequestOverride');
-            btn.innerText = "⏳ 申請發送中...";
-            btn.disabled = true;
-            try {
-                await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                    status: 'pending_override', 
-                });
-                punchModal.style.display = 'none';
-                alert("申請已送出！請告知調度員或站長於系統上核准。");
-            } catch (err) {
-                alert('申請失敗，請檢查網路連線。');
-            } finally {
-                btn.innerText = "⚠️ QR Code 無法掃描，申請站長人工覆核";
-                btn.disabled = false;
-            }
-        }
-    });
-
-    chkAlcohol.addEventListener('change', checkConditions);
-    chkHealth.addEventListener('change', checkConditions);
-
-    function openPunchModal(tripId) {
-        selectedTripId = tripId;
-        chkAlcohol.checked = false;
-        chkHealth.checked = false;
-        
-        isQrScanned = false;
-        const pinInput = document.getElementById('overridePin');
-        if(pinInput) pinInput.value = '';
-        btnStartScan.innerHTML = "📷 掃描車輛 QR Code";
-        btnStartScan.classList.replace('bg-emerald-600', 'bg-slate-800');
-        
-        checkConditions();
-        document.getElementById('qr-reader').classList.add('hidden');
-        btnStartScan.style.display = 'flex';
-        punchModal.style.display = 'flex';
     }
 
-    document.getElementById('btnCloseModal').addEventListener('click', () => {
-        punchModal.style.display = 'none';
-        if(html5QrcodeScanner) {
-            html5QrcodeScanner.clear().catch(e => console.error("相機釋放失敗", e));
-            html5QrcodeScanner = null;
-        }
-    });
+    document.getElementById('btnCloseVoucher').addEventListener('click', () => { document.getElementById('voucherModal').style.display = 'none'; });
 
-    btnStartScan.addEventListener('click', () => {
-        btnStartScan.style.display = 'none';
-        document.getElementById('qr-reader').classList.remove('hidden');
-        
-        // 修正：已修正建構子名稱為正確的 Html5QrcodeScanner
-        html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: {width: 250, height: 250} });
-        html5QrcodeScanner.render((decodedText) => {
-            html5QrcodeScanner.clear().catch(e => console.error(e));
-            html5QrcodeScanner = null;
-            document.getElementById('qr-reader').classList.add('hidden');
-            
-            alert(`✅ 掃描成功：已確認車輛 ${decodedText}`);
-            isQrScanned = true; 
-            
-            btnStartScan.style.display = 'flex';
-            btnStartScan.innerHTML = `✅ 已確認 (${decodedText})`;
-            btnStartScan.classList.replace('bg-slate-800', 'bg-emerald-600');
-            
-            chkAlcohol.checked = true;
-            chkHealth.checked = true;
-            checkConditions();
-        }, (err) => {});
-    });
-
-    // 修正：已移除重複綁定的事件，整合為單一監聽器處理 QR Code 與覆核密碼
-    btnSubmitPunch.addEventListener('click', async () => {
+    document.getElementById('btnSubmitVoucher').addEventListener('click', async () => {
         if (!selectedTripId) return;
         
-        const pinInputEl = document.getElementById('overridePin');
-        const pinInput = pinInputEl ? pinInputEl.value : "";
-        let isVerified = false;
-        let checkInMethod = "";
-    
-        if (isQrScanned) {
-            isVerified = true;
-            checkInMethod = "QR Code 掃描";
-        } else if (pinInput !== "") {
-            const inputHashed = await hashInput(pinInput);
-            if (inputHashed === PIN_HASH) { 
-                isVerified = true;
-                checkInMethod = "站長覆核碼";
-            }
-        }
-    
-        if (!isVerified) {
-            alert("❌ 無法報到！請確實「掃描車輛 QR Code」。若 QR Code 損毀，請點擊下方申請站長人工覆核。");
-            return;
-        }
-        
-        btnSubmitPunch.innerText = "⏳ 正在處理簽到...";
-        btnSubmitPunch.disabled = true;
+        const arrivalTime = document.getElementById('inpArrivalTime').value;
+        if(!arrivalTime) return alert("請填寫實際到達時間！");
+
+        const btn = document.getElementById('btnSubmitVoucher');
+        btn.innerText = "⏳ 送出憑單中...";
+        btn.disabled = true;
 
         try {
             await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                status: 'checked_in',
-                check_in_time: serverTimestamp(), 
-                check_in_method: checkInMethod 
+                status: 'completed', // 更新為 completed
+                arrival_time: arrivalTime,
+                passenger_count: document.getElementById('inpPassenger').value || 0,
+                battery_level: document.getElementById('inpBattery').value || '',
+                remarks: document.getElementById('inpRemarks').value || '',
+                check_in_time: serverTimestamp() // 記錄完成時間
             });
             
-            punchModal.style.display = 'none';
-            openVoucherModal(selectedTripId);
+            document.getElementById('voucherModal').style.display = 'none';
         } catch (err) {
-            alert('報到連線失敗，請檢查網路。');
+            alert('憑單送出失敗，請檢查網路。');
         } finally {
-            btnSubmitPunch.innerText = "確認報到並領取電子憑單";
-            btnSubmitPunch.disabled = false;
+            btn.innerText = "確認送出憑單";
+            btn.disabled = false;
         }
     });
 
-    const voucherModal = document.getElementById('voucherModal');
-    
-    function openVoucherModal(tripId) {
-        const trip = currentTrips.find(t => t.id === tripId);
-        if(!trip) return;
-
-        let displayTime = "系統已紀錄";
-        if (trip.check_in_time) {
-            if (typeof trip.check_in_time.toDate === 'function') {
-                const d = trip.check_in_time.toDate();
-                displayTime = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
-            } else {
-                displayTime = trip.check_in_time; 
-            }
-        }
-
-        document.getElementById('voucherContent').innerHTML = `
-            <div class="text-center mb-4">
-                <div class="text-sm text-gray-500 font-bold mb-1">電子派車憑單 E-Voucher</div>
-                <div class="text-2xl font-black text-gray-800">${trip.route}</div>
-            </div>
-            <div class="space-y-2 text-sm font-bold text-gray-700">
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>駕駛長</span><span class="text-blue-700">${trip.assigned_driver}</span></div>
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>發車時間</span><span class="text-xl text-red-600 font-black">${trip.departure_time}</span></div>
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>使用車號</span><span class="text-gray-900">${trip.assigned_vehicle}</span></div>
-                <div class="flex justify-between border-b border-yellow-200 pb-2"><span>起訖點</span><span class="text-right">${trip.start_point}<br>➔ ${trip.end_point}</span></div>
-                <div class="flex justify-between pt-1"><span>報到時間</span><span class="text-emerald-600">${displayTime}</span></div>
-            </div>
-        `;
-        voucherModal.style.display = 'flex';
-    }
-
-    document.getElementById('btnCloseVoucher').addEventListener('click', () => {
-        voucherModal.style.display = 'none';
-    });
 </script>
 </body>
 </html>
