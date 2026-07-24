@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 綜合調度總覽 (完美修復版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <style>
     /* ========== 共用與導覽列樣式 ========== */
     body { font-family: "微軟正黑體", "Noto Sans TC", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; }
@@ -94,6 +95,7 @@
                 <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg font-bold transition shadow-sm h-[46px]">✨ 智慧調度</button>
                 <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-4 rounded-lg font-bold transition shadow-sm h-[46px]">🧹 清空</button>
                 <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-orange-700 h-[46px]">🖨️ 列印</button>
+                <button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-green-700 h-[46px]">📊 匯出</button>
             </div>
         </div>
 
@@ -765,6 +767,48 @@
           } else { 
               alert("目前無符合勞基法規範之駕駛/車輛可供調度。"); 
           }
+      });
+      // ====== 📊 發車紀錄匯出 Excel 邏輯 ======
+      document.getElementById('btnExportExcel').addEventListener('click', () => {
+          if (currentTrips.length === 0) {
+              alert("畫面上目前沒有車趟資料可以匯出！");
+              return;
+          }
+
+          // 1. 將目前的 currentTrips 資料整理成適合報表的中文格式
+          const exportData = currentTrips.map(trip => {
+              // 處理報到狀態文字
+              let statusText = '未報到/待處理';
+              if (trip.status === 'checked_in') statusText = '✅ 已報到';
+              if (trip.status === 'pending_override') statusText = '⚠️ 等待站長覆核';
+
+              return {
+                  "日期": trip.date || globalDateInput.value,
+                  "發車時間": trip.departure_time,
+                  "到達時間": trip.arrival_time || '未設定',
+                  "路線 (Tour)": trip.route,
+                  "趟數": trip.trip_count || 1,
+                  "起站": trip.start_point,
+                  "終站": trip.end_point,
+                  "駕駛編號": trip.assigned_empid || '無',
+                  "指派駕駛": trip.assigned_driver || '尚未指派',
+                  "指派車輛": trip.assigned_vehicle || '尚未指派',
+                  "報到狀態": statusText,
+                  "報到方式": trip.check_in_method || '無'
+              };
+          });
+
+          // 2. 建立 Excel 工作表與活頁簿
+          const worksheet = XLSX.utils.json_to_sheet(exportData);
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, "發車調度紀錄");
+
+          // 3. 設定匯出檔名 (自動帶入當前選擇的日期)
+          const targetDate = globalDateInput.value;
+          const fileName = `豐東客運_發車調度紀錄_${targetDate}.xlsx`;
+
+          // 4. 觸發下載
+          XLSX.writeFile(workbook, fileName);
       });
   }).catch(err => console.error(err));
 </script>
