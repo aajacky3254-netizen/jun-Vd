@@ -80,15 +80,21 @@
             <option value="all">所有狀態</option>
             <option value="待審核">待審核</option>
             <option value="已核准">已核准</option>
-          <!-- 將這段加入到 leaves.html 的操作按鈕區塊中 -->
-<button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition flex items-center gap-2 hidden">
-    📊 匯出 Excel
-</button>
         </select>
+
+        <!-- 📅 新增：日期區間篩選工具 (僅主管可見) -->
+        <input type="date" id="exportStartDate" class="border rounded p-2 text-sm hidden">
+        <span id="exportDateTo" class="text-sm font-bold text-gray-500 hidden">至</span>
+        <input type="date" id="exportEndDate" class="border rounded p-2 text-sm hidden">
+
+        <!-- 修正：將匯出按鈕移出 select 標籤之外 -->
+        <button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition flex items-center gap-2 hidden">
+            📊 匯出 Excel
+        </button>
 
         <button id="btnOpenLeaveForm" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition">＋ 填寫假單</button>
         <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
-      </div>
+        </div>
     </div>
 
     <!-- 表格區塊 -->
@@ -318,49 +324,97 @@
 
             bindButtonEvents();
         }
-      // ====== 📊 報表匯出邏輯 ======
-const btnExportExcel = document.getElementById('btnExportExcel');
+      // ====== 📊 進階報表匯出邏輯 (含日期篩選) ======
+        const btnExportExcel = document.getElementById('btnExportExcel');
+        const exportStartDate = document.getElementById('exportStartDate');
+        const exportEndDate = document.getElementById('exportEndDate');
+        const exportDateTo = document.getElementById('exportDateTo');
 
-// 只有主管權限才顯示匯出按鈕
-if (isManager) {
-    btnExportExcel.classList.remove('hidden');
-}
+        // 初始載入時：只有主管權限才顯示匯出與日期工具
+        if (isManager) {
+            btnExportExcel.classList.remove('hidden');
+            exportStartDate.classList.remove('hidden');
+            exportEndDate.classList.remove('hidden');
+            exportDateTo.classList.remove('hidden');
+        }
 
-btnExportExcel.addEventListener('click', () => {
-    if (allRequests.length === 0) {
-        alert("目前沒有資料可以匯出！");
-        return;
-    }
+        // 修正：當主管在「團隊」與「個人」視角間切換時，連同匯出工具一起隱藏/顯示
+        if (isManager) {
+            document.getElementById('viewToggle').addEventListener('change', (e) => {
+                currentView = e.target.value;
+                if (currentView === 'personal') {
+                    document.getElementById('filterStatus').classList.add('hidden');
+                    btnExportExcel.classList.add('hidden');
+                    exportStartDate.classList.add('hidden');
+                    exportEndDate.classList.add('hidden');
+                    exportDateTo.classList.add('hidden');
+                } else {
+                    document.getElementById('filterStatus').classList.remove('hidden');
+                    btnExportExcel.classList.remove('hidden');
+                    exportStartDate.classList.remove('hidden');
+                    exportEndDate.classList.remove('hidden');
+                    exportDateTo.classList.remove('hidden');
+                }
+                fetchData(); 
+            });
+        }
 
-    // 1. 整理要匯出的資料格式 (將 Firebase 欄位轉換為中文報表欄位)
-    const exportData = allRequests.map(req => {
-        return {
-            "申請狀態": req.status,
-            "員工編號": req.empId || '無',
-            "員工姓名": req.name,
-            "假別/申請類別": req.type,
-            "開始時間": formatDateTime(req.startTime),
-            "結束時間": formatDateTime(req.endTime),
-            "申請事由": req.reason || '無',
-            "建立時間": formatDateTime(req.createdAt),
-            "審核/處理人": req.reviewedBy || req.withdrawnBy || '無'
-        };
-    });
+        // 執行匯出
+        btnExportExcel.addEventListener('click', () => {
+            if (allRequests.length === 0) {
+                alert("目前沒有資料可以匯出！");
+                return;
+            }
 
-    // 2. 建立 Excel 工作表 (Worksheet)
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const startStr = exportStartDate.value;
+            const endStr = exportEndDate.value;
 
-    // 3. 建立 Excel 活頁簿 (Workbook) 並加入工作表
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "差假紀錄");
+            // 1. 根據選擇的日期過濾資料
+            let filteredRequests = allRequests;
+            if (startStr && endStr) {
+                const startTs = new Date(startStr).getTime();
+                // 確保結束時間涵蓋到當天深夜 23:59:59
+                const endTs = new Date(endStr + 'T23:59:59').getTime();
 
-    // 4. 設定匯出檔名 (加上當前日期)
-    const todayStr = new Date().toISOString().split('T')[0];
-    const fileName = `豐東客運_差假紀錄_${todayStr}.xlsx`;
+                filteredRequests = allRequests.filter(req => {
+                    // 以假單的「開始時間」作為過濾基準
+                    const reqTs = new Date(req.startTime).getTime(); 
+                    return reqTs >= startTs && reqTs <= endTs;
+                });
+            } else if (startStr || endStr) {
+                alert("請同時選擇「起始」與「結束」日期，或兩者皆留空以匯出全部紀錄。");
+                return;
+            }
 
-    // 5. 觸發下載
-    XLSX.writeFile(workbook, fileName);
-});
+            if (filteredRequests.length === 0) {
+                alert("所選的日期區間內沒有差假紀錄！");
+                return;
+            }
+
+            // 2. 整理匯出格式
+            const exportData = filteredRequests.map(req => {
+                return {
+                    "申請狀態": req.status,
+                    "員工編號": req.empId || '無',
+                    "員工姓名": req.name,
+                    "假別/申請類別": req.type,
+                    "開始時間": formatDateTime(req.startTime),
+                    "結束時間": formatDateTime(req.endTime),
+                    "申請事由": req.reason || '無',
+                    "建立時間": formatDateTime(req.createdAt),
+                    "審核/處理人": req.reviewedBy || req.withdrawnBy || '無'
+                };
+            });
+
+            // 3. 建立並下載 Excel
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "差假紀錄");
+            
+            // 動態產生檔名
+            const dateRangeStr = (startStr && endStr) ? `_${startStr}至${endStr}` : `_全部紀錄_${new Date().toISOString().split('T')[0]}`;
+            XLSX.writeFile(workbook, `豐東客運_差假報表${dateRangeStr}.xlsx`);
+        });
 
         // 綁定按鈕事件 (抽出為獨立函式確保不會重複綁定)
         function bindButtonEvents() {
