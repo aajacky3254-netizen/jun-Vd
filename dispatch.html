@@ -173,7 +173,20 @@
 
     // 🆕 在 script 開頭附近加入編輯狀態變數
 let editingTripId = null;
+  let currentAvailableDrivers = [];
+  let currentStandbyDrivers = []; 
+  let currentOffDrivers = [];     
+  let currentAvailableVehicles = [];
+  let currentTrips = []; 
+  let currentGanttView = 'driver';
+  let unsubscribeDispatch = null; 
 
+  const globalDateInput = document.getElementById('globalDate');
+  const dbStatusEl = document.getElementById('db-status');
+  const ganttBody = document.getElementById('ganttBody');
+  const colHeaderTitle = document.getElementById('colHeaderTitle');
+  const tbody = document.getElementById('dispatchBody');
+  const dispatchesCol = collection(db, "daily_dispatches");
 // ==========================================
 // 1. 修改 renderTable 中的操作按鈕 (actionBtns)
 // ==========================================
@@ -415,20 +428,7 @@ document.getElementById('addTripBtn').onclick = async () => {
       return `background-color: hsl(${hue}, 65%, 50%); border-color: hsl(${hue}, 70%, 40%);`;
   };
   
-  let currentAvailableDrivers = [];
-  let currentStandbyDrivers = []; 
-  let currentOffDrivers = [];     
-  let currentAvailableVehicles = [];
-  let currentTrips = []; 
-  let currentGanttView = 'driver';
-  let unsubscribeDispatch = null; 
 
-  const globalDateInput = document.getElementById('globalDate');
-  const dbStatusEl = document.getElementById('db-status');
-  const ganttBody = document.getElementById('ganttBody');
-  const colHeaderTitle = document.getElementById('colHeaderTitle');
-  const tbody = document.getElementById('dispatchBody');
-  const dispatchesCol = collection(db, "daily_dispatches");
 
   globalDateInput.value = new Date().toISOString().split('T')[0];
 
