@@ -140,9 +140,16 @@
                         <input type="number" id="inpPassenger" placeholder="0" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">到達剩餘電量 % <span class="text-xs text-gray-400 font-normal">(電車必填)</span></label>
-                    <input type="number" id="inpBattery" placeholder="例: 85" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                <!-- 🚀 新增：行駛公里數與剩餘電量並排 -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">行駛公里數 (km)</label>
+                        <input type="number" id="inpMileage" placeholder="例: 120.5" step="0.1" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">到達剩餘電量 % <span class="text-xs text-gray-400 font-normal">(電車)</span></label>
+                        <input type="number" id="inpBattery" placeholder="例: 85" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">備註 <span class="text-xs text-gray-400 font-normal">(選填，如路況、塞車)</span></label>
@@ -409,35 +416,44 @@
     });
 
     function renderTripCards() {
-        if (currentTrips.length === 0) {
-            tripList.innerHTML = `<div class="text-center py-10 text-gray-400 font-bold">今日無排定車趟，請好好休息 ☕</div>`;
-            return;
+    if (currentTrips.length === 0) {
+        tripList.innerHTML = `<div class="text-center py-10 text-gray-400 font-bold">今日無排定車趟，請好好休息 ☕</div>`;
+        return;
+    }
+
+    tripList.innerHTML = currentTrips.map(trip => {
+        const isCompleted = trip.status === 'completed' || trip.status === 'checked_in';
+        let statusClass = isCompleted ? 'status-completed' : 'status-pending';
+        let statusText = isCompleted 
+            ? '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 憑單已繳</span>'
+            : '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待發車/行駛中</span>';
+        
+        let btnHtml = isCompleted 
+            ? `<button class="w-full mt-3 bg-gray-100 text-gray-500 font-bold py-2.5 rounded-lg text-sm cursor-not-allowed" disabled>已完成回報</button>`
+            : `<button class="btn-fill-voucher w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📝 抵達並填寫憑單</button>`;
+
+        // 🚀 新增：判斷顯示時間。如果有實際到達時間就顯示實際的，並用綠色標註
+        let displayTime = trip.departure_time;
+        if (trip.actual_arrival_time) {
+            displayTime += ` <span class="text-emerald-500 text-lg">➔ ${trip.actual_arrival_time}</span>`;
+        } else if (trip.arrival_time) {
+            displayTime += ` <span class="text-gray-400 text-lg">➔ ${trip.arrival_time} (表定)</span>`;
         }
 
-        tripList.innerHTML = currentTrips.map(trip => {
-            const isCompleted = trip.status === 'completed' || trip.status === 'checked_in';
-            let statusClass = isCompleted ? 'status-completed' : 'status-pending';
-            let statusText = isCompleted 
-                ? '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 憑單已繳</span>'
-                : '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待發車/行駛中</span>';
-            let btnHtml = isCompleted 
-                ? `<button class="w-full mt-3 bg-gray-100 text-gray-500 font-bold py-2.5 rounded-lg text-sm cursor-not-allowed" disabled>已完成回報</button>`
-                : `<button class="btn-fill-voucher w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📝 抵達並填寫憑單</button>`;
-
-            return `
-            <div class="trip-card ${statusClass}">
-                <div class="flex justify-between items-start mb-2">
-                    <div class="text-2xl font-black text-gray-800">${trip.departure_time}</div>${statusText}
-                </div>
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-sm">${trip.route}</span>
-                    <span class="text-gray-500 font-bold text-sm">| ${trip.trip_count || 1} 趟</span>
-                </div>
-                <div class="text-gray-700 font-bold text-sm mb-1">📍 ${trip.start_point} ➔ ${trip.end_point}</div>
-                <div class="text-gray-600 font-bold text-sm mb-3">🚌 車號：<span class="text-blue-600">${trip.assigned_vehicle}</span></div>
-                ${btnHtml}
-            </div>`;
-        }).join('');
+        return `
+        <div class="trip-card ${statusClass}">
+            <div class="flex justify-between items-start mb-2">
+                <div class="text-2xl font-black text-gray-800">${displayTime}</div>${statusText}
+            </div>
+            <div class="flex items-center gap-2 mb-3">
+                <span class="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-sm">${trip.route}</span>
+                <span class="text-gray-500 font-bold text-sm">| ${trip.trip_count || 1} 趟</span>
+            </div>
+            <div class="text-gray-700 font-bold text-sm mb-1">📍 ${trip.start_point} ➔ ${trip.end_point}</div>
+            <div class="text-gray-600 font-bold text-sm mb-3">🚌 車號：<span class="text-blue-600">${trip.assigned_vehicle}</span></div>
+            ${btnHtml}
+        </div>`;
+    }).join('');
 
         document.querySelectorAll('.btn-fill-voucher').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -451,25 +467,40 @@
 
     document.getElementById('btnCloseVoucher').addEventListener('click', () => { document.getElementById('voucherModal').style.display = 'none'; });
     document.getElementById('btnSubmitVoucher').addEventListener('click', async () => {
-        if (!selectedTripId) return;
-        const arrivalTime = document.getElementById('inpArrivalTime').value;
-        if(!arrivalTime) return alert("請填寫實際到達時間！");
+    if (!selectedTripId) return;
+    const arrivalTime = document.getElementById('inpArrivalTime').value;
+    if(!arrivalTime) return alert("請填寫實際到達時間！");
 
-        const btn = document.getElementById('btnSubmitVoucher');
-        btn.innerText = "⏳ 送出憑單中..."; btn.disabled = true;
+    const btn = document.getElementById('btnSubmitVoucher');
+    btn.innerText = "⏳ 送出憑單中..."; btn.disabled = true;
 
-        try {
-            await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                status: 'completed', arrival_time: arrivalTime,
-                passenger_count: document.getElementById('inpPassenger').value || 0,
-                battery_level: document.getElementById('inpBattery').value || '',
-                remarks: document.getElementById('inpRemarks').value || '',
-                check_in_time: serverTimestamp() 
-            });
-            document.getElementById('voucherModal').style.display = 'none';
-        } catch (err) { alert('憑單送出失敗，請檢查網路。'); } 
-        finally { btn.innerText = "確認送出憑單"; btn.disabled = false; }
-    });
+    try {
+        // 🚀 關鍵修改：保留原本的 arrival_time，將駕駛回報的時間存入 actual_arrival_time
+        // 如此一來，昨日跨日車趟的判定基準才不會被破壞
+        await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
+            status: 'completed', 
+            actual_arrival_time: arrivalTime,  // 實際到達時間
+            mileage: document.getElementById('inpMileage').value || 0, // 實際公里數
+            passenger_count: document.getElementById('inpPassenger').value || 0,
+            battery_level: document.getElementById('inpBattery').value || '',
+            remarks: document.getElementById('inpRemarks').value || '',
+            check_in_time: serverTimestamp() 
+        });
+        document.getElementById('voucherModal').style.display = 'none';
+        
+        // 送出後清空欄位，避免下一趟殘留
+        document.getElementById('inpPassenger').value = '';
+        document.getElementById('inpMileage').value = '';
+        document.getElementById('inpBattery').value = '';
+        document.getElementById('inpRemarks').value = '';
+        
+    } catch (err) { 
+        alert('憑單送出失敗，請檢查網路。'); 
+    } finally { 
+        btn.innerText = "確認送出憑單"; 
+        btn.disabled = false; 
+    }
+});
 
     // ====== 🌙 簽名板與結算邏輯 ======
     const canvas = document.getElementById('sigCanvas');
