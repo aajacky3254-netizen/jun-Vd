@@ -88,7 +88,7 @@
         <input type="date" id="exportEndDate" class="border rounded p-2 text-sm hidden">
 
         <!-- 修正：將匯出按鈕移出 select 標籤之外 -->
-        <button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition flex items-center gap-2 hidden">
+        <button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition items-center gap-2 hidden">
             📊 匯出 Excel
         </button>
 
@@ -114,11 +114,17 @@
         <tr><td colspan="6" class="text-center py-8 text-gray-500 font-bold">載入請假單中...</td></tr>
       </tbody>
     </table>
+    <!-- 🚀 新增：載入更多按鈕區塊 -->
+    <div id="loadMoreWrapper" class="justify-center mt-6 hidden">
+        <button id="btnLoadMore" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-6 py-2 rounded-full font-bold shadow-sm transition flex items-center gap-2">
+            ⬇️ 載入更早的紀錄...
+        </button>
+    </div>
   </div>
 
  <script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, updateDoc, orderBy, where, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { collection, query, onSnapshot, doc, updateDoc, orderBy, where, addDoc, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
     const escapeHTML = (str) => str ? String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])) : '';
@@ -142,7 +148,18 @@
         
         // 狀態管理：目前的主管視角 (預設看團隊，若不是主管則固定為 personal)
         let currentView = isManager ? 'team' : 'personal';
-        let allRequests = []; // 存放從資料庫抓回來的所有原始資料
+        let allRequests = []; 
+
+        // 🚀 新增：分頁設定
+        let currentLimit = 20; // 預設首次只載入 20 筆
+        const btnLoadMore = document.getElementById('btnLoadMore');
+        const loadMoreWrapper = document.getElementById('loadMoreWrapper');
+
+        btnLoadMore.addEventListener('click', () => {
+            btnLoadMore.innerText = "⏳ 載入中...";
+            currentLimit += 20; // 每次點擊多抓 20 筆
+            fetchData();
+        });
 
         // 修正 2：建立主管專用的視角切換器
         if (isManager) {
@@ -157,6 +174,7 @@
             // 監聽視角切換
             document.getElementById('viewToggle').addEventListener('change', (e) => {
                 currentView = e.target.value;
+                currentLimit = 20; // 🚀 新增：切換視角時重置載入數量
                 if (currentView === 'personal') {
                     document.getElementById('filterStatus').classList.add('hidden'); // 看個人假單時隱藏狀態篩選
                 } else {
@@ -214,31 +232,41 @@
         let unsubscribeSnapshot = null;
 
         function fetchData() {
-            if (unsubscribeSnapshot) unsubscribeSnapshot(); // 切換視角前先取消舊的監聽
+            if (unsubscribeSnapshot) unsubscribeSnapshot(); 
             dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300";
             dbStatusEl.innerText = "讀取中...";
 
             let q;
             if (currentView === 'personal') {
-                // 🚀 修正：同時抓取新版 empId 與舊版 uid 綁定的歷史紀錄
-                q = query(leaveRequestsCol, where("empId", "in", [user.empId, user.uid]));
+                // 加入 limit 限制載入筆數
+                q = query(leaveRequestsCol, where("empId", "in", [user.empId, user.uid]), limit(currentLimit));
             } else {
-                q = query(leaveRequestsCol, orderBy("createdAt", "desc"));
+                // 加入 limit 限制載入筆數
+                q = query(leaveRequestsCol, orderBy("createdAt", "desc"), limit(currentLimit));
             }
             
             unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
                 allRequests = [];
                 snapshot.forEach(docSnap => allRequests.push({ id: docSnap.id, ...docSnap.data() }));
                 
-                // 個人視角需手動排序 (因為 where 不能跟不同欄位的 orderBy 混用除非建索引)
                 if (currentView === 'personal') {
                     allRequests.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                }
+
+                // 🚀 新增：判斷是否還有更多資料。如果抓回來的資料小於目前的 limit，代表到底了，隱藏按鈕
+                if (snapshot.docs.length < currentLimit) {
+                    loadMoreWrapper.classList.add('hidden');
+                    loadMoreWrapper.classList.remove('flex');
+                } else {
+                    loadMoreWrapper.classList.remove('hidden');
+                    loadMoreWrapper.classList.add('flex');
+                    btnLoadMore.innerText = "⬇️ 載入更早的紀錄..."; // 恢復按鈕文字
                 }
                 
                 dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
                 dbStatusEl.innerText = "資料庫已連線";
                 
-                renderTable(); // 抓完資料後渲染畫面
+                renderTable(); 
             }, (err) => {
                 console.error("Firebase讀取錯誤:", err);
                 dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
@@ -333,6 +361,7 @@
         // 初始載入時：只有主管權限才顯示匯出與日期工具
         if (isManager) {
             btnExportExcel.classList.remove('hidden');
+            btnExportExcel.classList.add('flex');
             exportStartDate.classList.remove('hidden');
             exportEndDate.classList.remove('hidden');
             exportDateTo.classList.remove('hidden');
@@ -345,12 +374,14 @@
                 if (currentView === 'personal') {
                     document.getElementById('filterStatus').classList.add('hidden');
                     btnExportExcel.classList.add('hidden');
+                    btnExportExcel.classList.remove('flex');
                     exportStartDate.classList.add('hidden');
                     exportEndDate.classList.add('hidden');
                     exportDateTo.classList.add('hidden');
                 } else {
                     document.getElementById('filterStatus').classList.remove('hidden');
                     btnExportExcel.classList.remove('hidden');
+                    btnExportExcel.classList.add('flex');
                     exportStartDate.classList.remove('hidden');
                     exportEndDate.classList.remove('hidden');
                     exportDateTo.classList.remove('hidden');

@@ -37,7 +37,7 @@
     </header>
 <main class="p-4 max-w-md mx-auto">
     <!-- 新增：即時公告跑馬燈 -->
-    <div id="announcement-bar" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl shadow-sm text-sm font-bold flex items-center gap-2">
+    <div id="announcement-bar" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl shadow-sm text-sm font-bold items-center gap-2">
         <span class="text-xl animate-bounce">📢</span>
         <marquee scrollamount="4" id="announcement-text" class="flex-grow tracking-wide">目前無最新公告</marquee>
     </div>
@@ -165,12 +165,17 @@ onSnapshot(qAnnouncements, (snapshot) => {
     const text = document.getElementById('announcement-text');
     
     if (snapshot.empty) {
+        // Hide the bar and remove flex layout
         bar.classList.add('hidden');
+        bar.classList.remove('flex');
     } else {
-        // 組合多筆公告
+        // Combine multiple announcements
         let allMsgs = snapshot.docs.map(doc => `【${doc.data().title}】${doc.data().content}`).join(" ｜ ");
         text.innerText = allMsgs;
+        
+        // Remove hidden and apply flex layout
         bar.classList.remove('hidden');
+        bar.classList.add('flex');
     }
 });
     const dateInput = document.getElementById('selectDate');
@@ -178,13 +183,29 @@ onSnapshot(qAnnouncements, (snapshot) => {
     
     dateInput.value = new Date().toISOString().split('T')[0];
 
+    // 🚀 新增：請求瀏覽器通知權限
+    function requestNotificationPermission() {
+        if (!("Notification" in window)) {
+            console.log("此瀏覽器不支援桌面通知");
+            return;
+        }
+        if (Notification.permission === "default") {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    console.log("✅ 駕駛已允許通知推播！");
+                }
+            });
+        }
+    }
+
     checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
         currentUser = user;
         const driverName = user.name || user.displayName || user.email?.split('@')[0] || "未知駕駛"; 
         document.getElementById('driver-greeting').innerText = `👨‍✈️ 駕駛長：${driverName}`;
-        
-        // 👇 直接使用 auth.js 傳來的精準 empId，瞬間完成載入！
         driverEmpId = user.empId;
+        
+        // 請求通知權限
+        requestNotificationPermission();
         
         loadMyTrips(dateInput.value, driverEmpId);
     }).catch(err => {
@@ -194,6 +215,9 @@ onSnapshot(qAnnouncements, (snapshot) => {
     document.getElementById('btnLogout').addEventListener('click', () => { logout(); });
     dateInput.addEventListener('change', (e) => { loadMyTrips(e.target.value, driverEmpId); });
 
+    let previousTripsMap = new Map(); // 🚀 新增：用來記錄上一次的車趟狀態
+    let isFirstLoad = true; // 🚀 新增：防止第一次載入網頁時狂跳通知
+
     function loadMyTrips(dateStr, empId) {
         const q = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
         
@@ -201,15 +225,40 @@ onSnapshot(qAnnouncements, (snapshot) => {
             currentTrips = [];
             let pendingCount = 0;
             let checkedCount = 0;
+            
+            let newTripsMap = new Map();
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.assigned_empid === empId) {
-                    currentTrips.push({ id: docSnap.id, ...data });
+                    const tripData = { id: docSnap.id, ...data };
+                    currentTrips.push(tripData);
+                    newTripsMap.set(tripData.id, tripData);
+
                     if (data.status === 'checked_in') checkedCount++;
                     else pendingCount++;
                 }
             });
+
+            // 🚀 推播通知邏輯 (比對新舊資料)
+            if (!isFirstLoad && Notification.permission === "granted") {
+                newTripsMap.forEach((newTrip, tripId) => {
+                    const oldTrip = previousTripsMap.get(tripId);
+                    
+                    // 狀況 A：這是一筆全新的派車 (調度員剛派給他)
+                    if (!oldTrip) {
+                        sendNotification("🚌 新車趟指派！", `調度台已派發 ${newTrip.departure_time} 的 ${newTrip.route} 路線給您，請留意報到時間。`);
+                    } 
+                    // 狀況 B：站長核准了異常報到
+                    else if (oldTrip.status === 'pending_override' && newTrip.status === 'checked_in') {
+                        sendNotification("✅ 報到已核准", `站長已核准您 ${newTrip.departure_time} 車趟的異常報到申請！`);
+                    }
+                });
+            }
+
+            // 更新快取與旗標
+            previousTripsMap = newTripsMap;
+            isFirstLoad = false;
 
             currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
 
@@ -219,6 +268,16 @@ onSnapshot(qAnnouncements, (snapshot) => {
 
             renderTripCards();
         });
+    }
+
+    // 🚀 新增：發送通知的共用函式
+    function sendNotification(title, body) {
+        const options = {
+            body: body,
+            icon: "https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png",
+            vibrate: [200, 100, 200] // 手機震動模式
+        };
+        new Notification(title, options);
     }
 
     function renderTripCards() {
