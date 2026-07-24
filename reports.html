@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>豐東交通客運 - 每日回報紀錄總覽</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
+    .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
+    .navbar-brand { color: #facc15; font-size: 20px; font-weight: bold; margin-right: 30px; text-decoration: none; letter-spacing: 1px; display: flex; align-items: center; }
+    .navbar a.nav-link { color: #e2e8f0; padding: 0 20px; text-decoration: none; font-size: 15px; transition: 0.3s; line-height: 64px; display: inline-block; white-space: nowrap; }
+    .navbar a.nav-link:hover { background-color: #374151; color: white; }
+    .navbar a.nav-link.active { border-bottom: 4px solid #3b82f6; color: #fff; background-color: #1e222d; font-weight: bold;}
+    .content-area { padding: 0 20px; max-width: 1400px; margin: 0 auto;}
+    table { width: 100%; border-collapse: collapse; text-align: center; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-radius: 8px; overflow: hidden; margin-bottom: 2.5rem;}
+    th, td { border-bottom: 1px solid #e2e8f0; padding: 12px; transition: background-color 0.2s; }
+    th { background-color: #1e293b; color: #f8fafc; font-weight: 600; letter-spacing: 1px; }
+    tr:hover { background-color: #f8fafc; }
+  </style>
+</head>
+<body>
+  <nav class="navbar" id="main-nav"></nav>
+
+  <div class="content-area mt-6">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-bold text-gray-800">📊 每日駕駛回報紀錄總覽</h2>
+      <div class="flex items-center gap-4">
+        <div class="bg-white p-2 rounded-lg shadow-sm border border-gray-200 flex items-center gap-2">
+            <span class="font-bold text-gray-700 ml-2">📅 查詢日期</span>
+            <input type="date" id="selectDate" class="border-none outline-none font-bold text-blue-600 bg-transparent">
+        </div>
+        <button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-sm transition flex items-center gap-2">
+            📥 匯出今日報表
+        </button>
+        <span id="db-status" class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300">連線中...</span>
+      </div>
+    </div>
+
+    <!-- 晨間報到紀錄 -->
+    <h3 class="text-lg font-black text-gray-800 mb-3 flex items-center gap-2">🌅 晨間報到紀錄 <span class="text-sm text-gray-500 font-bold">(體溫/血壓/酒測)</span></h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 15%">回報時間</th>
+          <th style="width: 20%">駕駛員</th>
+          <th style="width: 15%">酒測值 (mg/L)</th>
+          <th style="width: 15%">體溫 (°C)</th>
+          <th style="width: 20%">血壓 (收縮/舒張)</th>
+          <th style="width: 15%">狀態</th>
+        </tr>
+      </thead>
+      <tbody id="checkinBody">
+        <tr><td colspan="6" class="py-10 text-gray-400 font-bold">載入中...</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 車趟到達憑單 -->
+    <h3 class="text-lg font-black text-gray-800 mb-3 flex items-center gap-2">📝 車趟到達憑單 <span class="text-sm text-gray-500 font-bold">(載客數/電量/備註)</span></h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 15%">發車 ~ 到達</th>
+          <th style="width: 20%">路線 (起訖)</th>
+          <th style="width: 10%">車號</th>
+          <th style="width: 15%">駕駛員</th>
+          <th style="width: 10%">載客人數</th>
+          <th style="width: 10%">剩餘電量</th>
+          <th style="width: 20%">備註說明</th>
+        </tr>
+      </thead>
+      <tbody id="voucherBody">
+        <tr><td colspan="7" class="py-10 text-gray-400 font-bold">載入中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { db } from './firebase-init.js';
+    import { collection, query, onSnapshot, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, renderNavbar } from './auth.js';
+
+    let currentCheckins = [];
+    let currentVouchers = [];
+
+    const dateInput = document.getElementById('selectDate');
+    const dbStatusEl = document.getElementById('db-status');
+    const checkinBody = document.getElementById('checkinBody');
+    const voucherBody = document.getElementById('voucherBody');
+
+    // 預設為今天
+    dateInput.value = new Date().toISOString().split('T')[0];
+
+    // 僅限主管階層進入
+    checkAuthAndGetRole(['總公司', '站長', '調度員']).then((user) => {
+        document.body.style.display = 'block';
+        renderNavbar(user, 'reports');
+
+        loadReports(dateInput.value);
+
+        dateInput.addEventListener('change', (e) => {
+            loadReports(e.target.value);
+        });
+
+    }).catch(err => console.error(err));
+
+    let unsubCheckins = null;
+    let unsubVouchers = null;
+
+    function loadReports(dateStr) {
+        dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300";
+        dbStatusEl.innerText = "資料同步中...";
+
+        if (unsubCheckins) unsubCheckins();
+        if (unsubVouchers) unsubVouchers();
+
+        // 1. 監聽晨間報到 (daily_checkins)
+        const qCheckin = query(collection(db, "daily_checkins"), where("date", "==", dateStr));
+        unsubCheckins = onSnapshot(qCheckin, (snapshot) => {
+            currentCheckins = [];
+            snapshot.forEach(doc => currentCheckins.push({ id: doc.id, ...doc.data() }));
+            currentCheckins.sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
+            renderCheckins();
+        });
+
+        // 2. 監聽車趟憑單 (daily_dispatches) - 只抓狀態為 completed (已填寫憑單) 或 checked_in
+        const qVoucher = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
+        unsubVouchers = onSnapshot(qVoucher, (snapshot) => {
+            currentVouchers = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.status === 'completed' || data.status === 'checked_in') { 
+                    currentVouchers.push({ id: doc.id, ...data });
+                }
+            });
+            currentVouchers.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
+            renderVouchers();
+            
+            dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+            dbStatusEl.innerText = "連線正常 (即時同步)";
+        });
+    }
+
+    function renderCheckins() {
+        if (currentCheckins.length === 0) {
+            checkinBody.innerHTML = '<tr><td colspan="6" class="py-10 text-gray-400 font-bold">本日尚無晨間報到紀錄</td></tr>';
+            return;
+        }
+
+        checkinBody.innerHTML = currentCheckins.map(data => {
+            let timeStr = '未記錄';
+            if (data.timestamp) {
+                const d = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+                timeStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+            }
+
+            // 抓出酒測異常，直接變紅字
+            const alcoholVal = parseFloat(data.alcohol || 0);
+            const alcoholHtml = alcoholVal > 0 
+                ? `<span class="text-red-600 font-black animate-pulse">${data.alcohol} ⚠️</span>` 
+                : `<span class="text-emerald-600 font-bold">${data.alcohol}</span>`;
+
+            return `
+                <tr>
+                    <td class="font-mono text-gray-600">${timeStr}</td>
+                    <td class="font-bold text-gray-800">${data.empId} ${data.name}</td>
+                    <td>${alcoholHtml}</td>
+                    <td class="font-bold text-gray-700">${data.temp}</td>
+                    <td class="font-bold text-gray-700">${data.blood_pressure}</td>
+                    <td><span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold shadow-sm">✅ 已檢測</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderVouchers() {
+        if (currentVouchers.length === 0) {
+            voucherBody.innerHTML = '<tr><td colspan="7" class="py-10 text-gray-400 font-bold">本日尚無車趟到達憑單紀錄</td></tr>';
+            return;
+        }
+
+        voucherBody.innerHTML = currentVouchers.map(data => {
+            const arrTime = data.arrival_time || '<span class="text-red-400 text-xs">未填寫</span>';
+            const passCount = data.passenger_count !== undefined ? data.passenger_count : '-';
+            const batLevel = data.battery_level ? data.battery_level + '%' : '-';
+            const remarkText = data.remarks || '-';
+
+            return `
+                <tr>
+                    <td class="font-bold text-gray-800">${data.departure_time} ~ <span class="text-blue-600">${arrTime}</span></td>
+                    <td class="font-bold text-indigo-700">${data.route} <div class="text-xs text-gray-500 font-normal">(${data.start_point} ➔ ${data.end_point})</div></td>
+                    <td class="font-bold text-gray-700">${data.assigned_vehicle}</td>
+                    <td class="font-bold text-gray-800">${data.assigned_driver}</td>
+                    <td class="font-black text-orange-600 text-lg">${passCount}</td>
+                    <td class="font-bold text-emerald-600">${batLevel}</td>
+                    <td class="text-sm text-gray-600 text-left max-w-xs">${remarkText}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // ====== 📊 匯出 Excel (雙工作表設計) ======
+    document.getElementById('btnExportExcel').addEventListener('click', () => {
+        if (currentCheckins.length === 0 && currentVouchers.length === 0) {
+            alert("本日無任何紀錄可匯出！");
+            return;
+        }
+
+        const workbook = XLSX.utils.book_new();
+        const dateStr = dateInput.value;
+
+        // 分頁 1: 晨間報到
+        if (currentCheckins.length > 0) {
+            const checkinData = currentCheckins.map(data => {
+                let timeStr = '未記錄';
+                if (data.timestamp) {
+                    const d = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+                    timeStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+                }
+                return {
+                    "日期": data.date,
+                    "回報時間": timeStr,
+                    "員工編號": data.empId,
+                    "姓名": data.name,
+                    "酒測值 (mg/L)": data.alcohol,
+                    "體溫 (°C)": data.temp,
+                    "血壓": data.blood_pressure
+                };
+            });
+            const wsCheckin = XLSX.utils.json_to_sheet(checkinData);
+            XLSX.utils.book_append_sheet(workbook, wsCheckin, "🌅 晨間報到");
+        }
+
+        // 分頁 2: 到達憑單
+        if (currentVouchers.length > 0) {
+            const voucherData = currentVouchers.map(data => {
+                return {
+                    "日期": data.date,
+                    "發車時間": data.departure_time,
+                    "到達時間": data.arrival_time || '',
+                    "路線": data.route,
+                    "起站": data.start_point,
+                    "終點站": data.end_point,
+                    "車號": data.assigned_vehicle,
+                    "駕駛員": data.assigned_driver,
+                    "載客人數": data.passenger_count || 0,
+                    "剩餘電量 %": data.battery_level || '',
+                    "備註": data.remarks || ''
+                };
+            });
+            const wsVoucher = XLSX.utils.json_to_sheet(voucherData);
+            XLSX.utils.book_append_sheet(workbook, wsVoucher, "📝 到達憑單");
+        }
+
+        // 下載檔案
+        XLSX.writeFile(workbook, `豐東客運_每日回報總覽_${dateStr}.xlsx`);
+    });
+  </script>
+</body>
+</html>
