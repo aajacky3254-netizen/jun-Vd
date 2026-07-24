@@ -32,9 +32,9 @@
     .gantt-row { display: flex; border-bottom: 1px solid #e2e8f0; min-height: 85px; transition: background 0.2s; }
     .gantt-row:hover { background-color: #f8fafc; }
     .gantt-label-col { width: 190px; min-width: 190px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; background: #f8fafc; border-right: 2px solid #cbd5e1; position: sticky; left: 0; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.02); }
-    /* 改為分成 28 等份 */
-    .gantt-timeline-col { flex-grow: 1; position: relative; min-width: 1400px; background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px); background-size: calc(100% / 28) 100%; overflow: hidden; }
-    .hour-scale { width: calc(100% / 28); text-align: left; padding-left: 4px; font-size: 12px; border-right: 1px solid #334155; box-sizing: border-box; padding-top: 8px; padding-bottom: 8px;}
+    /* 修改為 24 等份 */
+    .gantt-timeline-col { flex-grow: 1; position: relative; min-width: 1400px; background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px); background-size: calc(100% / 24) 100%; overflow: hidden; }
+    .hour-scale { width: calc(100% / 24); text-align: left; padding-left: 4px; font-size: 12px; border-right: 1px solid #334155; box-sizing: border-box; padding-top: 8px; padding-bottom: 8px;}
     
     .trip-block { position: absolute; height: 55px; top: 15px; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: bold; color: white; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: transform 0.1s, box-shadow 0.1s; user-select: none; z-index: 5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trip-block:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); z-index: 50; }
@@ -127,7 +127,7 @@
     </div>
     <div class="content-area mb-8">
       <div class="flex justify-between items-center mb-3 ml-2">
-        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📊 動態畫布 (04:00~隔日08:00)</h2>
+        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">📊 動態畫布 (00:00~次日00:00)</h2>
         <div class="flex p-1 bg-gray-200 rounded-lg shadow-inner">
             <button id="viewDriverBtn" class="view-btn active">👨‍✈️ 駕駛視角</button>
             <button id="viewVehicleBtn" class="view-btn inactive">🚌 車輛視角</button>
@@ -254,11 +254,12 @@
   const yesterdayInit = new Date(); yesterdayInit.setDate(yesterdayInit.getDate() - 1);
   document.getElementById('inputCopySource').value = yesterdayInit.toISOString().split('T')[0];
 
-  // 🚀 生成 28 小時制時間軸刻度 (04:00 ~ 23:00, 然後 00:00 ~ 07:00)
-  const scaleContainer = document.getElementById('timelineScale');
-  scaleContainer.innerHTML = '';
-  for(let i=4; i<24; i++) { scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`; }
-  for(let i=0; i<=7; i++) { scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`; }
+    // 🚀 生成 24 小時制時間軸刻度 (00:00 ~ 23:00)
+    const scaleContainer = document.getElementById('timelineScale');
+    scaleContainer.innerHTML = '';
+    for(let i=0; i<24; i++) { 
+        scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`; 
+    }
 
   let tooltipEl = document.getElementById('gantt-tooltip');
   if (!tooltipEl) {
@@ -367,12 +368,12 @@
 
           // 2. 抓昨日跨夜車趟
           unsubYesterdayDispatch = onSnapshot(query(dispatchesCol, where("date", "==", yesterdayStr)), (snapshot) => {
-              yesterdayCrossDispatches = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => {
-                  if (!t.arrival_time || !t.departure_time) return false;
-                  return timeToMins(t.arrival_time) < timeToMins(t.departure_time); // 跨日判斷
-              }).map(t => ({...t, isCrossDay: true, route: "🌙[昨日] " + t.route}));
-              mergeAndRender();
-          });
+            yesterdayCrossDispatches = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => {
+                if (!t.arrival_time || !t.departure_time) return false;
+                return timeToMins(t.arrival_time) < timeToMins(t.departure_time); // 跨日判斷
+            }).map(t => ({...t, isCrossDay: true, route: "🌙[昨日班表] " + t.route})); // 👈 修改這裡
+            mergeAndRender();
+        });
       }
 
       function renderGantt() {
@@ -449,40 +450,53 @@
           `;
 
           rowTrips.forEach(trip => {
-              const startMin = getBusinessMin(trip.departure_time);
-              let endMin = getBusinessMin(trip.arrival_time || trip.departure_time) + 20; 
-              if (endMin < startMin) endMin += 1440;
+                let startMin, endMin;
 
-              const leftPercent = ((startMin - 240) / 1680) * 100;
-              const widthPercent = ((endMin - startMin) / 1680) * 100;
-              
-              let colorClass = "";
-              let inlineColorStyle = "";
-              
-             // 修正後的程式碼：將常規路線全權交給 getRouteColorStyle 處理
-              if (isWarning) {
-                  colorClass = "bg-red-600 border-red-700 animate-pulse";
-              } else if (isUnassigned) {
-                  colorClass = "bg-amber-500 border-amber-600 animate-pulse";
-              } else {
-                  // 所有已指派的路線皆使用動態 CSS 顏色
-                  inlineColorStyle = getRouteColorStyle(trip.route);
-              }
-              
-              let blockSubInfo = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
-              let timeStr = `${trip.departure_time}~${trip.arrival_time || '??:??'}`;
-              let stationsStr = `${trip.start_point} ➔ ${trip.end_point}`;
-              let resourceStr = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
-              
-              rowHtml += `
+                if (trip.isCrossDay) {
+                    // 【昨日班表顯示邏輯】
+                    // 例如：昨晚 23:39 出發，今天 01:44 到達
+                    // 為了讓它在今天的 00:00 繼續顯示到 01:44，起點需設為負值 (向左延伸出畫面)
+                    startMin = timeToMins(trip.departure_time) - 1440; 
+                    endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; // 緩衝時間
+                } else {
+                    // 【當日班表顯示邏輯】
+                    startMin = timeToMins(trip.departure_time);
+                    endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
+                    // 若到達時間小於發車時間，代表跨日，結束時間加上 1440 (向右延伸出畫面)
+                    if (timeToMins(trip.arrival_time) < timeToMins(trip.departure_time)) {
+                        endMin += 1440;
+                    }
+                }
+
+                // 總寬度改為 1440 分鐘 (標準 24 小時)
+                const leftPercent = (startMin / 1440) * 100;
+                const widthPercent = ((endMin - startMin) / 1440) * 100;
+                
+                let colorClass = "";
+                let inlineColorStyle = "";
+                
+                if (isWarning) {
+                    colorClass = "bg-red-600 border-red-700 animate-pulse";
+                } else if (isUnassigned) {
+                    colorClass = "bg-amber-500 border-amber-600 animate-pulse";
+                } else {
+                    inlineColorStyle = getRouteColorStyle(trip.route);
+                }
+                
+                let blockSubInfo = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
+                let timeStr = `${trip.departure_time}~${trip.arrival_time || '??:??'}`;
+                let stationsStr = `${trip.start_point} ➔ ${trip.end_point}`;
+                let resourceStr = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
+                
+                rowHtml += `
                 <div class="trip-block ${colorClass} border" draggable="true" data-tripid="${trip.id}" 
-                     data-route="${trip.route}" data-time="${timeStr}" data-stations="${stationsStr}" data-resource="${resourceStr}"
-                     style="left: ${leftPercent}%; width: ${widthPercent}%; ${inlineColorStyle}">
-                  <div class="truncate font-black">${trip.route}: ${trip.start_point}➔${trip.end_point}</div>
-                  <div class="text-[10px] opacity-90 font-mono mt-0.5 tracking-wider">${trip.departure_time} ｜ ${blockSubInfo}</div>
+                    data-route="${trip.route}" data-time="${timeStr}" data-stations="${stationsStr}" data-resource="${resourceStr}"
+                    style="left: ${leftPercent}%; width: ${widthPercent}%; ${inlineColorStyle}">
+                    <div class="truncate font-black">${trip.route}: ${trip.start_point}➔${trip.end_point}</div>
+                    <div class="text-[10px] opacity-90 font-mono mt-0.5 tracking-wider">${trip.departure_time} ｜ ${blockSubInfo}</div>
                 </div>
-              `;
-          });
+                `;
+            });
           rowHtml += `</div></div>`;
           ganttBody.innerHTML += rowHtml;
       }
