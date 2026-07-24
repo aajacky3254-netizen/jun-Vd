@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>豐東交通客運 - 差假簽核管理</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
   <style>
     body { font-family: "Noto Sans TC", "微軟正黑體", sans-serif; background-color: #f4f6f9; margin: 0; padding: 0; display: none; }
     .navbar { background-color: #2a2f3e; display: flex; align-items: center; padding: 0 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); height: 64px;}
@@ -79,6 +80,10 @@
             <option value="all">所有狀態</option>
             <option value="待審核">待審核</option>
             <option value="已核准">已核准</option>
+          <!-- 將這段加入到 leaves.html 的操作按鈕區塊中 -->
+<button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition flex items-center gap-2 hidden">
+    📊 匯出 Excel
+</button>
         </select>
 
         <button id="btnOpenLeaveForm" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm transition">＋ 填寫假單</button>
@@ -313,6 +318,49 @@
 
             bindButtonEvents();
         }
+      // ====== 📊 報表匯出邏輯 ======
+const btnExportExcel = document.getElementById('btnExportExcel');
+
+// 只有主管權限才顯示匯出按鈕
+if (isManager) {
+    btnExportExcel.classList.remove('hidden');
+}
+
+btnExportExcel.addEventListener('click', () => {
+    if (allRequests.length === 0) {
+        alert("目前沒有資料可以匯出！");
+        return;
+    }
+
+    // 1. 整理要匯出的資料格式 (將 Firebase 欄位轉換為中文報表欄位)
+    const exportData = allRequests.map(req => {
+        return {
+            "申請狀態": req.status,
+            "員工編號": req.empId || '無',
+            "員工姓名": req.name,
+            "假別/申請類別": req.type,
+            "開始時間": formatDateTime(req.startTime),
+            "結束時間": formatDateTime(req.endTime),
+            "申請事由": req.reason || '無',
+            "建立時間": formatDateTime(req.createdAt),
+            "審核/處理人": req.reviewedBy || req.withdrawnBy || '無'
+        };
+    });
+
+    // 2. 建立 Excel 工作表 (Worksheet)
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    // 3. 建立 Excel 活頁簿 (Workbook) 並加入工作表
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "差假紀錄");
+
+    // 4. 設定匯出檔名 (加上當前日期)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const fileName = `豐東客運_差假紀錄_${todayStr}.xlsx`;
+
+    // 5. 觸發下載
+    XLSX.writeFile(workbook, fileName);
+});
 
         // 綁定按鈕事件 (抽出為獨立函式確保不會重複綁定)
         function bindButtonEvents() {
