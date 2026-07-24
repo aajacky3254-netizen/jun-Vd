@@ -56,7 +56,7 @@
     
     <div class="content-area mb-6">
       <div class="flex justify-between items-end mb-3 ml-2">
-        <h2 class="text-2xl font-bold text-gray-800">🎛️ 綜合調度總控台 (28小時制)</h2>
+        <h2 class="text-2xl font-bold text-gray-800">🎛️ 綜合調度總控台 (24小時制)</h2>
         <span id="db-status" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300 shadow-sm">連線中...</span>
       </div>
       
@@ -155,7 +155,8 @@
       <h2 class="text-xl font-bold text-gray-800 mb-3 ml-2">📝 詳細發車時刻表</h2>
       <table id="dispatchTable">
         <thead>
-          <tr><th>發車~到達區間</th><th>路線 (Tour)</th><th>趟數</th><th>起站</th><th>終站</th><th>駕駛長指派 (含替補)</th><th>車輛配置</th><th>操作</th></tr>
+          <!-- 🚀 痛點一：修改 Table Header 讓起訖站合併為一個欄位 -->
+          <tr><th>發車~到達區間</th><th>路線 (Tour)</th><th>趟數</th><th colspan="2">行駛區間 (起訖站)</th><th>駕駛長指派 (含替補)</th><th>車輛配置</th><th>操作</th></tr>
         </thead>
         <tbody id="dispatchBody"></tbody>
       </table>
@@ -197,7 +198,7 @@
       toast.style.opacity = '1';
       setTimeout(() => toast.style.opacity = '0', 2500);
   };
-// 🌟 全新絕對有效的路線顏色生成器 (加入柏林真實路線色盤)
+  // 🌟 全新絕對有效的路線顏色生成器 (加入柏林真實路線色盤)
   const getRouteColorStyle = (routeName) => {
       if (!routeName) return "background-color: #64748b; border-color: #475569;";
 
@@ -251,15 +252,41 @@
   const dispatchesCol = collection(db, "daily_dispatches");
 
   globalDateInput.value = new Date().toISOString().split('T')[0];
+
+  // 🚀 痛點三：路線自動帶入起訖站對應表
+  const routeDefaults = {
+      "100": { start: "Hertzallee", end: "Memhardstr." },
+      "N100": { start: "Hertzallee", end: "S+U Alexanderplatz/Memhardstr." },
+      "200": { start: "Hertzallee", end: "Michelangelostr." },
+      "300": { start: "Philharmonie Süd", end: "S+U Warschauer Str." },
+      "TXL": { start: "Flughafen Tegel", end: "S+U Alexanderplatz/Memhardstr." },
+      "123": { start: "Mäckeritzwiesen", end: "S+U Hauptbahnhof" },
+      "142": { start: "U Leopoldplatz", end: "S Ostbahnhof" },
+      "147": { start: "S+U Hauptbahnhof", end: "U Märkisches Museum" },
+      "245": { start: "Hertzallee", end: "Dorotheenstraße/Friedrichstraße" }
+  };
+
+  // 綁定路線輸入框事件 (自動帶入)
+  document.getElementById('inputRoute').addEventListener('blur', (e) => {
+      let routeVal = e.target.value.trim().toUpperCase(); // 轉大寫比對
+      // 去除可能附帶的括號，例如 200(T5) 只取 200
+      let baseRoute = routeVal.split('(')[0].trim(); 
+      
+      if (routeDefaults[baseRoute]) {
+          document.getElementById('inputStart').value = routeDefaults[baseRoute].start;
+          document.getElementById('inputEnd').value = routeDefaults[baseRoute].end;
+      }
+  });
+
   const yesterdayInit = new Date(); yesterdayInit.setDate(yesterdayInit.getDate() - 1);
   document.getElementById('inputCopySource').value = yesterdayInit.toISOString().split('T')[0];
 
-    // 🚀 生成 24 小時制時間軸刻度 (00:00 ~ 23:00)
-    const scaleContainer = document.getElementById('timelineScale');
-    scaleContainer.innerHTML = '';
-    for(let i=0; i<24; i++) { 
-        scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`; 
-    }
+  // 🚀 生成 24 小時制時間軸刻度 (00:00 ~ 23:00)
+  const scaleContainer = document.getElementById('timelineScale');
+  scaleContainer.innerHTML = '';
+  for(let i=0; i<24; i++) { 
+      scaleContainer.innerHTML += `<div class="hour-scale">${String(i).padStart(2, '0')}:00</div>`; 
+  }
 
   let tooltipEl = document.getElementById('gantt-tooltip');
   if (!tooltipEl) {
@@ -371,7 +398,7 @@
             yesterdayCrossDispatches = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => {
                 if (!t.arrival_time || !t.departure_time) return false;
                 return timeToMins(t.arrival_time) < timeToMins(t.departure_time); // 跨日判斷
-            }).map(t => ({...t, isCrossDay: true, route: "🌙[昨日班表] " + t.route})); // 👈 修改這裡
+            }).map(t => ({...t, isCrossDay: true, route: "🌙[昨日班表] " + t.route})); 
             mergeAndRender();
         });
       }
@@ -453,22 +480,16 @@
                 let startMin, endMin;
 
                 if (trip.isCrossDay) {
-                    // 【昨日班表顯示邏輯】
-                    // 例如：昨晚 23:39 出發，今天 01:44 到達
-                    // 為了讓它在今天的 00:00 繼續顯示到 01:44，起點需設為負值 (向左延伸出畫面)
                     startMin = timeToMins(trip.departure_time) - 1440; 
-                    endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; // 緩衝時間
+                    endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
                 } else {
-                    // 【當日班表顯示邏輯】
                     startMin = timeToMins(trip.departure_time);
                     endMin = timeToMins(trip.arrival_time || trip.departure_time) + 20; 
-                    // 若到達時間小於發車時間，代表跨日，結束時間加上 1440 (向右延伸出畫面)
                     if (timeToMins(trip.arrival_time) < timeToMins(trip.departure_time)) {
                         endMin += 1440;
                     }
                 }
 
-                // 總寬度改為 1440 分鐘 (標準 24 小時)
                 const leftPercent = (startMin / 1440) * 100;
                 const widthPercent = ((endMin - startMin) / 1440) * 100;
                 
@@ -485,14 +506,18 @@
                 
                 let blockSubInfo = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
                 let timeStr = `${trip.departure_time}~${trip.arrival_time || '??:??'}`;
-                let stationsStr = `${trip.start_point} ➔ ${trip.end_point}`;
                 let resourceStr = currentGanttView === 'driver' ? `車: ${trip.assigned_vehicle}` : `人: ${trip.assigned_driver}`;
                 
+                // 🚀 痛點一：(A ⇌ B 的顯示邏輯 - 甘特圖)
+                let tripCount = parseInt(trip.trip_count) || 1;
+                let arrowStr = tripCount > 1 ? "⇌" : "➔";
+                let stationsStr = `${trip.start_point} ${arrowStr} ${trip.end_point}`;
+
                 rowHtml += `
                 <div class="trip-block ${colorClass} border" draggable="true" data-tripid="${trip.id}" 
                     data-route="${trip.route}" data-time="${timeStr}" data-stations="${stationsStr}" data-resource="${resourceStr}"
                     style="left: ${leftPercent}%; width: ${widthPercent}%; ${inlineColorStyle}">
-                    <div class="truncate font-black">${trip.route}: ${trip.start_point}➔${trip.end_point}</div>
+                    <div class="truncate font-black">${trip.route}: ${trip.start_point}${arrowStr}${trip.end_point}</div>
                     <div class="text-[10px] opacity-90 font-mono mt-0.5 tracking-wider">${trip.departure_time} ｜ ${blockSubInfo}</div>
                 </div>
                 `;
@@ -563,9 +588,8 @@
 
           tbody.innerHTML = currentTrips.map(data => {
               let isOff = currentOffDrivers.some(od => od.empId === data.assigned_empid);
-              const isPendingOverride = data.status === 'pending_override'; // 🌟 判斷是否等待覆核
+              const isPendingOverride = data.status === 'pending_override'; 
               
-              // 如果是等待覆核，背景變橘黃色並閃爍
               let rowBgClass = isOff ? "bg-red-50" : (isPendingOverride ? "bg-orange-50 border-2 border-orange-400" : "");
               let selectClass = isOff ? "bg-red-100 text-red-700 border-red-400 animate-pulse" : "border-gray-300";
               
@@ -581,27 +605,26 @@
               
               let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
               
-              return `<tr class="${rowBgClass}">
-                  <td class="font-bold">${data.departure_time} ${data.arrival_time ? '~ '+data.arrival_time : ''}</td>
-                  <td class="text-blue-700 font-bold">${data.route}</td>
-                  <td class="font-bold text-gray-700">${data.trip_count || 1} 趟</td>
-                  <td>${data.start_point}</td><td>${data.end_point}</td>
-                  <td><select class="driver-select outline-none cursor-pointer p-1.5 border rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm ${selectClass}" data-id="${data.id}">${drvOpts}</select></td>
-                  <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}">${vehOpts}</select></td>
-                  <td><button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold" data-id="${data.id}">刪除</button></td>
-              </tr>`;
-            // 🌟 操作欄位按鈕邏輯
               let actionBtns = '';
               if (isPendingOverride) {
                   actionBtns = `<button class="btn-approve-override bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold animate-pulse w-full mb-1" data-id="${data.id}">✅ 核准異常報到</button>`;
               }
               actionBtns += `<button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full" data-id="${data.id}">刪除車趟</button>`;
 
+              // 🚀 痛點一：(A ⇌ B 的顯示邏輯 - 表格)
+              let tripCount = parseInt(data.trip_count) || 1;
+              let displayRouteHtml = '';
+              if (tripCount > 1) {
+                  displayRouteHtml = `<td colspan="2" class="font-bold bg-blue-50/50">📍 ${data.start_point} <span class="text-blue-600 font-black mx-1 text-lg">⇌</span> ${data.end_point}</td>`;
+              } else {
+                  displayRouteHtml = `<td colspan="2" class="text-gray-600">📍 ${data.start_point} <span class="text-gray-400 mx-1">➔</span> ${data.end_point}</td>`;
+              }
+
               return `<tr class="${rowBgClass}">
                   <td class="font-bold">${data.departure_time} ${data.arrival_time ? '~ '+data.arrival_time : ''}</td>
                   <td class="text-blue-700 font-bold">${data.route}</td>
-                  <td class="font-bold text-gray-700">${data.trip_count || 1} 趟</td>
-                  <td>${data.start_point}</td><td>${data.end_point}</td>
+                  <td class="font-bold text-gray-700">${tripCount} 趟</td>
+                  ${displayRouteHtml}
                   <td><select class="driver-select outline-none cursor-pointer p-1.5 border rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm ${selectClass}" data-id="${data.id}">${drvOpts}</select></td>
                   <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}">${vehOpts}</select></td>
                   <td class="flex flex-col gap-1">${actionBtns}</td>
