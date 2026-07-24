@@ -17,6 +17,9 @@
         .modal-content { background: white; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 24px; animation: slideUp 0.3s ease-out; max-height: 90vh; overflow-y: auto;}
         
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        /* 簽名板專用樣式，防止滑動 */
+        #sigCanvas { border: 2px dashed #cbd5e1; border-radius: 12px; background-color: #ffffff; cursor: crosshair; touch-action: none; width: 100%; height: 180px; }
     </style>
 </head>
 <body class="pb-24">
@@ -59,18 +62,26 @@
         </div>
         <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
             <div class="text-xl font-black text-emerald-600" id="count-completed">0</div>
-            <div class="text-[10px] font-bold text-emerald-500 mt-1">已填寫憑單</div>
+            <div class="text-[10px] font-bold text-emerald-500 mt-1">已繳憑單</div>
         </div>
     </div>
 
     <h2 class="text-lg font-black text-gray-800 mb-3 flex items-center gap-2">🚌 我的車趟憑單</h2>
-    <div id="trip-list" class="space-y-4">
+    <div id="trip-list" class="space-y-4 mb-6">
         <div class="text-center py-10 text-gray-400 font-bold animate-pulse">連線中，請稍候...</div>
+    </div>
+
+    <!-- 🌙 下班簽退按鈕 (動態顯示) -->
+    <div id="signoff-section" class="hidden">
+        <button id="btnOpenSignOff" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg transition flex justify-center items-center gap-2 text-lg border-2 border-slate-600">
+            🌙 今日車趟已全數完成，執行下班簽退
+        </button>
     </div>
 </main>
 
     <!-- Modal 1: 晨間統一報到 -->
     <div id="morningModal" class="modal-overlay">
+        <!-- ... 保持不變 ... -->
         <div class="modal-content pb-10">
             <div class="flex justify-between items-center mb-5">
                 <h3 class="text-2xl font-black text-gray-800">🌅 晨間出勤報到</h3>
@@ -100,13 +111,12 @@
 
     <!-- Modal 2: 單趟到達憑單填寫 -->
     <div id="voucherModal" class="modal-overlay">
+        <!-- ... 保持不變 ... -->
         <div class="modal-content pb-10">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xl font-black text-gray-800">📝 填寫到達憑單</h3>
                 <button id="btnCloseVoucher" class="text-gray-400 hover:text-gray-600 font-bold text-2xl">&times;</button>
             </div>
-            
-            <!-- 🚨 客運業安全宣導 -->
             <div class="bg-red-50 border-2 border-red-500 rounded-xl p-4 mb-5 shadow-sm">
                 <h4 class="text-red-600 font-black text-lg text-center mb-3 tracking-wide">【路口轉彎停看行，禮讓行人優先行】</h4>
                 <ol class="list-decimal list-inside text-[13px] text-gray-800 font-bold space-y-1.5 mb-4 leading-relaxed">
@@ -119,8 +129,6 @@
                 </ol>
                 <h4 class="text-blue-700 font-black text-lg text-center tracking-wide">【離開駕駛座拉好手煞車】</h4>
             </div>
-
-            <!-- 憑單回報表單 -->
             <div class="space-y-4 mb-6">
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -141,56 +149,74 @@
                     <textarea id="inpRemarks" rows="2" class="w-full border-2 border-gray-300 rounded-lg p-3 font-bold text-gray-800 outline-none focus:border-blue-500"></textarea>
                 </div>
             </div>
-            
             <button id="btnSubmitVoucher" class="w-full bg-emerald-500 text-white font-black py-4 rounded-xl shadow-lg hover:bg-emerald-600 transition">
                 確認送出憑單
             </button>
         </div>
     </div>
 
+    <!-- Modal 3: 🌙 下班總表與電子簽名 -->
+    <div id="signOffModal" class="modal-overlay">
+        <div class="modal-content pb-10">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-black text-gray-800">🌙 今日結帳簽退</h3>
+                <button id="btnCloseSignOff" class="text-gray-400 hover:text-gray-600 font-bold text-2xl">&times;</button>
+            </div>
+            
+            <!-- 明日班表預告 -->
+            <div class="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-4 mb-5 shadow-sm text-center">
+                <h4 class="text-indigo-800 font-black mb-2">📅 您的明日排班預告</h4>
+                <div id="tomorrow-shift-info" class="text-2xl font-black text-indigo-600 animate-pulse">
+                    讀取班表中...
+                </div>
+                <p class="text-xs text-indigo-500 font-bold mt-2">※ 若班表顯示異常，請立即與調度台聯繫確認。</p>
+            </div>
+
+            <!-- 電子簽名板 -->
+            <div class="mb-5">
+                <div class="flex justify-between items-end mb-2">
+                    <label class="block text-sm font-bold text-gray-700">✍️ 駕駛員確認簽名</label>
+                    <button id="btnClearSig" class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold hover:bg-gray-300 transition">清除重簽</button>
+                </div>
+                <canvas id="sigCanvas"></canvas>
+            </div>
+            
+            <p class="text-[12px] text-gray-500 font-bold text-center mb-4">
+                本人已確認今日所有車趟憑單皆如實填寫，並已確認明日到班時間。
+            </p>
+
+            <button id="btnSubmitSignOff" class="w-full bg-slate-800 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-900 transition">
+                確認簽退並上傳
+            </button>
+        </div>
+    </div>
+
 <script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, updateDoc, setDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { collection, query, onSnapshot, doc, updateDoc, setDoc, getDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import { checkAuthAndGetRole, logout } from './auth.js';
 
     let currentUser = null;
     let driverEmpId = ""; 
     let currentTrips = [];
     let selectedTripId = null;
-    let previousTripsMap = new Map(); 
-    let isFirstLoad = true; 
 
-    // 公告推播
-    const announcementsCol = collection(db, "announcements");
-    onSnapshot(query(announcementsCol, where("status", "==", "active")), (snapshot) => {
-        const bar = document.getElementById('announcement-bar');
-        const text = document.getElementById('announcement-text');
-        if (snapshot.empty) {
-            bar.classList.add('hidden');
-            bar.classList.remove('flex');
-        } else {
-            text.innerText = snapshot.docs.map(doc => `【${doc.data().title}】${doc.data().content}`).join(" ｜ ");
-            bar.classList.remove('hidden');
-            bar.classList.add('flex');
-        }
-    });
+    // --- 計算週班表 ID (與 schedule.html 同步邏輯) ---
+    function getWeekStr(dateStr) {
+        const d = new Date(dateStr);
+        const target = new Date(d.valueOf());
+        const dayNr = (d.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNr + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+        const weekNo = 1 + Math.ceil((firstThursday - target) / 604800000);
+        return `${d.getFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+    }
 
     const dateInput = document.getElementById('selectDate');
     const tripList = document.getElementById('trip-list');
     dateInput.value = new Date().toISOString().split('T')[0];
-
-    function requestNotificationPermission() {
-        if (!("Notification" in window)) return;
-        if (Notification.permission === "default") {
-            Notification.requestPermission();
-        }
-    }
-
-    function sendNotification(title, body) {
-        if (Notification.permission === "granted") {
-            new Notification(title, { body: body, icon: "https://raw.githubusercontent.com/aajacky3254-netizen/jun-Vd/main/%E8%B1%90%E6%9D%B1%E5%AE%A2%E9%81%8B%20LOGO.png", vibrate: [200, 100, 200] });
-        }
-    }
 
     checkAuthAndGetRole(['總公司', '站長', '調度員', '駕駛長']).then(async (user) => {
         currentUser = user;
@@ -198,10 +224,9 @@
         document.getElementById('driver-greeting').innerText = `👨‍✈️ 駕駛長：${driverName}`;
         driverEmpId = user.empId;
         
-        requestNotificationPermission();
-        
         loadMorningCheckin(dateInput.value, driverEmpId);
         loadMyTrips(dateInput.value, driverEmpId);
+        checkIfSignedOff(dateInput.value, driverEmpId);
     }).catch(err => {
         document.body.innerHTML = `<div class="p-10 text-center"><h2 class="text-red-500 font-bold mb-4">請先完成登入</h2><a href="login.html" class="bg-blue-600 text-white px-6 py-2 rounded-full font-bold">前往登入</a></div>`;
     });
@@ -211,6 +236,7 @@
     dateInput.addEventListener('change', (e) => { 
         loadMorningCheckin(e.target.value, driverEmpId);
         loadMyTrips(e.target.value, driverEmpId); 
+        checkIfSignedOff(e.target.value, driverEmpId);
     });
 
     // ====== 🌅 晨間報到邏輯 ======
@@ -247,18 +273,14 @@
     }
 
     document.getElementById('btnCloseMorning').addEventListener('click', () => { document.getElementById('morningModal').style.display = 'none'; });
-    
     document.getElementById('btnSubmitMorning').addEventListener('click', async () => {
         const btn = document.getElementById('btnSubmitMorning');
-        btn.innerText = "⏳ 傳送中...";
-        btn.disabled = true;
+        btn.innerText = "⏳ 傳送中..."; btn.disabled = true;
 
         const dateStr = dateInput.value;
         const checkinId = `${dateStr}_${driverEmpId}`;
         const data = {
-            date: dateStr,
-            empId: driverEmpId,
-            name: currentUser.name,
+            date: dateStr, empId: driverEmpId, name: currentUser.name,
             alcohol: document.getElementById('inpAlcohol').value,
             temp: document.getElementById('inpTemp').value,
             blood_pressure: document.getElementById('inpBP').value || '未填寫',
@@ -268,12 +290,8 @@
         try {
             await setDoc(doc(db, "daily_checkins", checkinId), data);
             document.getElementById('morningModal').style.display = 'none';
-        } catch (err) {
-            alert('報到失敗，請檢查網路。');
-        } finally {
-            btn.innerText = "確認回報";
-            btn.disabled = false;
-        }
+        } catch (err) { alert('報到失敗，請檢查網路。'); } 
+        finally { btn.innerText = "確認回報"; btn.disabled = false; }
     });
 
     // ====== 🚌 車趟與到達憑單邏輯 ======
@@ -282,32 +300,17 @@
         
         onSnapshot(q, (snapshot) => {
             currentTrips = [];
-            let pendingCount = 0;
-            let completedCount = 0;
-            let newTripsMap = new Map();
+            let pendingCount = 0; let completedCount = 0;
 
             snapshot.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.assigned_empid === empId) {
-                    const tripData = { id: docSnap.id, ...data };
-                    currentTrips.push(tripData);
-                    newTripsMap.set(tripData.id, tripData);
-
-                    // status: 'completed' 代表憑單已填寫
+                    currentTrips.push({ id: docSnap.id, ...data });
                     if (data.status === 'completed' || data.status === 'checked_in') completedCount++;
                     else pendingCount++;
                 }
             });
 
-            if (!isFirstLoad && Notification.permission === "granted") {
-                newTripsMap.forEach((newTrip, tripId) => {
-                    const oldTrip = previousTripsMap.get(tripId);
-                    if (!oldTrip) sendNotification("🚌 新車趟指派！", `調度台已派發 ${newTrip.departure_time} 的 ${newTrip.route} 給您。`);
-                });
-            }
-
-            previousTripsMap = newTripsMap;
-            isFirstLoad = false;
             currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
 
             document.getElementById('count-total').innerText = currentTrips.length;
@@ -315,6 +318,14 @@
             document.getElementById('count-completed').innerText = completedCount;
 
             renderTripCards();
+
+            // 判斷是否顯示「下班簽退」按鈕
+            const signoffSection = document.getElementById('signoff-section');
+            if (currentTrips.length > 0 && pendingCount === 0) {
+                signoffSection.classList.remove('hidden');
+            } else {
+                signoffSection.classList.add('hidden');
+            }
         });
     }
 
@@ -326,12 +337,10 @@
 
         tripList.innerHTML = currentTrips.map(trip => {
             const isCompleted = trip.status === 'completed' || trip.status === 'checked_in';
-            
             let statusClass = isCompleted ? 'status-completed' : 'status-pending';
             let statusText = isCompleted 
                 ? '<span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded font-bold text-xs">✅ 憑單已繳</span>'
                 : '<span class="text-amber-500 bg-amber-50 px-2 py-1 rounded font-bold text-xs">⏳ 待發車/行駛中</span>';
-            
             let btnHtml = isCompleted 
                 ? `<button class="w-full mt-3 bg-gray-100 text-gray-500 font-bold py-2.5 rounded-lg text-sm cursor-not-allowed" disabled>已完成回報</button>`
                 : `<button class="btn-fill-voucher w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md shadow-blue-200" data-id="${trip.id}">📝 抵達並填寫憑單</button>`;
@@ -339,8 +348,7 @@
             return `
             <div class="trip-card ${statusClass}">
                 <div class="flex justify-between items-start mb-2">
-                    <div class="text-2xl font-black text-gray-800">${trip.departure_time}</div>
-                    ${statusText}
+                    <div class="text-2xl font-black text-gray-800">${trip.departure_time}</div>${statusText}
                 </div>
                 <div class="flex items-center gap-2 mb-3">
                     <span class="bg-indigo-100 text-indigo-700 font-black px-2 py-0.5 rounded text-sm">${trip.route}</span>
@@ -349,54 +357,177 @@
                 <div class="text-gray-700 font-bold text-sm mb-1">📍 ${trip.start_point} ➔ ${trip.end_point}</div>
                 <div class="text-gray-600 font-bold text-sm mb-3">🚌 車號：<span class="text-blue-600">${trip.assigned_vehicle}</span></div>
                 ${btnHtml}
-            </div>
-            `;
+            </div>`;
         }).join('');
 
         document.querySelectorAll('.btn-fill-voucher').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 selectedTripId = e.target.dataset.id;
-                // 自動帶入現在時間
                 const now = new Date();
                 document.getElementById('inpArrivalTime').value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-                document.getElementById('inpPassenger').value = '';
-                document.getElementById('inpBattery').value = '';
-                document.getElementById('inpRemarks').value = '';
                 document.getElementById('voucherModal').style.display = 'flex';
             });
         });
     }
 
     document.getElementById('btnCloseVoucher').addEventListener('click', () => { document.getElementById('voucherModal').style.display = 'none'; });
-
     document.getElementById('btnSubmitVoucher').addEventListener('click', async () => {
         if (!selectedTripId) return;
-        
         const arrivalTime = document.getElementById('inpArrivalTime').value;
         if(!arrivalTime) return alert("請填寫實際到達時間！");
 
         const btn = document.getElementById('btnSubmitVoucher');
-        btn.innerText = "⏳ 送出憑單中...";
-        btn.disabled = true;
+        btn.innerText = "⏳ 送出憑單中..."; btn.disabled = true;
 
         try {
             await updateDoc(doc(db, "daily_dispatches", selectedTripId), { 
-                status: 'completed', // 更新為 completed
-                arrival_time: arrivalTime,
+                status: 'completed', arrival_time: arrivalTime,
                 passenger_count: document.getElementById('inpPassenger').value || 0,
                 battery_level: document.getElementById('inpBattery').value || '',
                 remarks: document.getElementById('inpRemarks').value || '',
-                check_in_time: serverTimestamp() // 記錄完成時間
+                check_in_time: serverTimestamp() 
             });
-            
             document.getElementById('voucherModal').style.display = 'none';
+        } catch (err) { alert('憑單送出失敗，請檢查網路。'); } 
+        finally { btn.innerText = "確認送出憑單"; btn.disabled = false; }
+    });
+
+    // ====== 🌙 簽名板與結算邏輯 ======
+    const canvas = document.getElementById('sigCanvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+
+    // 調整 Canvas 解析度以符合實體尺寸
+    function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+    }
+
+    // 取得觸控或滑鼠的座標
+    function getPointerPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function startDrawing(e) {
+        e.preventDefault(); // 防止手機滾動
+        isDrawing = true;
+        const pos = getPointerPos(e);
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const pos = getPointerPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+    }
+
+    function stopDrawing() { isDrawing = false; }
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    canvas.addEventListener('touchstart', startDrawing, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', stopDrawing);
+
+    document.getElementById('btnClearSig').addEventListener('click', () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    // 打開簽退視窗並載入明日班表
+    document.getElementById('btnOpenSignOff').addEventListener('click', async () => {
+        document.getElementById('signOffModal').style.display = 'flex';
+        resizeCanvas();
+
+        const infoEl = document.getElementById('tomorrow-shift-info');
+        infoEl.innerText = "讀取班表中...";
+
+        // 計算明日日期
+        const todayD = new Date(dateInput.value);
+        todayD.setDate(todayD.getDate() + 1);
+        const tomorrowStr = todayD.toISOString().split('T')[0];
+        
+        // 抓取週班表
+        const weekId = getWeekStr(tomorrowStr);
+        const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][todayD.getDay()];
+
+        try {
+            const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
+            if (docSnap.exists() && docSnap.data().roster && docSnap.data().roster[driverEmpId]) {
+                const shift = docSnap.data().roster[driverEmpId][dayKey] || "OFF (休)";
+                infoEl.innerText = `${tomorrowStr} | ${shift}`;
+            } else {
+                infoEl.innerText = `${tomorrowStr} | 尚未排班`;
+            }
         } catch (err) {
-            alert('憑單送出失敗，請檢查網路。');
+            infoEl.innerText = "無法取得明日班表";
+        }
+    });
+
+    document.getElementById('btnCloseSignOff').addEventListener('click', () => { document.getElementById('signOffModal').style.display = 'none'; });
+
+    // 確認簽退並上傳
+    document.getElementById('btnSubmitSignOff').addEventListener('click', async () => {
+        const btn = document.getElementById('btnSubmitSignOff');
+        btn.innerText = "⏳ 上傳簽退紀錄中...";
+        btn.disabled = true;
+
+        // 轉換簽名為 Base64 圖片 (注意：實務上應存入 Firebase Storage，此處為了輕量化直接存字串)
+        const signatureBase64 = canvas.toDataURL("image/png");
+        const dateStr = dateInput.value;
+        const signOffId = `${dateStr}_${driverEmpId}`;
+
+        try {
+            await setDoc(doc(db, "daily_signoffs", signOffId), {
+                date: dateStr,
+                empId: driverEmpId,
+                name: currentUser.name,
+                tomorrow_shift: document.getElementById('tomorrow-shift-info').innerText,
+                signature: signatureBase64,
+                timestamp: serverTimestamp()
+            });
+            alert("✅ 今日結帳簽退成功！您已確認明日班表，辛苦了！");
+            document.getElementById('signOffModal').style.display = 'none';
+            // 將按鈕改為已簽退狀態
+            const mainBtn = document.getElementById('btnOpenSignOff');
+            mainBtn.className = "w-full bg-emerald-600 text-white font-black py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 text-lg border-2 border-emerald-500 cursor-not-allowed";
+            mainBtn.innerText = "✅ 今日已完成結帳簽退";
+            mainBtn.disabled = true;
+        } catch (err) {
+            alert('簽退失敗，請檢查網路連線。');
         } finally {
-            btn.innerText = "確認送出憑單";
+            btn.innerText = "確認簽退並上傳";
             btn.disabled = false;
         }
     });
+
+    // 檢查今日是否已簽退
+    function checkIfSignedOff(dateStr, empId) {
+        const signOffId = `${dateStr}_${empId}`;
+        onSnapshot(doc(db, "daily_signoffs", signOffId), (docSnap) => {
+            const mainBtn = document.getElementById('btnOpenSignOff');
+            if (docSnap.exists()) {
+                mainBtn.className = "w-full bg-emerald-600 text-white font-black py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 text-lg border-2 border-emerald-500 cursor-not-allowed";
+                mainBtn.innerText = "✅ 今日已完成結帳簽退";
+                mainBtn.disabled = true;
+            } else {
+                mainBtn.className = "w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg transition flex justify-center items-center gap-2 text-lg border-2 border-slate-600";
+                mainBtn.innerText = "🌙 今日車趟已全數完成，執行下班簽退";
+                mainBtn.disabled = false;
+            }
+        });
+    }
 
 </script>
 </body>
