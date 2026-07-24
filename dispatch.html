@@ -333,23 +333,45 @@
               currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">🔄 ${d.empId} ${d.name} (${getChineseShift(d.shift)})</option>`).join('');
       }
 
+      let unsubTodayDispatch = null;
+      let unsubYesterdayDispatch = null;
+      let todayDispatches = [];
+      let yesterdayCrossDispatches = [];
+
       function streamDispatchData(dateStr) {
-          if (unsubscribeDispatch) unsubscribeDispatch(); 
+          if (unsubTodayDispatch) unsubTodayDispatch(); 
+          if (unsubYesterdayDispatch) unsubYesterdayDispatch(); 
+          
           dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300";
           dbStatusEl.innerText = "資料同步中...";
 
-          const q = query(dispatchesCol, where("date", "==", dateStr));
-          
-          unsubscribeDispatch = onSnapshot(q, async (snapshot) => {
+          const yDate = new Date(dateStr);
+          yDate.setDate(yDate.getDate() - 1);
+          const yesterdayStr = yDate.toISOString().split('T')[0];
+
+          function mergeAndRender() {
+              currentTrips = [...yesterdayCrossDispatches, ...todayDispatches];
+              currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
+              renderGantt();
+              renderTable();
+          }
+
+          // 1. 抓今日所有車趟
+          unsubTodayDispatch = onSnapshot(query(dispatchesCol, where("date", "==", dateStr)), async (snapshot) => {
               await loadGlobalResources(dateStr);
               dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
               dbStatusEl.innerText = "連線正常 (即時同步)";
+              todayDispatches = snapshot.docs.map(d => ({ id: d.id, ...d.data() })); 
+              mergeAndRender();
+          });
 
-              currentTrips = snapshot.docs.map(d => ({ id: d.id, ...d.data() })); 
-              currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
-              
-              renderGantt();
-              renderTable();
+          // 2. 抓昨日跨夜車趟
+          unsubYesterdayDispatch = onSnapshot(query(dispatchesCol, where("date", "==", yesterdayStr)), (snapshot) => {
+              yesterdayCrossDispatches = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => {
+                  if (!t.arrival_time || !t.departure_time) return false;
+                  return timeToMins(t.arrival_time) < timeToMins(t.departure_time); // 跨日判斷
+              }).map(t => ({...t, isCrossDay: true, route: "🌙[昨日] " + t.route}));
+              mergeAndRender();
           });
       }
 

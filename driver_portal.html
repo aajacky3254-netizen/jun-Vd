@@ -155,7 +155,7 @@
         </div>
     </div>
 
-    <!-- Modal 3: 🌙 下班總表與電子簽名 -->
+    <!-- Modal 3: 🌙 下班總表與聲明確認 -->
     <div id="signOffModal" class="modal-overlay">
         <div class="modal-content pb-10">
             <div class="flex justify-between items-center mb-4">
@@ -172,21 +172,16 @@
                 <p class="text-xs text-indigo-500 font-bold mt-2">※ 若班表顯示異常，請立即與調度台聯繫確認。</p>
             </div>
 
-            <!-- 電子簽名板 -->
-            <div class="mb-5">
-                <div class="flex justify-between items-end mb-2">
-                    <label class="block text-sm font-bold text-gray-700">✍️ 駕駛員確認簽名</label>
-                    <button id="btnClearSig" class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold hover:bg-gray-300 transition">清除重簽</button>
-                </div>
-                <canvas id="sigCanvas"></canvas>
-            </div>
-            
-            <p class="text-[12px] text-gray-500 font-bold text-center mb-4">
-                本人已確認今日所有車趟憑單皆如實填寫，並已確認明日到班時間。
-            </p>
+            <!-- 🚀 新增：取代手寫板的確認聲明區塊 -->
+            <label class="flex items-start gap-3 p-4 bg-emerald-50 border-2 border-emerald-500 rounded-xl cursor-pointer mb-6 shadow-sm">
+                <input type="checkbox" id="chkSignConfirm" class="w-6 h-6 mt-0.5 text-emerald-600 rounded focus:ring-emerald-500">
+                <span class="font-bold text-emerald-900 text-sm leading-relaxed">
+                    本人已仔細閱讀並確認：今日所有車趟憑單皆如實填寫，且已確認明日到班時間無誤。
+                </span>
+            </label>
 
-            <button id="btnSubmitSignOff" class="w-full bg-slate-800 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-900 transition">
-                確認簽退並上傳
+            <button id="btnSubmitSignOff" class="w-full bg-slate-800 text-white font-black py-4 rounded-xl shadow-lg hover:bg-slate-900 transition opacity-50 cursor-not-allowed" disabled>
+                勾選後即可簽退上傳
             </button>
         </div>
     </div>
@@ -295,23 +290,41 @@
     });
 
     // ====== 🚌 車趟與到達憑單邏輯 ======
-    function loadMyTrips(dateStr, empId) {
-        const q = query(collection(db, "daily_dispatches"), where("date", "==", dateStr));
-        
-        onSnapshot(q, (snapshot) => {
-            currentTrips = [];
-            let pendingCount = 0; let completedCount = 0;
+    let unsubToday = null;
+    let unsubYesterday = null;
 
-            snapshot.forEach(docSnap => {
-                const data = docSnap.data();
-                if (data.assigned_empid === empId) {
-                    currentTrips.push({ id: docSnap.id, ...data });
-                    if (data.status === 'completed' || data.status === 'checked_in') completedCount++;
-                    else pendingCount++;
-                }
+    // 🚀 跨日邏輯：同時載入「今天」與「昨天跨午夜」的車趟
+    function loadMyTrips(dateStr, empId) {
+        if (unsubToday) unsubToday();
+        if (unsubYesterday) unsubYesterday();
+
+        const yDate = new Date(dateStr);
+        yDate.setDate(yDate.getDate() - 1);
+        const yesterdayStr = yDate.toISOString().split('T')[0];
+
+        let todayTrips = [];
+        let yesterdayCrossTrips = [];
+
+        function renderMergedTrips() {
+            currentTrips = [...yesterdayCrossTrips, ...todayTrips];
+            
+            // 排序：昨日跨夜班放最上面，今日班次接續
+            currentTrips.sort((a, b) => {
+                const getMins = (t) => {
+                    if (!t) return 0;
+                    let [h, m] = t.split(':').map(Number);
+                    return h * 60 + m;
+                };
+                let timeA = a.isCrossDay ? getMins(a.departure_time) - 1440 : getMins(a.departure_time);
+                let timeB = b.isCrossDay ? getMins(b.departure_time) - 1440 : getMins(b.departure_time);
+                return timeA - timeB;
             });
 
-            currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
+            let pendingCount = 0; let completedCount = 0;
+            currentTrips.forEach(trip => {
+                if (trip.status === 'completed' || trip.status === 'checked_in') completedCount++;
+                else pendingCount++;
+            });
 
             document.getElementById('count-total').innerText = currentTrips.length;
             document.getElementById('count-pending').innerText = pendingCount;
@@ -319,15 +332,81 @@
 
             renderTripCards();
 
-            // 判斷是否顯示「下班簽退」按鈕
+            // 判斷是否顯示下班按鈕
             const signoffSection = document.getElementById('signoff-section');
             if (currentTrips.length > 0 && pendingCount === 0) {
                 signoffSection.classList.remove('hidden');
             } else {
                 signoffSection.classList.add('hidden');
             }
+        }
+
+        // 監聽今天的車趟
+        const qToday = query(collection(db, "daily_dispatches"), where("date", "==", dateStr), where("assigned_empid", "==", empId));
+        unsubToday = onSnapshot(qToday, (snapshot) => {
+            todayTrips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderMergedTrips();
+        });
+
+        // 監聽昨天的車趟 (篩選出到達時間跨過午夜的)
+        const qYesterday = query(collection(db, "daily_dispatches"), where("date", "==", yesterdayStr), where("assigned_empid", "==", empId));
+        unsubYesterday = onSnapshot(qYesterday, (snapshot) => {
+            yesterdayCrossTrips = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(t => {
+                if (!t.arrival_time || !t.departure_time) return false;
+                let [dh, dm] = t.departure_time.split(':').map(Number);
+                let [ah, am] = t.arrival_time.split(':').map(Number);
+                return (ah * 60 + am) < (dh * 60 + dm); // 到達時間 < 發車時間，代表跨日
+            }).map(t => ({...t, isCrossDay: true, route: "🌙 (昨日班表) " + t.route})); // 加上標註
+            renderMergedTrips();
         });
     }
+
+    // 🚀 勾選框連動按鈕
+    const chkSignConfirm = document.getElementById('chkSignConfirm');
+    const btnSubmitSignOff = document.getElementById('btnSubmitSignOff');
+    
+    chkSignConfirm.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            btnSubmitSignOff.disabled = false;
+            btnSubmitSignOff.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            btnSubmitSignOff.disabled = true;
+            btnSubmitSignOff.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    });
+
+    // 確認簽退上傳 (不再需要處理 Base64 圖片)
+    btnSubmitSignOff.addEventListener('click', async () => {
+        if(!chkSignConfirm.checked) return;
+        
+        btnSubmitSignOff.innerText = "⏳ 結算上傳中...";
+        btnSubmitSignOff.disabled = true;
+
+        const dateStr = dateInput.value;
+        const signOffId = `${dateStr}_${driverEmpId}`;
+
+        try {
+            await setDoc(doc(db, "daily_signoffs", signOffId), {
+                date: dateStr,
+                empId: driverEmpId,
+                name: currentUser.name,
+                tomorrow_shift: document.getElementById('tomorrow-shift-info').innerText,
+                status: "已聲明確認",
+                timestamp: serverTimestamp()
+            });
+            alert("✅ 今日結帳簽退成功！您已確認明日班表，辛苦了！");
+            document.getElementById('signOffModal').style.display = 'none';
+            // 將按鈕改為已簽退狀態
+            const mainBtn = document.getElementById('btnOpenSignOff');
+            mainBtn.className = "w-full bg-emerald-600 text-white font-black py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 text-lg border-2 border-emerald-500 cursor-not-allowed";
+            mainBtn.innerText = "✅ 今日已完成結帳簽退";
+            mainBtn.disabled = true;
+        } catch (err) {
+            alert('簽退失敗，請檢查網路連線。');
+            btnSubmitSignOff.innerText = "勾選後即可簽退上傳";
+            btnSubmitSignOff.disabled = false;
+        }
+    });
 
     function renderTripCards() {
         if (currentTrips.length === 0) {
