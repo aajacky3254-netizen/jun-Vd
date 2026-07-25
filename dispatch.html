@@ -806,6 +806,7 @@ document.getElementById('addTripBtn').onclick = async () => {
               if (isPendingOverride) {
                   actionBtns = `<button class="btn-approve-override bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold animate-pulse w-full mb-1" data-id="${data.id}">✅ 核准異常報到</button>`;
               }
+              actionBtns += `<button class="btn-edit-trip bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full mb-1" data-id="${data.id}">✏️ 編輯車趟</button>`;
               actionBtns += `<button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full" data-id="${data.id}">刪除車趟</button>`;
 
               // 🚀 痛點一：(A ⇌ B 的顯示邏輯 - 表格)
@@ -841,40 +842,97 @@ document.getElementById('addTripBtn').onclick = async () => {
           if (e.target.classList.contains('vehicle-select')) { await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: e.target.value }); showToast("✅ 車輛已更新！"); }
       });
       
-      tbody.addEventListener('click', async (e) => { 
-          // 處理刪除
-          if (e.target.classList.contains('btn-delete-trip')) { 
-              if(confirm("確定要刪除此車趟嗎？")) {
-                  await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id)); 
-                  showToast("🗑️ 車趟已刪除！"); 
-              }
-          }
-          // 🌟 處理站長核准異常報到
-          if (e.target.classList.contains('btn-approve-override')) {
-              if(confirm("確定核准這位駕駛的異常報到申請嗎？\n系統將記錄為「站長人工覆核」。")) {
-                  try {
-                      await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), {
-                          status: 'checked_in',
-                          check_in_time: serverTimestamp(),
-                          check_in_method: "站長人工覆核"
-                      });
-                      showToast("✅ 已成功核准異常報到！");
-                  } catch (err) {
-                      alert("核准失敗，請檢查網路。");
-                  }
-              }
-          }
-      });
+      // ✅ 將整個 tbody 點擊事件替換為此版本：
+        tbody.addEventListener('click', async (e) => { 
+            // 🆕 處理點擊編輯
+            if (e.target.classList.contains('btn-edit-trip')) {
+                const tripId = e.target.dataset.id;
+                const trip = currentTrips.find(t => t.id === tripId);
+                if (trip) {
+                    editingTripId = tripId; // 觸發全域變數進入編輯模式
+                    document.getElementById('inputTime').value = trip.departure_time || '';
+                    document.getElementById('inputEndTime').value = trip.arrival_time || '';
+                    document.getElementById('inputRoute').value = trip.route || '';
+                    document.getElementById('inputTrips').value = trip.trip_count || 1;
+                    document.getElementById('inputStart').value = trip.start_point || '';
+                    document.getElementById('inputEnd').value = trip.end_point || '';
 
-      document.getElementById('addTripBtn').onclick = async () => {
-          if(!document.getElementById('inputTime').value || !document.getElementById('inputRoute').value) return alert("發車時間與路線為必填！");
-          await addDoc(dispatchesCol, {
-              date: globalDateInput.value, departure_time: document.getElementById('inputTime').value, arrival_time: document.getElementById('inputEndTime').value,
-              route: document.getElementById('inputRoute').value, trip_count: document.getElementById('inputTrips').value || 1, start_point: document.getElementById('inputStart').value, end_point: document.getElementById('inputEnd').value,
-              assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派", status: "pending"
-          });
-          document.getElementById('inputTrips').value = 1; showToast("✅ 車趟已新增！");
-      };
+                    // 變更新增按鈕外觀為「儲存修改」
+                    const addBtn = document.getElementById('addTripBtn');
+                    addBtn.innerText = "💾 儲存修改";
+                    addBtn.className = "bg-amber-600 text-white px-5 rounded-lg font-bold hover:bg-amber-700 transition shadow-sm h-[46px]";
+                    
+                    // 顯示取消按鈕，並將畫面平滑滾動至頂部控制台
+                    const cancelBtn = document.getElementById('cancelEditBtn');
+                    if (cancelBtn) cancelBtn.classList.remove('hidden');
+                    document.querySelector('.control-panel').scrollIntoView({ behavior: 'smooth' });
+                }
+            }
+
+    // 處理刪除
+    if (e.target.classList.contains('btn-delete-trip')) { 
+        if(confirm("確定要刪除此車趟嗎？")) {
+            await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id)); 
+            showToast("🗑️ 車趟已刪除！"); 
+        }
+    }
+
+    // 處理站長核准異常報到
+    if (e.target.classList.contains('btn-approve-override')) {
+        if(confirm("確定核准這位駕駛的異常報到申請嗎？\n系統將記錄為「站長人工覆核」。")) {
+            try {
+                await updateDoc(doc(db, "daily_dispatches", e.target.dataset.id), {
+                    status: 'checked_in',
+                    check_in_time: serverTimestamp(),
+                    check_in_method: "站長人工覆核"
+                });
+                showToast("✅ 已成功核准異常報到！");
+            } catch (err) {
+                alert("核准失敗，請檢查網路。");
+            }
+        }
+    }
+});
+
+      // ✅ 替換為此版本：
+document.getElementById('addTripBtn').onclick = async () => {
+    const departure_time = document.getElementById('inputTime').value;
+    const route = document.getElementById('inputRoute').value;
+    
+    if(!departure_time || !route) return alert("發車時間與路線為必填！");
+
+    const payload = {
+        date: globalDateInput.value,
+        departure_time: departure_time,
+        arrival_time: document.getElementById('inputEndTime').value,
+        route: route,
+        trip_count: document.getElementById('inputTrips').value || 1,
+        start_point: document.getElementById('inputStart').value,
+        end_point: document.getElementById('inputEnd').value
+    };
+
+    try {
+        if (editingTripId) {
+            // ✏️ 模式：更新現有車趟 (呼叫上方寫好的 updateDoc)
+            await updateDoc(doc(db, "daily_dispatches", editingTripId), payload);
+            showToast("✅ 車趟內容已成功修改！");
+        } else {
+            // ＋ 模式：建立新車趟
+            await addDoc(dispatchesCol, {
+                ...payload,
+                assigned_driver: "尚未指派",
+                assigned_empid: "",
+                assigned_vehicle: "尚未指派",
+                status: "pending"
+            });
+            showToast("✅ 車趟已新增！");
+        }
+        resetEditForm(); // 呼叫您寫在檔案上方的表單重置函數
+    } catch (err) {
+        console.error("儲存失敗:", err);
+        alert("儲存變更失敗，請檢查網路連線。");
+    }
+};
 
       document.getElementById('btnEmergencyReplace').addEventListener('click', async () => {
           const sickId = document.getElementById('sickDriver').value, stbId = document.getElementById('stbDriver').value;
