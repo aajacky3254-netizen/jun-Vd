@@ -507,13 +507,21 @@ document.getElementById('addTripBtn').onclick = async () => {
           // 📝 修正這裡：加入車型資料提取與字串組合
           const vSnap = await getDocs(collection(db, "Vehicles"));
           vSnap.forEach(v => { 
-              if (v.data().status === 'ready') {
-                  // 假設資料庫中車型的欄位名稱為 model
-                  const vehicleModel = v.data().model || ""; 
-                  // 組合出 "1000 (Scania...)" 的格式，如果沒有型號則只顯示車號
+              const data = v.data();
+              // 允許整備完成 (ready) 或 維修中 (breakdown) 的車輛顯示
+              if (data.status === 'ready' || data.status === 'breakdown') {
+                  const vehicleModel = data.model || ""; 
                   const displayName = vehicleModel ? `${v.id} (${vehicleModel})` : `${v.id}`;
+                  const isBreakdown = data.status === 'breakdown';
                   
-                  currentAvailableVehicles.push({ plate: v.id, name: displayName, subtitle: "整備完成" });
+                  currentAvailableVehicles.push({ 
+                      plate: v.id, 
+                      name: displayName, 
+                      subtitle: isBreakdown ? "🛠️ 維修保養中" : "整備完成",
+                      isBreakdown: isBreakdown,
+                      repairStart: data.repairStart || "",
+                      repairEnd: data.repairEnd || ""
+                  });
               }
           });
           currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
@@ -720,7 +728,37 @@ document.getElementById('addTripBtn').onclick = async () => {
                 </div>
                 `;
             });
-          rowHtml += `</div></div>`;
+        // 🆕 畫出專屬的綠色維修佔用區塊
+          if (currentGanttView === 'vehicle' && !isUnassigned && !isWarning) {
+              const vObj = currentAvailableVehicles.find(v => v.plate === rowId);
+              if (vObj && vObj.isBreakdown && vObj.repairStart && vObj.repairEnd) {
+                  const rs = new Date(vObj.repairStart);
+                  const re = new Date(vObj.repairEnd);
+                  
+                  // 取得當前畫布的 00:00 ~ 24:00 時間範圍
+                  const viewStart = new Date(globalDateInput.value + "T00:00:00");
+                  const viewEnd = new Date(viewStart.getTime() + 24*60*60*1000);
+
+                  // 判斷維修時間是否有落在今天的畫布內
+                  if (re > viewStart && rs < viewEnd) {
+                      let viewRsMin = (rs < viewStart) ? 0 : (rs.getHours() * 60 + rs.getMinutes());
+                      let viewReMin = (re > viewEnd) ? 1440 : (re.getHours() * 60 + re.getMinutes());
+
+                      const leftPercent = (viewRsMin / 1440) * 100;
+                      const widthPercent = ((viewReMin - viewRsMin) / 1440) * 100;
+
+                      rowHtml += `
+                      <div class="absolute bg-green-500 border border-green-600 shadow-sm font-bold text-white px-2 py-1 flex flex-col justify-center overflow-hidden whitespace-nowrap z-0 opacity-90"
+                          style="left: ${leftPercent}%; width: ${widthPercent}%; height: 55px; top: 15px; border-radius: 6px; box-sizing: border-box;">
+                          <div class="text-[13px] truncate tracking-wide">🛠️ 車輛進廠維修保養中</div>
+                          <div class="text-[10px] opacity-90 truncate mt-0.5 font-mono">${vObj.repairStart.replace('T', ' ')} ~ ${vObj.repairEnd.replace('T', ' ')}</div>
+                      </div>
+                      `;
+                  }
+              }
+          }
+
+          rowHtml += `</div></div>`; // 這是原本結尾的程式碼
           ganttBody.innerHTML += rowHtml;
       }
 
