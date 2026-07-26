@@ -167,8 +167,8 @@
   </div>
 
 <script type="module">
-  import { db } from './firebase-init.js';
-  import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";  
+  import { db } from './firebase-init.js'; 
+  import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDoc, getDocs, writeBatch, addDoc, where, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { checkAuthAndGetRole, renderNavbar } from './auth.js';
 
     // 🆕 在 script 開頭附近加入編輯狀態變數
@@ -491,39 +491,101 @@ document.getElementById('addTripBtn').onclick = async () => {
       onSnapshot(collection(db, "Routes"), snap => { document.getElementById('routesList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join(''); });
       onSnapshot(collection(db, "Stations"), snap => { document.getElementById('stationsList').innerHTML = snap.docs.map(d => `<option value="${escapeHTML(d.data().name)}">`).join(''); });
 
-      async function getDriverRosterForDate(dateObj) {
-          const target = new Date(dateObj.valueOf());
-          target.setDate(target.getDate() - ((dateObj.getDay() + 6) % 7) + 3);
-          const weekId = `${dateObj.getFullYear()}-W${(1 + Math.ceil((target.valueOf() - target.setMonth(0, 1)) / 604800000)).toString().padStart(2, '0')}`;
-          const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][dateObj.getDay()];
-          const docSnap = await getDoc(doc(db, "weekly_schedules", weekId));
-          return docSnap.exists() ? { roster: docSnap.data().roster, dayKey } : null;
-      }
-
+      // 🚀 核心改動：直接從 Drivers(底班) 與 leave_requests(請假單) 算出現場人力
       async function loadGlobalResources(selectedDateStr) {
           currentAvailableDrivers = []; currentStandbyDrivers = []; currentOffDrivers = []; currentAvailableVehicles = [];
           const addedDrivers = new Set();
           
-          // 📝 修正這裡：加入車型資料提取與字串組合
+          // 1. 車輛載入 (保持原樣，不作更動)
           const vSnap = await getDocs(collection(db, "Vehicles"));
           vSnap.forEach(v => { 
               const data = v.data();
-              // 允許整備完成 (ready) 或 維修中 (breakdown) 的車輛顯示
               if (data.status === 'ready' || data.status === 'breakdown') {
                   const vehicleModel = data.model || ""; 
                   const displayName = vehicleModel ? `${v.id} (${vehicleModel})` : `${v.id}`;
                   const isBreakdown = data.status === 'breakdown';
-                  
                   currentAvailableVehicles.push({ 
-                      plate: v.id, 
-                      name: displayName, 
-                      subtitle: isBreakdown ? "🛠️ 維修保養中" : "整備完成",
-                      isBreakdown: isBreakdown,
-                      repairStart: data.repairStart || "",
-                      repairEnd: data.repairEnd || ""
+                      plate: v.id, name: displayName, subtitle: isBreakdown ? "🛠️ 維修保養中" : "整備完成",
+                      isBreakdown: isBreakdown, repairStart: data.repairStart || "", repairEnd: data.repairEnd || ""
                   });
               }
           });
+          currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
+
+          // 2. 抓取 Drivers 資料庫 (讀取 baseShift 固定底班)
+          const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
+          
+          // 3. 抓取請假單與「當日臨時修改」紀錄
+          const leavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准"), where("date", "==", selectedDateStr)));
+          const overrideSnap = await getDoc(doc(db, "daily_roster_overrides", selectedDateStr)); // 讀取調度員的臨時修改
+          
+          // 抓取昨日資料 (為了判斷昨夜續班)
+          const prevD = new Date(selectedDateStr); prevD.setDate(prevD.getDate() - 1);
+          const prevDateStr = prevD.toISOString().split('T')[0];
+          const prevLeavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准"), where("date", "==", prevDateStr)));
+          const prevOverrideSnap = await getDoc(doc(db, "daily_roster_overrides", prevDateStr));
+
+          // 整理底班
+          let baseRoster = {};
+          driversSnap.forEach(d => {
+              let data = d.data();
+              if ((data.role || "駕駛長") === "駕駛長") {
+                  let shift = data.baseShift || "M (早)"; // 如果資料庫沒設，預設早班
+                  // 🎯 老闆 0000 強制待命
+                  if (d.id === "0000" || d.id === "0000(jun)" || data.name.toUpperCase().includes('JUN')) shift = "STB (待命)";
+                  baseRoster[d.id] = { name: data.name, baseShift: shift };
+              }
+          });
+
+          let leaves = new Set(); leavesSnap.forEach(d => leaves.add(d.data().empId));
+          let prevLeaves = new Set(); prevLeavesSnap.forEach(d => prevLeaves.add(d.data().empId));
+          let overrides = overrideSnap.exists() ? (overrideSnap.data().roster || {}) : {};
+          let prevOverrides = prevOverrideSnap.exists() ? (prevOverrideSnap.data().roster || {}) : {};
+
+          const tempDrivers = {};
+
+          // 4. 計算每位駕駛今天的「最終出勤班別」
+          for (let dId in baseRoster) {
+              let currentShift = baseRoster[dId].baseShift;
+              if (leaves.has(dId)) currentShift = "OFF (休)";      // 請假強制蓋掉底班
+              if (overrides[dId]) currentShift = overrides[dId];   // 調度員臨時手動修改優先級最高
+
+              let prevShift = baseRoster[dId].baseShift;
+              if (prevLeaves.has(dId)) prevShift = "OFF (休)";
+              if (prevOverrides[dId]) prevShift = prevOverrides[dId];
+
+              if (currentShift.includes("OFF") || currentShift.includes("休假") || currentShift.includes("休")) {
+                  currentOffDrivers.push({ empId: dId, name: baseRoster[dId].name, shift: currentShift });
+              } else {
+                  tempDrivers[dId] = { empId: dId, name: baseRoster[dId].name, shift: currentShift, prevShift: prevShift, isPrevNight: false };
+                  addedDrivers.add(dId);
+                  if (currentShift.includes("STB") || currentShift.includes("待命") || currentShift.includes("替班")) {
+                      currentStandbyDrivers.push(tempDrivers[dId]);
+                  }
+              }
+          }
+          
+          // 5. 處理昨夜班，今日續班狀態
+          for (let dId in baseRoster) {
+              let prevShift = baseRoster[dId].baseShift;
+              if (prevLeaves.has(dId)) prevShift = "OFF (休)";
+              if (prevOverrides[dId]) prevShift = prevOverrides[dId];
+
+              if (prevShift && prevShift.includes("N (夜)") && !addedDrivers.has(dId) && !currentOffDrivers.find(d => d.empId === dId)) {
+                  tempDrivers[dId] = { empId: dId, name: baseRoster[dId].name, shift: "跨日續班", prevShift: prevShift, isPrevNight: true };
+              }
+          }
+
+          for(let key in tempDrivers) {
+              const d = tempDrivers[key];
+              d.subtitle = `昨[${getChineseShift(d.prevShift)}] ➔ 今[${getChineseShift(d.shift)}]`; 
+              currentAvailableDrivers.push(d);
+          }
+          currentAvailableDrivers.sort((a, b) => a.empId.localeCompare(b.empId));
+          
+          document.getElementById('stbDriver').innerHTML = '<option value="">2. 選擇替班/待命駕駛</option>' + 
+              currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">🔄 ${d.empId} ${d.name} (${getChineseShift(d.shift)})</option>`).join('');
+      }
           currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
 
           const currD = new Date(selectedDateStr);
@@ -667,11 +729,27 @@ document.getElementById('addTripBtn').onclick = async () => {
           let yesterdayStr = yesterdayDrivingMins > 0 ? formatTime(yesterdayDrivingMins) : "--";
           let todayStr = todayDrivingMins > 0 ? formatTime(todayDrivingMins) : "--";
           
+          // 🆕 新增：生成「當日臨時改班」下拉選單
+          let shiftSelectHtml = "";
+          if (currentGanttView === 'driver' && !isUnassigned) {
+              let drv = currentAvailableDrivers.find(d => d.empId === rowId) || currentOffDrivers.find(d => d.empId === rowId);
+              if (drv && !drv.isPrevNight) {
+                  const shiftOpts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)", "STB (待命)", "OFF (休)"];
+                  let optHtml = shiftOpts.map(opt => `<option value="${opt}" ${drv.shift.includes(opt.split(' ')[0]) ? 'selected' : ''}>${opt}</option>`).join('');
+                  shiftSelectHtml = `
+                      <select class="shift-override-select w-full mt-1 text-[12px] font-bold border border-gray-300 rounded bg-white text-gray-700 outline-none cursor-pointer hover:bg-gray-50" data-empid="${rowId}">
+                          ${optHtml}
+                      </select>
+                  `;
+              }
+          }
+
           let rowHtml = `
             <div class="${rowWrapperClass} drop-zone" data-targetid="${rowId}" data-targetname="${rowName.split(' ')[0]}">
               <div class="gantt-label-col ${labelBg}">
                 <div class="text-[14px] font-black ${isWarning ? 'text-red-700' : 'text-slate-800'} truncate" title="${rowName}">${rowName} ${breakWarningHtml}</div>
                 <div class="text-[11px] ${isWarning ? 'text-red-500' : 'text-gray-500'} font-bold mt-1 tracking-wide">${subtitleText}</div>
+                ${shiftSelectHtml} <!-- 插入選單 -->
                 ${!isUnassigned && !isWarning ? `
                 <div class="mt-2 pt-2 border-t border-gray-200 grid grid-cols-2 gap-1 text-center">
                     <div class="text-[10px] text-purple-700 font-bold bg-purple-100 p-0.5 rounded shadow-inner" title="凌晨00:00~03:59之車趟">🌙 昨夜<br>${yesterdayStr}</div>
@@ -1178,6 +1256,34 @@ document.getElementById('addTripBtn').onclick = async () => {
           XLSX.writeFile(workbook, fileName);
       });
   }).catch(err => console.error(err));
+  // 🆕 監聽甘特圖左側的「當日臨時改班」下拉選單
+      ganttBody.addEventListener('change', async (e) => {
+          if (e.target.classList.contains('shift-override-select')) {
+              const empId = e.target.dataset.empid;
+              const newShift = e.target.value;
+              const targetDate = globalDateInput.value;
+              
+              try {
+                  dbStatusEl.innerText = "⏳ 儲存變更中...";
+                  dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300 shadow-sm";
+                  
+                  const overrideRef = doc(db, "daily_roster_overrides", targetDate);
+                  const docSnap = await getDoc(overrideRef);
+                  let currentOverrides = docSnap.exists() ? (docSnap.data().roster || {}) : {};
+                  currentOverrides[empId] = newShift;
+                  
+                  // 使用 merge: true 確保留下其他司機的改動
+                  await setDoc(overrideRef, { roster: currentOverrides }, { merge: true });
+                  showToast(`✅ [${empId}] 今日班別已臨時變更為 ${newShift}`);
+                  
+                  // 重新載入畫面
+                  streamDispatchData(targetDate);
+              } catch (err) {
+                  console.error(err);
+                  alert("班別修改失敗，請檢查網路！");
+              }
+          }
+      });
 </script>
 </body>
 </html>
