@@ -11,7 +11,6 @@ export function renderNavbar(user, activePageId) {
     if (!nav) return;
 
     const menuItems = [
-        { id: 'schedule', name: '🗓️ 週班表', href: 'schedule.html', roles: ['總公司', '站長', '調度員'] },
         { id: 'dispatch', name: '🚦 每日發車', href: 'dispatch.html', roles: ['總公司', '站長', '調度員'] },
         { id: 'reports', name: '📊 回報紀錄', href: 'reports.html', roles: ['總公司', '站長', '調度員'] },
         { id: 'drivers', name: '👨‍✈️ 人事管理', href: 'drivers.html', roles: ['總公司', '站長'] },
