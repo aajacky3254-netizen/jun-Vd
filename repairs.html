@@ -75,8 +75,7 @@
           <th style="width: 15%;">報修日期</th>
           <th style="width: 15%;">車牌號碼</th>
           <th style="width: 30%;">問題描述</th>
-          <th style="width: 13%;">進場時間</th>
-          <th style="width: 13%;">預計完修</th>
+          <th style="width: 26%;">維修期間 (進場 ～ 預計完修)</th>
           <th style="width: 10%;">提報人</th>
           <th style="width: 10%;">處理狀態</th>
           <th style="width: 20%; text-align: center;">操作</th>
@@ -174,7 +173,7 @@
                             }
                         }
 
-                        // 🆕 格式化時間 (把 T 換成空白，讓畫面更好看)
+                        // 格式化時間 (把 T 換成空白，讓畫面更好看)
                         const rsFormat = data.repairStart ? data.repairStart.replace('T', ' ') : '-';
                         const reFormat = data.repairEnd ? data.repairEnd.replace('T', ' ') : '-';
 
@@ -182,9 +181,13 @@
                             <td class="font-mono text-gray-600 text-sm">${data.date}</td>
                             <td class="font-bold text-lg text-gray-800">${data.plate}</td>
                             <td class="text-gray-700 font-bold">${data.issue}</td>
-                            <!-- 🆕 將時間塞入表格中 -->
-                            <td class="text-sm font-bold text-blue-700">${rsFormat}</td>
-                            <td class="text-sm font-bold text-teal-700">${reFormat}</td>
+                            
+                            <!-- 🆕 合併為一個欄位，並加上顏色區隔以提升閱讀體驗 -->
+                            <td class="text-sm font-bold">
+                                <span class="text-blue-700">${rsFormat}</span> 
+                                <span class="text-gray-400 mx-1">～</span> 
+                                <span class="text-teal-700">${reFormat}</span>
+                            </td>
                             
                             <td class="font-bold text-gray-600 text-sm">${data.reporter}</td>
                             <td>${statusHtml}</td>
