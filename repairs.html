@@ -259,9 +259,10 @@
 
                 // C. 🚨 核心防呆：自動拔除該車今日(含)以後的所有車趟
                 const todayISO = new Date().toISOString().split('T')[0];
+                
+                // 💡 修正：為避免 Firebase 複合索引報錯，改為單一條件查詢 (只查車號)
                 const tripsQuery = query(collection(db, "daily_dispatches"),
-                    where("assigned_vehicle", "==", plate),
-                    where("date", ">=", todayISO)
+                    where("assigned_vehicle", "==", plate)
                 );
                 
                 const tripsSnap = await getDocs(tripsQuery);
@@ -270,10 +271,17 @@
                 if (!tripsSnap.empty) {
                     const batch = writeBatch(db);
                     tripsSnap.forEach(docSnap => {
-                        batch.update(docSnap.ref, { assigned_vehicle: "尚未指派" });
-                        unassignedCount++;
+                        // 💡 修正：把日期的判斷移到前端 JavaScript 執行
+                        if (docSnap.data().date >= todayISO) {
+                            batch.update(docSnap.ref, { assigned_vehicle: "尚未指派" });
+                            unassignedCount++;
+                        }
                     });
-                    await batch.commit();
+                    
+                    // 如果有找到需要修改的車趟，才執行寫入動作
+                    if (unassignedCount > 0) {
+                        await batch.commit();
+                    }
                 }
 
                 alert(`✅ 報修成功！該車已標記為「維修中」。\n⚠️ 防呆連動：已自動將 ${unassignedCount} 筆受影響的車趟退回「尚未指派」！`);
