@@ -144,14 +144,7 @@
     checkAuthAndGetRole(allowedRoles).then((user) => {
         document.body.style.display = 'block'; 
 
-        const nav = document.querySelector('.navbar');
-        nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
-                <span>👤 ${user.name} (${user.role})</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
-            </div>
-        `;
-        document.getElementById('btnLogout').addEventListener('click', logout);
+        renderNavbar(user, 'drivers');
         
         const driversCol = collection(db, "Drivers");
         const dbStatusEl = document.getElementById('db-status');
