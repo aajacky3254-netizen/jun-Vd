@@ -56,6 +56,14 @@
           <button type="button" class="quick-issue bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-md border border-blue-200 font-bold transition">方向燈不亮</button>
         </div>
       </div>
+      <div class="input-group">
+        <label>進場時間</label>
+        <input type="datetime-local" id="inpRepairStart" required>
+      </div>
+      <div class="input-group">
+        <label>預計完修時間</label>
+        <input type="datetime-local" id="inpRepairEnd" required>
+      </div>
       <button id="btnSubmit" class="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold" style="height: 44px;">
         送出報修單
       </button>
@@ -88,26 +96,15 @@
 
   <script type="module">
     import { db } from './firebase-init.js';
-    import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, orderBy, getDocs, addDoc, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js';
+    import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, orderBy, getDocs, addDoc, limit, writeBatch, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
 
     checkAuthAndGetRole(['總公司', '站長', '調度員', '維修保養班', '駕駛長']).then((user) => {
-        document.body.style.display = 'block'; 
-        
-        const nav = document.getElementById('main-nav');
-        nav.innerHTML += `
-            <div class="ml-auto flex items-center gap-4 text-white text-sm font-bold pr-4">
-                <span>👤 ${user.name} (${user.role})</span>
-                <button id="btnLogout" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded transition">登出</button>
-            </div>
-        `;
-        document.getElementById('btnLogout').addEventListener('click', logout);
+        document.body.style.display = 'block';
+        // 🌟 1. 修復導覽列：直接呼叫公用函數，並移除原本手寫的 innerHTML
+        renderNavbar(user, 'repairs');
 
-        if (user.role === '駕駛長') {
-            const navVehicles = document.getElementById('nav-vehicles');
-            if (navVehicles) navVehicles.style.display = 'none';
-        }
-        
+        // (原本的權限與抓取資料邏輯保留不變...)
         const repairsCol = collection(db, "Repairs");
         const dbStatusEl = document.getElementById('db-status');
         const canManage = ['總公司', '站長', '調度員', '維修保養班'].includes(user.role);
@@ -223,9 +220,11 @@
         document.getElementById('btnSubmit').addEventListener('click', async () => {
             const plate = document.getElementById('inpPlate').value.trim();
             const issue = document.getElementById('inpIssue').value.trim();
+            const rStart = document.getElementById('inpRepairStart').value;
+            const rEnd = document.getElementById('inpRepairEnd').value;
             
-            if (!plate || !issue) {
-                alert('請填寫車牌與異常狀況！');
+            if (!plate || !issue || !rStart || !rEnd) {
+                alert('請完整填寫車牌、異常狀況與維修時間！');
                 return;
             }
 
@@ -236,23 +235,53 @@
             try {
                 const todayStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
                 
+                // A. 寫入報修單紀錄
                 await addDoc(repairsCol, { 
                     plate: plate, 
                     issue: issue, 
+                    repairStart: rStart,
+                    repairEnd: rEnd,
                     reporter: user.name, 
                     date: todayStr, 
                     status: 'pending' 
                 });
 
+                // B. 更新車輛狀態 (加入維修起訖時間)
                 try {
-                    await updateDoc(doc(db, "Vehicles", plate), { status: 'breakdown' });
-                    alert('✅ 報修成功！調度系統已將該車輛標記為「故障維修」。');
+                    await updateDoc(doc(db, "Vehicles", plate), { 
+                        status: 'breakdown',
+                        repairStart: rStart,
+                        repairEnd: rEnd
+                    });
                 } catch (err) {
-                    alert('✅ 報修成功！\n(註：系統未在車庫找到此車牌，無法同步狀態，請確認車牌是否建檔正確)');
+                    console.warn('車庫無此車輛，略過狀態同步');
                 }
+
+                // C. 🚨 核心防呆：自動拔除該車今日(含)以後的所有車趟
+                const todayISO = new Date().toISOString().split('T')[0];
+                const tripsQuery = query(collection(db, "daily_dispatches"),
+                    where("assigned_vehicle", "==", plate),
+                    where("date", ">=", todayISO)
+                );
+                
+                const tripsSnap = await getDocs(tripsQuery);
+                let unassignedCount = 0;
+                
+                if (!tripsSnap.empty) {
+                    const batch = writeBatch(db);
+                    tripsSnap.forEach(docSnap => {
+                        batch.update(docSnap.ref, { assigned_vehicle: "尚未指派" });
+                        unassignedCount++;
+                    });
+                    await batch.commit();
+                }
+
+                alert(`✅ 報修成功！該車已標記為「維修中」。\n⚠️ 防呆連動：已自動將 ${unassignedCount} 筆受影響的車趟退回「尚未指派」！`);
 
                 document.getElementById('inpPlate').value = ''; 
                 document.getElementById('inpIssue').value = '';
+                document.getElementById('inpRepairStart').value = '';
+                document.getElementById('inpRepairEnd').value = '';
             } catch (err) {
                 console.error(err);
                 alert('報修失敗，請檢查網路連線！');
