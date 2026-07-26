@@ -381,79 +381,115 @@
         }
 
         // ================= 按鈕事件 =================
-        document.getElementById('btn-auto').addEventListener('click', async () => {
-            const dateValue = document.getElementById('week-picker').value; 
-            if (!dateValue) return alert("請先選擇日期！");
-
-            const weekDatesArr = getWeekDatesFromPicker();
-            const weekDates = {};
-            for(let i=0; i<7; i++){
-                weekDates[daysOfWeek[i]] = weekDatesArr[i];
-            }
-
-            const approvedLeaves = {}; 
-            try {
-                const leaveQuery = query(collection(db, "leave_requests"), where("status", "==", "已核准"));
-                const leaveSnap = await getDocs(leaveQuery);
-                leaveSnap.forEach(docSnap => {
-                    const data = docSnap.data();
-                    for (let dayKey of daysOfWeek) {
-                        if (weekDates[dayKey] === data.date) {
-                            if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
-                            approvedLeaves[data.empId][dayKey] = data.type || "OFF (休)";
-                        }
+       document.getElementById('btn-auto').addEventListener('click', async () => {
+        const dateValue = document.getElementById('week-picker').value; 
+        if (!dateValue) return alert("請先選擇日期！");
+    
+        const weekDatesArr = getWeekDatesFromPicker();
+        const weekDates = {};
+        for(let i=0; i<7; i++){
+            weekDates[daysOfWeek[i]] = weekDatesArr[i];
+        }
+    
+        const approvedLeaves = {}; 
+        try {
+            const leaveQuery = query(collection(db, "leave_requests"), where("status", "==", "已核准"));
+            const leaveSnap = await getDocs(leaveQuery);
+            leaveSnap.forEach(docSnap => {
+                const data = docSnap.data();
+                for (let dayKey of daysOfWeek) {
+                    if (weekDates[dayKey] === data.date) {
+                        if (!approvedLeaves[data.empId]) approvedLeaves[data.empId] = {};
+                        approvedLeaves[data.empId][dayKey] = data.type || "OFF (休)";
                     }
-                });
-            } catch (err) {
-                console.error("撈取請假單失敗:", err);
-                return alert("連線失敗，無法取得請假資料，終止自動排班！");
-            }
-
-            const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)"];
+                }
+            });
+        } catch (err) {
+            console.error("撈取請假單失敗:", err);
+            return alert("連線失敗，無法取得請假資料，終止自動排班！");
+        }
+    
+        // --- 新增：計算初步每日可用人力 ---
+        let dailyManpower = {};
+        daysOfWeek.forEach(day => dailyManpower[day] = currentDrivers.length);
+        currentDrivers.forEach(driver => {
+            daysOfWeek.forEach(day => {
+                if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
+                    dailyManpower[day]--; // 扣除已請假人數
+                }
+            });
+        });
+    
+        const baseShifts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)"];
+        
+        currentDrivers.forEach((driver, index) => {
+            const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
+            const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
+            const myBaseShift = baseShifts[index % baseShifts.length];
             
-            currentDrivers.forEach((driver, index) => {
-                const safeEmpId = String(driver.empId).replace(/[^a-zA-Z0-9]/g, '_');
-                const isBoss = driver.empId === '0000(jun)' || driver.empId === '0000' || driver.name.toUpperCase().includes('JUN');
-                const myBaseShift = baseShifts[index % baseShifts.length];
-                const randomOffDayIndex = Math.floor(Math.random() * 7);
-                const myOffDay = daysOfWeek[randomOffDayIndex];
-
-                daysOfWeek.forEach(day => {
-                    const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
-                    if (!selectEl || selectEl.disabled) return; // 若已被假單鎖定則跳過
-
-                    if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) {
-                        return; // 保險機制
-                    }
-
-                    if (isBoss) {
-                        // 讓老闆也遵循系統抽出的隨機休假日 (myOffDay)
-                        if (day === myOffDay) {
-                            selectEl.value = "OFF (休)";
-                            selectEl.className = window.getShiftClass("OFF (休)");
-                        } else {
-                            selectEl.value = "STB (待命)";
-                            selectEl.className = window.getShiftClass("STB (待命)");
-                        }
-                        return;
-                    }
-
+            // 判斷該駕駛本週是否有請假
+            const hasLeaveThisWeek = daysOfWeek.some(day => approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]);
+            
+            // 抽取散休日
+            let randomOffDayIndex = Math.floor(Math.random() * 7);
+            let myOffDay = daysOfWeek[randomOffDayIndex];
+            
+            // 若有請假且抽中的休假日剛好是請假日，嘗試重新抽取一次以避免重疊
+            if (hasLeaveThisWeek && approvedLeaves[driver.empId] && approvedLeaves[driver.empId][myOffDay]) {
+                randomOffDayIndex = (randomOffDayIndex + 1) % 7;
+                myOffDay = daysOfWeek[randomOffDayIndex];
+            }
+    
+            // --- 新增：動態給假邏輯 ---
+            let grantOffDay = false;
+            if (isBoss) {
+                grantOffDay = true; 
+            } else if (!hasLeaveThisWeek) {
+                grantOffDay = true; // 沒請假者，保障一天散休
+            } else {
+                // 已有請假者，視該日剩餘人力決定是否給予額外散休
+                if (dailyManpower[myOffDay] > MIN_REQUIRED_DRIVERS) {
+                    grantOffDay = true;
+                }
+            }
+    
+            // 確定給予額外散休，預扣該日人力 (老闆不影響主要班表人力，故排除)
+            if (grantOffDay && !isBoss && !(approvedLeaves[driver.empId] && approvedLeaves[driver.empId][myOffDay])) {
+                dailyManpower[myOffDay]--; 
+            }
+    
+            // 寫入表格
+            daysOfWeek.forEach(day => {
+                const selectEl = document.getElementById(`sel-${safeEmpId}-${day}`);
+                if (!selectEl || selectEl.disabled) return; 
+    
+                if (approvedLeaves[driver.empId] && approvedLeaves[driver.empId][day]) return; 
+    
+                if (isBoss) {
                     if (day === myOffDay) {
                         selectEl.value = "OFF (休)";
-                        selectEl.className = window.getShiftClass("OFF (休)");
-                        return;
+                    } else {
+                        selectEl.value = "STB (待命)";
                     }
-
+                    selectEl.className = window.getShiftClass(selectEl.value);
+                    return;
+                }
+    
+                // 根據動態判斷結果，決定給予休假還是底班
+                if (day === myOffDay && grantOffDay) {
+                    selectEl.value = "OFF (休)";
+                } else {
                     selectEl.value = myBaseShift;
-                    selectEl.className = window.getShiftClass(myBaseShift);
-                });
+                }
+                selectEl.className = window.getShiftClass(selectEl.value);
             });
-
-            isDirty = true;
-            silentAutoSave();
-            runScheduleChecks();
-            alert("✨ 智慧實務排班完成！\n已自動保留核准假單，並分配底班與散休。");
         });
+    
+        isDirty = true;
+        silentAutoSave();
+        runScheduleChecks();
+        alert("✨ 智慧實務排班完成！\n已根據人力狀況動態分配散休與固定班。");
+    });
 
         document.getElementById('btn-save').addEventListener('click', async () => {
             const rosterToSave = {};
