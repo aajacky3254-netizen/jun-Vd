@@ -287,14 +287,6 @@ function renderTable() {
               }
           }
 
-    // 處理刪除
-    if (e.target.classList.contains('btn-delete-trip')) { 
-        if(confirm("確定要刪除此車趟嗎？")) {
-            await deleteDoc(doc(doc(db, "daily_dispatches", e.target.dataset.id))); 
-            showToast("🗑️ 車趟已刪除！"); 
-        }
-    }
-
     // 處理站長核准異常報到
     if (e.target.classList.contains('btn-approve-override')) {
         if(confirm("確定核准這位駕駛的異常報到申請嗎？\n系統將記錄為「站長人工覆核」。")) {
@@ -868,14 +860,6 @@ document.getElementById('addTripBtn').onclick = async () => {
                     document.querySelector('.control-panel').scrollIntoView({ behavior: 'smooth' });
                 }
             }
-
-    // 處理刪除
-    if (e.target.classList.contains('btn-delete-trip')) { 
-        if(confirm("確定要刪除此車趟嗎？")) {
-            await deleteDoc(doc(db, "daily_dispatches", e.target.dataset.id)); 
-            showToast("🗑️ 車趟已刪除！"); 
-        }
-    }
 
     // 處理站長核准異常報到
     if (e.target.classList.contains('btn-approve-override')) {
