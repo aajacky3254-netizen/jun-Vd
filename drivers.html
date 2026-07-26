@@ -82,6 +82,16 @@
           <option value="總公司">總公司</option>
         </select>
       </div>
+      <!-- 新增：固定班別設定 -->
+      <div class="input-group" style="width: 140px;">
+        <label>固定班別</label>
+        <select id="inpBaseShift" class="font-bold text-blue-700 bg-blue-50 border-blue-300">
+          <option value="M (早)">M (早班)</option>
+          <option value="A (中)">A (中班)</option>
+          <option value="E (晚)">E (晚班)</option>
+          <option value="N (夜)">N (夜班)</option>
+        </select>
+      </div>
     </div>
 
     <div class="control-panel">
@@ -117,12 +127,13 @@
     <table>
       <thead>
         <tr>
-          <th style="width: 12%;">員工編號</th>
-          <th style="width: 18%;">員工姓名</th>
-          <th style="width: 13%;">所屬場站</th>
-          <th style="width: 22%;">實際職稱 / 專案進度</th>
-          <th style="width: 13%;">系統權限</th>
-          <th style="width: 12%;">在職狀態</th>
+          <th style="width: 10%;">員工編號</th>
+          <th style="width: 15%;">員工姓名</th>
+          <th style="width: 12%;">所屬場站</th>
+          <th style="width: 12%;">固定班別</th> <!-- 新增這行 -->
+          <th style="width: 20%;">實際職稱 / 專案進度</th>
+          <th style="width: 11%;">系統權限</th>
+          <th style="width: 10%;">在職狀態</th>
           <th style="width: 10%; text-align: center;">操作</th>
         </tr>
       </thead>
@@ -212,6 +223,8 @@
                     <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${escapeHTML(driver.id)}</td>
                     <td style="font-weight: bold; color: #0f172a; font-size: 16px;">${escapeHTML(driver.name)}</td>
                     <td style="color: #475569; font-weight: 600;">${escapeHTML(driver.station) || '未指定'}</td>
+                    <!-- 新增這行，顯示固定班別 -->
+                    <td style="color: #2563eb; font-weight: 800;">${escapeHTML(driver.baseShift) || 'M (早)'}</td>
                     <td style="color: #047857; font-weight: 600; font-size: 15px;">${escapeHTML(driver.empRole) || '駕駛長'}${milestoneText}</td>
                     <td style="color: #3b82f6; font-weight: 600;">${escapeHTML(driver.role) || '駕駛長'}</td>
                     <td>${statusHtml}</td>
@@ -223,13 +236,13 @@
                                 data-station="${escapeHTML(driver.station)}" 
                                 data-role="${escapeHTML(driver.role)}"
                                 data-emprole="${escapeHTML(driver.empRole) || '駕駛長'}"
-                                data-empmilestone="${escapeHTML(driver.empMilestone) || 'none'}">編輯</button>
+                                data-empmilestone="${escapeHTML(driver.empMilestone) || 'none'}"
+                                data-baseshift="${escapeHTML(driver.baseShift) || 'M (早)'}">編輯</button> <!-- 新增 data-baseshift -->
                         <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${escapeHTML(driver.id)}">刪除</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
-
             document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', (e) => {
                 const btnData = e.target.dataset;
                 document.getElementById('inpEmpId').value = btnData.id;
@@ -241,6 +254,9 @@
                 document.getElementById('inpRole').value = btnData.role || '駕駛長';
                 document.getElementById('empRole').value = btnData.emprole;
                 document.getElementById('empMilestone').value = btnData.empmilestone;
+                
+                // 新增這行：帶入班別
+                document.getElementById('inpBaseShift').value = btnData.baseshift; 
                 
                 const milestoneGroup = document.getElementById('milestoneGroup');
                 if (btnData.emprole === '駕駛長') {
@@ -272,6 +288,7 @@
             const role = document.getElementById('inpRole').value;
             const empRole = document.getElementById('empRole').value;
             const empMilestone = document.getElementById('empMilestone').value;
+            const baseShift = document.getElementById('inpBaseShift').value;
 
             if(!empId || !name) { alert("請填寫員工編號與姓名！"); return; }
 
@@ -291,6 +308,7 @@
                     role: role,
                     empRole: empRole,
                     empMilestone: empMilestone
+                    baseShift: baseShift // 新增這行：寫入資料庫
                 };
 
                 // 🚨 這裡只做單純的 Firestore 資料寫入，不觸碰 Auth
@@ -303,6 +321,7 @@
                 document.getElementById('inpStatus').value = 'active';
                 document.getElementById('empRole').value = '駕駛長';
                 document.getElementById('empMilestone').value = 'none';
+                document.getElementById('inpBaseShift').value = 'M (早)';
                 document.getElementById('milestoneGroup').style.display = 'flex';
                 
                 if (!docSnap.exists()) {
