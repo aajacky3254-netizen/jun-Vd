@@ -646,8 +646,8 @@ document.getElementById('addTripBtn').onclick = async () => {
                   if (et < st) et += 1440; 
                   let tripDuration = et - st - 20; 
 
-                  // 📝 修正這裡：加入 t.isCrossDay 的判斷
-                  if (t.isCrossDay || timeToMins(t.departure_time) < 240) {
+                  // 📝 修正這裡：完全依照你的需求，只要是昨日班表就計入昨日，其他全部計入今日
+                  if (t.isCrossDay) {
                       yesterdayDrivingMins += tripDuration;
                   } else {
                       todayDrivingMins += tripDuration;
