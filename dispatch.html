@@ -504,9 +504,17 @@ document.getElementById('addTripBtn').onclick = async () => {
           currentAvailableDrivers = []; currentStandbyDrivers = []; currentOffDrivers = []; currentAvailableVehicles = [];
           const addedDrivers = new Set();
           
+          // 📝 修正這裡：加入車型資料提取與字串組合
           const vSnap = await getDocs(collection(db, "Vehicles"));
           vSnap.forEach(v => { 
-              if (v.data().status === 'ready') currentAvailableVehicles.push({ plate: v.id, name: `${v.id}`, subtitle: "整備完成" });
+              if (v.data().status === 'ready') {
+                  // 假設資料庫中車型的欄位名稱為 model
+                  const vehicleModel = v.data().model || ""; 
+                  // 組合出 "1000 (Scania...)" 的格式，如果沒有型號則只顯示車號
+                  const displayName = vehicleModel ? `${v.id} (${vehicleModel})` : `${v.id}`;
+                  
+                  currentAvailableVehicles.push({ plate: v.id, name: displayName, subtitle: "整備完成" });
+              }
           });
           currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
 
@@ -638,7 +646,8 @@ document.getElementById('addTripBtn').onclick = async () => {
                   if (et < st) et += 1440; 
                   let tripDuration = et - st - 20; 
 
-                  if (timeToMins(t.departure_time) < 240) {
+                  // 📝 修正這裡：加入 t.isCrossDay 的判斷
+                  if (t.isCrossDay || timeToMins(t.departure_time) < 240) {
                       yesterdayDrivingMins += tripDuration;
                   } else {
                       todayDrivingMins += tripDuration;
