@@ -1090,9 +1090,30 @@ document.getElementById('addTripBtn').onclick = async () => {
               
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
                   let bestVehicle = null;
+                  
+                  // 🔥 加入：計算這筆空缺車趟的絕對時間
+                  const tripDate = trip.date || globalDateInput.value;
+                  const absTripStart = new Date(`${tripDate}T${trip.departure_time}`).getTime();
+                  let absTripEnd = new Date(`${tripDate}T${trip.arrival_time || trip.departure_time}`).getTime();
+                  if (absTripEnd < absTripStart) absTripEnd += 86400000;
+
                   for (let v of currentAvailableVehicles) {
                       let sched = vehicleSchedules[v.plate] || [];
-                      if (!sched.some(s => (tStart < s.end && tEnd > s.start))) { bestVehicle = v; break; }
+                      // 1. 檢查一般排班是否衝突
+                      if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue;
+
+                      // 🔥 2. 檢查是否撞到該車的「維修時間」
+                      if (v.isBreakdown && v.repairStart && v.repairEnd) {
+                          const rStart = new Date(v.repairStart).getTime();
+                          const rEnd = new Date(v.repairEnd).getTime();
+                          // 如果車趟時間與維修時間重疊，這台車不能派，直接跳過換下一台
+                          if (absTripStart < rEnd && absTripEnd > rStart) {
+                              continue;
+                          }
+                      }
+                      
+                      bestVehicle = v; 
+                      break; 
                   }
                   if (bestVehicle) {
                       assigned_vehicle = bestVehicle.plate;
