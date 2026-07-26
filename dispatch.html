@@ -704,7 +704,7 @@ document.getElementById('addTripBtn').onclick = async () => {
 
                 rowHtml += `
                 <div class="trip-block ${colorClass} border" draggable="true" data-tripid="${trip.id}" 
-                    data-route="${trip.route}" data-time="${timeStr}" data-stations="${stationsStr}" data-resource="${resourceStr}"
+                    data-route="${trip.route}" data-time="${timeStr}" data-stations="${stationsStr}" data-resource="${resourceStr}" data-tripcount="${tripCount}"
                     style="left: ${leftPercent}%; width: ${widthPercent}%; ${inlineColorStyle}">
                     <div class="truncate font-black">${trip.route}: ${trip.start_point}${arrowStr}${trip.end_point}</div>
                     <div class="text-[10px] opacity-90 font-mono mt-0.5 tracking-wider">${trip.departure_time} ｜ ${blockSubInfo}</div>
@@ -748,6 +748,7 @@ document.getElementById('addTripBtn').onclick = async () => {
               tooltipEl.innerHTML = `
                   <div class="text-blue-300 font-bold mb-1">車趟：${d.route} <span class="text-gray-300 font-normal tracking-wider">(${d.time})</span></div>
                   <div class="mb-1">站點：${d.stations}</div>
+                  <div class="mb-1 text-teal-300">趟數：${d.tripcount} 趟</div>
                   <div class="text-amber-400 font-bold">${d.resource}</div>
               `;
               tooltipEl.classList.remove('hidden');
