@@ -75,6 +75,8 @@
           <th style="width: 15%;">報修日期</th>
           <th style="width: 15%;">車牌號碼</th>
           <th style="width: 30%;">問題描述</th>
+          <th style="width: 13%;">進場時間</th>
+          <th style="width: 13%;">預計完修</th>
           <th style="width: 10%;">提報人</th>
           <th style="width: 10%;">處理狀態</th>
           <th style="width: 20%; text-align: center;">操作</th>
@@ -172,11 +174,19 @@
                             }
                         }
 
+                        // 🆕 格式化時間 (把 T 換成空白，讓畫面更好看)
+                        const rsFormat = data.repairStart ? data.repairStart.replace('T', ' ') : '-';
+                        const reFormat = data.repairEnd ? data.repairEnd.replace('T', ' ') : '-';
+
                         tr.innerHTML = `
-                            <td class="font-mono text-gray-600">${data.date}</td>
+                            <td class="font-mono text-gray-600 text-sm">${data.date}</td>
                             <td class="font-bold text-lg text-gray-800">${data.plate}</td>
-                            <td class="text-gray-700">${data.issue}</td>
-                            <td class="font-bold text-gray-600">${data.reporter}</td>
+                            <td class="text-gray-700 font-bold">${data.issue}</td>
+                            <!-- 🆕 將時間塞入表格中 -->
+                            <td class="text-sm font-bold text-blue-700">${rsFormat}</td>
+                            <td class="text-sm font-bold text-teal-700">${reFormat}</td>
+                            
+                            <td class="font-bold text-gray-600 text-sm">${data.reporter}</td>
                             <td>${statusHtml}</td>
                             <td style="text-align: center;">${actionBtns}</td>
                         `;
@@ -257,10 +267,7 @@
                     console.warn('車庫無此車輛，略過狀態同步');
                 }
 
-                // C. 🚨 核心防呆：自動拔除該車今日(含)以後的所有車趟
-                const todayISO = new Date().toISOString().split('T')[0];
-                
-                // 💡 修正：為避免 Firebase 複合索引報錯，改為單一條件查詢 (只查車號)
+                // C. 🚨 核心防呆 (精準時段拔車)：只拔除「落在維修期間內」的車趟
                 const tripsQuery = query(collection(db, "daily_dispatches"),
                     where("assigned_vehicle", "==", plate)
                 );
@@ -270,15 +277,34 @@
                 
                 if (!tripsSnap.empty) {
                     const batch = writeBatch(db);
+                    // 取得維修的絕對起訖時間
+                    const repairStartTime = new Date(rStart).getTime();
+                    const repairEndTime = new Date(rEnd).getTime();
+
                     tripsSnap.forEach(docSnap => {
-                        // 💡 修正：把日期的判斷移到前端 JavaScript 執行
-                        if (docSnap.data().date >= todayISO) {
-                            batch.update(docSnap.ref, { assigned_vehicle: "尚未指派" });
-                            unassignedCount++;
+                        const trip = docSnap.data();
+                        if (trip.date && trip.departure_time) {
+                            // 計算該車趟的絕對起訖時間
+                            const tripStartStr = `${trip.date}T${trip.departure_time}`;
+                            const tripStartTime = new Date(tripStartStr).getTime();
+                            
+                            let tripEndTime = tripStartTime + (60 * 60 * 1000); // 預設抓1小時
+                            if (trip.arrival_time) {
+                                tripEndTime = new Date(`${trip.date}T${trip.arrival_time}`).getTime();
+                                if (tripEndTime < tripStartTime) tripEndTime += 86400000; // 處理跨日車趟
+                            }
+
+                            // 🎯 關鍵判斷：只要「車趟時間」跟「維修時間」有重疊，就將其退班
+                            if (tripStartTime < repairEndTime && tripEndTime > repairStartTime) {
+                                batch.update(docSnap.ref, { 
+                                    assigned_vehicle: "尚未指派", 
+                                    status: "pending" 
+                                });
+                                unassignedCount++;
+                            }
                         }
                     });
                     
-                    // 如果有找到需要修改的車趟，才執行寫入動作
                     if (unassignedCount > 0) {
                         await batch.commit();
                     }
