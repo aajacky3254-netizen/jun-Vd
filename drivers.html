@@ -135,7 +135,7 @@
   <script type="module">
     import { app, db } from './firebase-init.js';
     import { collection, query, onSnapshot, doc, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { checkAuthAndGetRole, logout } from './auth.js';
+    import { checkAuthAndGetRole, logout, renderNavbar } from './auth.js';
     
     // 🚨 移除：所有關於 SecondaryApp 與 createUserWithEmailAndPassword 的引入與初始化
 
