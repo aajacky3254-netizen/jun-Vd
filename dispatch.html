@@ -794,8 +794,22 @@ document.getElementById('addTripBtn').onclick = async () => {
                       `;
                   }
               }
-          }
 
+          // 👇👇👇 請在這裡加入這段：畫出專屬的駕駛休假佔用區塊 👇👇👇
+          if (currentGanttView === 'driver' && !isUnassigned) {
+              // 檢查該列的駕駛是否在今日的休假名單中
+              const isOff = currentOffDrivers.some(d => d.empId === rowId);
+              
+              if (isOff) {
+                  // 產生一個橫跨整天 (0% 到 100%) 的灰色遮罩區塊
+                  rowHtml += `
+                  <div class="absolute bg-gray-500 border border-gray-600 shadow-sm font-bold text-white px-2 py-1 flex flex-col justify-center overflow-hidden whitespace-nowrap z-0 opacity-80 cursor-not-allowed"
+                      style="left: 0%; width: 100%; height: 55px; top: 15px; border-radius: 6px; box-sizing: border-box;">
+                      <div class="text-[14px] truncate tracking-wide text-center w-full">🌴 差勤系統連動：本日已請假 / 排休</div>
+                  </div>
+                  `;
+              }
+          }
           rowHtml += `</div></div>`; // 這是原本結尾的程式碼
           ganttBody.innerHTML += rowHtml;
       }
