@@ -538,29 +538,31 @@ document.getElementById('addTripBtn').onclick = async () => {
               }
           });
 
-          let leaves = new Set();
-// 定義當前畫布的 00:00 ~ 次日 00:00 時間範圍
-const viewStart = new Date(selectedDateStr + "T00:00:00");
-const viewEnd = new Date(viewStart.getTime() + 24 * 60 * 60 * 1000);
-
-leavesSnap.forEach(d => {
-    const leaveData = d.data();
-    
-    // 假設您的請假單資料庫有存 startTime 與 endTime (請依據您實際的欄位名稱調整)
-    if (leaveData.startTime && leaveData.endTime) {
-        const ls = new Date(leaveData.startTime);
-        const le = new Date(leaveData.endTime);
-        
-        // 判斷假單時間是否有落在今天的畫布內 (核心邏輯：結束時間大於畫布起點，且開始時間小於畫布終點)
-        if (le > viewStart && ls < viewEnd) {
-            leaves.add(leaveData.empId);
-        }
-    } 
-    // 兼容舊資料或單日請假：如果資料庫只有存單一 date 欄位
-    else if (leaveData.date === selectedDateStr) {
-        leaves.add(leaveData.empId);
-    }
-});
+          let leaves = new Map(); // 🌟 改用 Map 來儲存起訖時間
+          // 定義當前畫布的 00:00 ~ 次日 00:00 時間範圍
+          const viewStart = new Date(selectedDateStr + "T00:00:00");
+          const viewEnd = new Date(viewStart.getTime() + 24 * 60 * 60 * 1000);
+          
+          leavesSnap.forEach(d => {
+              const leaveData = d.data();
+              
+              if (leaveData.startTime && leaveData.endTime) {
+                  const ls = new Date(leaveData.startTime);
+                  const le = new Date(leaveData.endTime);
+                  
+                  if (le > viewStart && ls < viewEnd) {
+                      // 🌟 將時間一併存入
+                      leaves.set(leaveData.empId, { start: leaveData.startTime, end: leaveData.endTime });
+                  }
+              } 
+              else if (leaveData.date === selectedDateStr) {
+                  // 兼容舊單日請假，預設為整天 00:00 ~ 23:59
+                  leaves.set(leaveData.empId, { 
+                      start: selectedDateStr + " 00:00:00", 
+                      end: selectedDateStr + " 23:59:59" 
+                  });
+              }
+          });
           let prevLeaves = new Set(); prevLeavesSnap.forEach(d => prevLeaves.add(d.data().empId));
           let overrides = overrideSnap.exists() ? (overrideSnap.data().roster || {}) : {};
           let prevOverrides = prevOverrideSnap.exists() ? (prevOverrideSnap.data().roster || {}) : {};
@@ -578,7 +580,15 @@ leavesSnap.forEach(d => {
               if (prevOverrides[dId]) prevShift = prevOverrides[dId];
 
               if (currentShift.includes("OFF") || currentShift.includes("休假") || currentShift.includes("休")) {
-                  currentOffDrivers.push({ empId: dId, name: baseRoster[dId].name, shift: currentShift });
+                  // 🌟 嘗試取得這名駕駛的請假時間，如果沒有(例如手動排休)，則為 null
+                  const leaveTimes = leaves.get(dId) || null;
+                  currentOffDrivers.push({ 
+                      empId: dId, 
+                      name: baseRoster[dId].name, 
+                      shift: currentShift,
+                      leaveStart: leaveTimes ? leaveTimes.start : null,
+                      leaveEnd: leaveTimes ? leaveTimes.end : null
+                  });
               } else {
                   tempDrivers[dId] = { empId: dId, name: baseRoster[dId].name, shift: currentShift, prevShift: prevShift, isPrevNight: false };
                   addedDrivers.add(dId);
@@ -713,15 +723,34 @@ leavesSnap.forEach(d => {
           
           // 🆕 新增：生成「當日臨時改班」下拉選單
           let shiftSelectHtml = "";
+          // 👇👇👇 畫出專屬的駕駛休假佔用區塊 👇👇👇
           if (currentGanttView === 'driver' && !isUnassigned) {
-              let drv = currentAvailableDrivers.find(d => d.empId === rowId) || currentOffDrivers.find(d => d.empId === rowId);
-              if (drv && !drv.isPrevNight) {
-                  const shiftOpts = ["M (早)", "A (中)", "E (晚)", "N (夜)", "REL (替班)", "STB (待命)", "OFF (休)"];
-                  let optHtml = shiftOpts.map(opt => `<option value="${opt}" ${drv.shift.includes(opt.split(' ')[0]) ? 'selected' : ''}>${opt}</option>`).join('');
-                  shiftSelectHtml = `
-                      <select class="shift-override-select w-full mt-1 text-[12px] font-bold border border-gray-300 rounded bg-white text-gray-700 outline-none cursor-pointer hover:bg-gray-50" data-empid="${rowId}">
-                          ${optHtml}
-                      </select>
+              const offDriver = currentOffDrivers.find(d => d.empId === rowId);
+              if (offDriver) {
+                  let leftPercent = 0;
+                  let widthPercent = 100;
+                  let leaveText = "🌴 差勤系統連動：本日已請假 / 排休";
+
+                  // 如果有具體的請假起訖時間，進行比例計算
+                  if (offDriver.leaveStart && offDriver.leaveEnd) {
+                      const rs = new Date(offDriver.leaveStart);
+                      const re = new Date(offDriver.leaveEnd);
+                      const viewStart = new Date(globalDateInput.value + "T00:00:00");
+                      const viewEnd = new Date(viewStart.getTime() + 24*60*60*1000);
+
+                      let viewRsMin = (rs < viewStart) ? 0 : (rs.getHours() * 60 + rs.getMinutes());
+                      let viewReMin = (re > viewEnd) ? 1440 : (re.getHours() * 60 + re.getMinutes());
+
+                      leftPercent = (viewRsMin / 1440) * 100;
+                      widthPercent = ((viewReMin - viewRsMin) / 1440) * 100;
+                      leaveText = `🌴 差勤系統連動：${offDriver.leaveStart.replace('T', ' ')} ~ ${offDriver.leaveEnd.replace('T', ' ')}`;
+                  }
+
+                  rowHtml += `
+                  <div class="absolute bg-gray-500 border border-gray-600 shadow-sm font-bold text-white px-2 flex flex-col justify-center overflow-hidden whitespace-nowrap z-0 opacity-80 cursor-not-allowed"
+                      style="left: ${leftPercent}%; width: ${widthPercent}%; height: 55px; top: 15px; border-radius: 6px; box-sizing: border-box;">
+                      <div class="text-[14px] truncate tracking-wide text-center w-full">${leaveText}</div>
+                  </div>
                   `;
               }
           }
