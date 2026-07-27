@@ -931,8 +931,28 @@ document.getElementById('addTripBtn').onclick = async () => {
 
       tbody.addEventListener('change', async (e) => {
           const tripId = e.target.dataset.id;
-          if (e.target.classList.contains('driver-select')) { await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: e.target.value, assigned_empid: e.target.options[e.target.selectedIndex].dataset.empid || "" }); showToast("✅ 駕駛已更新！"); }
-          if (e.target.classList.contains('vehicle-select')) { await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: e.target.value }); showToast("✅ 車輛已更新！"); }
+          
+          if (e.target.classList.contains('driver-select')) { 
+              const selectedOpt = e.target.options[e.target.selectedIndex];
+              const empId = selectedOpt.dataset.empid;
+              const driverName = e.target.value;
+
+              // 🆕 檢查是否選到了「休假中」的駕駛
+              if (empId && currentOffDrivers.some(d => d.empId === empId)) {
+                  if (!confirm(`⚠️ 警告：駕駛員 [${driverName}] 本日為休假狀態！\n確定要強制指派車趟給他嗎？`)) {
+                      renderTable(); // 如果按下取消，重新渲染表格將下拉選單恢復原狀
+                      return;
+                  }
+              }
+
+              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_driver: driverName, assigned_empid: empId || "" }); 
+              showToast("✅ 駕駛已更新！"); 
+          }
+          
+          if (e.target.classList.contains('vehicle-select')) { 
+              await updateDoc(doc(db, "daily_dispatches", tripId), { assigned_vehicle: e.target.value }); 
+              showToast("✅ 車輛已更新！"); 
+          }
       });
       
       // ✅ 將整個 tbody 點擊事件替換為此版本：
