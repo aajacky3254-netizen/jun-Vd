@@ -516,8 +516,8 @@ document.getElementById('addTripBtn').onclick = async () => {
           // 2. 抓取 Drivers 資料庫 (讀取 baseShift 固定底班)
           const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
           
-          // 3. 抓取請假單與「當日臨時修改」紀錄
-          const leavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准"), where("date", "==", selectedDateStr)));
+          // 3. 抓取請假單與「當日臨時修改」紀錄 (移除 where("date", "==", selectedDateStr))
+          const leavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准")));
           const overrideSnap = await getDoc(doc(db, "daily_roster_overrides", selectedDateStr)); // 讀取調度員的臨時修改
           
           // 抓取昨日資料 (為了判斷昨夜續班)
@@ -538,7 +538,29 @@ document.getElementById('addTripBtn').onclick = async () => {
               }
           });
 
-          let leaves = new Set(); leavesSnap.forEach(d => leaves.add(d.data().empId));
+          let leaves = new Set();
+// 定義當前畫布的 00:00 ~ 次日 00:00 時間範圍
+const viewStart = new Date(selectedDateStr + "T00:00:00");
+const viewEnd = new Date(viewStart.getTime() + 24 * 60 * 60 * 1000);
+
+leavesSnap.forEach(d => {
+    const leaveData = d.data();
+    
+    // 假設您的請假單資料庫有存 startTime 與 endTime (請依據您實際的欄位名稱調整)
+    if (leaveData.startTime && leaveData.endTime) {
+        const ls = new Date(leaveData.startTime);
+        const le = new Date(leaveData.endTime);
+        
+        // 判斷假單時間是否有落在今天的畫布內 (核心邏輯：結束時間大於畫布起點，且開始時間小於畫布終點)
+        if (le > viewStart && ls < viewEnd) {
+            leaves.add(leaveData.empId);
+        }
+    } 
+    // 兼容舊資料或單日請假：如果資料庫只有存單一 date 欄位
+    else if (leaveData.date === selectedDateStr) {
+        leaves.add(leaveData.empId);
+    }
+});
           let prevLeaves = new Set(); prevLeavesSnap.forEach(d => prevLeaves.add(d.data().empId));
           let overrides = overrideSnap.exists() ? (overrideSnap.data().roster || {}) : {};
           let prevOverrides = prevOverrideSnap.exists() ? (prevOverrideSnap.data().roster || {}) : {};
