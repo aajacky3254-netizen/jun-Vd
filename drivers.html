@@ -307,8 +307,8 @@
                     station: station,
                     role: role,
                     empRole: empRole,
-                    empMilestone: empMilestone
-                    baseShift: baseShift // 新增這行：寫入資料庫
+                    empMilestone: empMilestone, // <-- Added missing comma here
+                    baseShift: baseShift
                 };
 
                 // 🚨 這裡只做單純的 Firestore 資料寫入，不觸碰 Auth
