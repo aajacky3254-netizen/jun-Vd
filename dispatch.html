@@ -1215,8 +1215,7 @@ document.getElementById('addTripBtn').onclick = async () => {
           // 4. 觸發下載
           XLSX.writeFile(workbook, fileName);
       });
-  }).catch(err => console.error(err));
-  // 🆕 監聽甘特圖左側的「當日臨時改班」下拉選單
+      // 🆕 監聽甘特圖左側的「當日臨時改班」下拉選單 (移進來裡面！)
       ganttBody.addEventListener('change', async (e) => {
           if (e.target.classList.contains('shift-override-select')) {
               const empId = e.target.dataset.empid;
@@ -1244,6 +1243,8 @@ document.getElementById('addTripBtn').onclick = async () => {
               }
           }
       });
+
+  }).catch(err => console.error(err)); // ⬅️ 確保身分驗證區塊在這裡才正式結束
 </script>
 </body>
 </html>
