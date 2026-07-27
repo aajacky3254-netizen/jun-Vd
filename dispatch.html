@@ -641,12 +641,12 @@ document.getElementById('addTripBtn').onclick = async () => {
                   renderGanttRow(driver.empId, `${driver.empId} (${driver.name})`, driver.subtitle, driverTrips, false);
               });
 
-              let assignedOffDrivers = new Set();
-              currentTrips.forEach(t => { if (t.assigned_empid && currentOffDrivers.some(od => od.empId === t.assigned_empid)) assignedOffDrivers.add(t.assigned_empid); });
-              assignedOffDrivers.forEach(offId => {
-                  let od = currentOffDrivers.find(d => d.empId === offId);
-                  const driverTrips = currentTrips.filter(t => t.assigned_empid === offId);
-                  renderGanttRow(od.empId, `🚨 ${od.empId} (${od.name})`, "⛔ 本日排休 (急需替班)", driverTrips, true);
+              // 顯示所有休假人員在甘特圖最下方
+              currentOffDrivers.forEach(od => {
+                  const driverTrips = currentTrips.filter(t => t.assigned_empid === od.empId);
+                  // 只有不小心被排了車趟的休假人員，才會閃爍紅色警告 (true)
+                  const isWarning = driverTrips.length > 0;
+                  renderGanttRow(od.empId, `🚨 ${od.empId} (${od.name})`, "⛔ 本日排休", driverTrips, isWarning);
               });
 
           } else if (currentGanttView === 'vehicle') {
@@ -812,6 +812,16 @@ document.getElementById('addTripBtn').onclick = async () => {
                   e.preventDefault(); zone.classList.remove('drag-over');
                   const tripId = e.dataTransfer.getData('text/plain');
                   if (!tripId) return;
+                  
+                  // 🆕 檢查是否拖曳給了「休假中」的駕駛
+                  if (currentGanttView === 'driver' && zone.dataset.targetid !== "尚未指派") {
+                      if (currentOffDrivers.some(d => d.empId === zone.dataset.targetid)) {
+                          if (!confirm(`⚠️ 警告：駕駛員 [${zone.dataset.targetname}] 本日為休假狀態！\n您確定要強制將車趟指派給他嗎？`)) {
+                              return; // 如果按下取消，就終止這次拖曳操作
+                          }
+                      }
+                  }
+
                   try {
                       dbStatusEl.innerText = "⏳ 同步中...";
                       const tripRef = doc(db, "daily_dispatches", tripId);
@@ -869,13 +879,18 @@ document.getElementById('addTripBtn').onclick = async () => {
               let selectClass = isOff ? "bg-red-100 text-red-700 border-red-400 animate-pulse" : "border-gray-300";
               
               let drvOpts = `<option value="尚未指派">尚未指派</option>`;
-              if (isOff) {
-                  drvOpts += `<option value="${data.assigned_driver}" data-empid="${data.assigned_empid}" selected>🚨 ${data.assigned_empid} ${data.assigned_driver} (休假需替班)</option>`;
-              }
+              
+              // 1. 正常可排班駕駛
               drvOpts += currentAvailableDrivers.map(d => {
                   let displayTag = d.isPrevNight ? `昨夜` : getChineseShift(d.shift);
                   let isSelected = (!isOff && data.assigned_empid === d.empId) ? 'selected' : '';
                   return `<option value="${d.name}" data-empid="${d.empId}" ${isSelected}>${d.empId} ${d.name} (${displayTag})</option>`;
+              }).join('');
+
+              // 2. 本日休假駕駛 (標示紅底與警示燈號)
+              drvOpts += currentOffDrivers.map(od => {
+                  let isSelected = (data.assigned_empid === od.empId) ? 'selected' : '';
+                  return `<option value="${od.name}" data-empid="${od.empId}" ${isSelected}>🚨 ${od.empId} ${od.name} (本日排休)</option>`;
               }).join('');
               
               let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
