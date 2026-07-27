@@ -584,49 +584,8 @@ document.getElementById('addTripBtn').onclick = async () => {
           currentAvailableDrivers.sort((a, b) => a.empId.localeCompare(b.empId));
           
           document.getElementById('stbDriver').innerHTML = '<option value="">2. 選擇替班/待命駕駛</option>' + 
-              currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">🔄 ${d.empId} ${d.name} (${getChineseShift(d.shift)})</option>`).join('');
-      }
-          currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
-
-          const currD = new Date(selectedDateStr);
-          const prevD = new Date(selectedDateStr); prevD.setDate(prevD.getDate() - 1);
-          const [currData, prevData] = await Promise.all([ getDriverRosterForDate(currD), getDriverRosterForDate(prevD) ]);
-
-          const tempDrivers = {};
-          if (currData && currData.roster) {
-              for (let dId in currData.roster) {
-                  const shift = currData.roster[dId][currData.dayKey];
-                  if (shift && typeof shift === 'string') {
-                      if (shift.includes("OFF") || shift.includes("休假") || shift.includes("休")) {
-                          currentOffDrivers.push({ empId: dId, name: currData.roster[dId].name, shift: shift });
-                      } else {
-                          tempDrivers[dId] = { empId: dId, name: currData.roster[dId].name, shift: shift, prevShift: "休假", isPrevNight: false };
-                          addedDrivers.add(dId);
-                          if (shift.includes("STB") || shift.includes("待命") || shift.includes("替班")) currentStandbyDrivers.push(tempDrivers[dId]);
-                      }
-                  }
-              }
-          }
-          if (prevData && prevData.roster) {
-              for (let dId in prevData.roster) {
-                  const prevShift = prevData.roster[dId][prevData.dayKey];
-                  if (tempDrivers[dId]) { tempDrivers[dId].prevShift = prevShift; } 
-                  else if (prevShift && typeof prevShift === 'string' && prevShift.includes("N (夜)") && !addedDrivers.has(dId) && !currentOffDrivers.find(d => d.empId === dId)) {
-                      tempDrivers[dId] = { empId: dId, name: prevData.roster[dId].name, shift: "跨日續班", prevShift: prevShift, isPrevNight: true };
-                  }
-              }
-          }
-
-          for(let key in tempDrivers) {
-              const d = tempDrivers[key];
-              d.subtitle = `昨[${getChineseShift(d.prevShift)}] ➔ 今[${getChineseShift(d.shift)}]`; 
-              currentAvailableDrivers.push(d);
-          }
-          currentAvailableDrivers.sort((a, b) => a.empId.localeCompare(b.empId));
-          
-          document.getElementById('stbDriver').innerHTML = '<option value="">2. 選擇替班/待命駕駛</option>' + 
-              currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">🔄 ${d.empId} ${d.name} (${getChineseShift(d.shift)})</option>`).join('');
-      }
+            currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">🔄 ${d.empId} ${d.name} (${getChineseShift(d.shift)})</option>`).join('');
+    } // loadGlobalResources 的結尾
 
       let unsubTodayDispatch = null;
       let unsubYesterdayDispatch = null;
