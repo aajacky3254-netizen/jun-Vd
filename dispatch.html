@@ -614,7 +614,30 @@ document.getElementById('addTripBtn').onclick = async () => {
               d.subtitle = `昨[${getChineseShift(d.prevShift)}] ➔ 今[${getChineseShift(d.shift)}]`; 
               currentAvailableDrivers.push(d);
           }
-          currentAvailableDrivers.sort((a, b) => a.empId.localeCompare(b.empId));
+          
+          // 🌟 定義班別的排序權重：早=1 -> 中=2 -> 晚=3 -> 夜=4 -> 其他=99
+          const getShiftWeight = (shiftStr) => {
+              if (!shiftStr) return 99;
+              if (shiftStr.includes('早') || shiftStr.includes('M')) return 1;
+              if (shiftStr.includes('中') || shiftStr.includes('A')) return 2;
+              if (shiftStr.includes('晚') || shiftStr.includes('E')) return 3;
+              if (shiftStr.includes('夜') || shiftStr.includes('N')) return 4;
+              if (shiftStr.includes('待命') || shiftStr.includes('STB') || shiftStr.includes('替班') || shiftStr.includes('REL')) return 5;
+              return 99; // 跨日續班或未定義的放最後面
+          };
+
+          // 🌟 執行自訂排序
+          currentAvailableDrivers.sort((a, b) => {
+              let weightA = getShiftWeight(a.shift);
+              let weightB = getShiftWeight(b.shift);
+              
+              // 1. 先比對班別權重
+              if (weightA !== weightB) {
+                  return weightA - weightB;
+              }
+              // 2. 如果班別相同(例如都是早班)，則依照員工編號小到大排序
+              return a.empId.localeCompare(b.empId);
+          });
           
           document.getElementById('stbDriver').innerHTML = '<option value="">2. 選擇替班/待命駕駛</option>' + 
             currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">🔄 ${d.empId} ${d.name} (${getChineseShift(d.shift)})</option>`).join('');
