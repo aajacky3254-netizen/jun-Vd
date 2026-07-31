@@ -981,12 +981,26 @@ document.getElementById('addTripBtn').onclick = async () => {
               
               let vehOpts = `<option value="尚未指派">尚未指派</option>` + currentAvailableVehicles.map(v => `<option value="${v.plate}" ${data.assigned_vehicle===v.plate?'selected':''}>${v.plate}</option>`).join('');
               
+              // 🌟 1. 判斷是否為昨日跨日車趟 (唯讀模式)
+              const isReadOnly = data.isCrossDay;
+              const disabledAttr = isReadOnly ? 'disabled' : '';
+              if (isReadOnly) selectClass += " bg-gray-100 text-gray-500 cursor-not-allowed";
+
               let actionBtns = '';
-              if (isPendingOverride) {
-                  actionBtns = `<button class="btn-approve-override bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold animate-pulse w-full mb-1" data-id="${data.id}">✅ 核准異常報到</button>`;
+              
+              // 🌟 2. 如果是昨日班表，顯示唯讀標籤；否則顯示正常操作按鈕
+              if (isReadOnly) {
+                  actionBtns = `<span class="text-gray-500 font-bold text-xs bg-gray-100 border border-gray-300 px-2 py-2 rounded w-full block text-center shadow-inner cursor-not-allowed">🔒 昨日班表 (唯讀)</span>`;
+              } else {
+                  if (isPendingOverride) {
+                      actionBtns = `<button class="btn-approve-override bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold animate-pulse w-full mb-1" data-id="${data.id}">✅ 核准異常報到</button>`;
+                  }
+                  actionBtns += `
+                  <div class="flex gap-1 w-full mt-1">
+                      <button class="btn-edit-trip flex-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-1.5 rounded transition shadow-sm text-sm font-bold" data-id="${data.id}">✏️ 修改</button>
+                      <button class="btn-delete-trip flex-1 bg-red-500 hover:bg-red-600 text-white px-2 py-1.5 rounded transition shadow-sm text-sm font-bold" data-id="${data.id}">🗑️ 刪除</button>
+                  </div>`;
               }
-              actionBtns += `<button class="btn-edit-trip bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full mb-1" data-id="${data.id}">✏️ 編輯車趟</button>`;
-              actionBtns += `<button class="btn-delete-trip bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded transition shadow-sm text-sm font-bold w-full" data-id="${data.id}">刪除車趟</button>`;
 
               // 🚀 痛點一：(A ⇌ B 的顯示邏輯 - 表格)
               let tripCount = parseInt(data.trip_count) || 1;
@@ -997,14 +1011,15 @@ document.getElementById('addTripBtn').onclick = async () => {
                   displayRouteHtml = `<td colspan="2" class="text-gray-600">📍 ${data.start_point} <span class="text-gray-400 mx-1">➔</span> ${data.end_point}</td>`;
               }
 
+              // 🌟 3. 將 disabled 屬性加入 select 標籤中
               return `<tr class="${rowBgClass}">
                   <td class="font-bold">${data.departure_time} ${data.arrival_time ? '~ '+data.arrival_time : ''}</td>
                   <td class="text-blue-700 font-bold">${data.route}</td>
                   <td class="font-bold text-gray-700">${tripCount} 趟</td>
                   ${displayRouteHtml}
-                  <td><select class="driver-select outline-none cursor-pointer p-1.5 border rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm ${selectClass}" data-id="${data.id}">${drvOpts}</select></td>
-                  <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}">${vehOpts}</select></td>
-                  <td class="flex flex-col gap-1">${actionBtns}</td>
+                  <td><select class="driver-select outline-none cursor-pointer p-1.5 border rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm ${selectClass}" data-id="${data.id}" ${disabledAttr}>${drvOpts}</select></td>
+                  <td><select class="vehicle-select outline-none cursor-pointer p-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 font-bold text-sm" data-id="${data.id}" ${disabledAttr}>${vehOpts}</select></td>
+                  <td class="flex flex-col gap-1 justify-center">${actionBtns}</td>
               </tr>`;
           }).join('') || '<tr><td colspan="8" class="py-10 text-gray-400 font-bold">目前無排定車趟</td></tr>';
       }
