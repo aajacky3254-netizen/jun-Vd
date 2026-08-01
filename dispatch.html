@@ -1175,12 +1175,19 @@ document.getElementById('addTripBtn').onclick = async () => {
       });
 
       document.getElementById('btnClearDispatch').addEventListener('click', async () => {
-          const tripsToClear = currentTrips.filter(t => t.assigned_driver !== "尚未指派" || t.assigned_vehicle !== "尚未指派");
-          if(tripsToClear.length === 0 || !confirm(`⚠️ 確定要清空這 ${tripsToClear.length} 筆指派嗎？`)) return;
+          // 🌟 加入 !t.isCrossDay 條件，保護昨日班表不被清空
+          const tripsToClear = currentTrips.filter(t => 
+              (!t.isCrossDay) && (t.assigned_driver !== "尚未指派" || t.assigned_vehicle !== "尚未指派")
+          );
+          
+          if(tripsToClear.length === 0) return alert("畫面中沒有今日的排班紀錄可以清空！(昨日班表已自動鎖定保護)");
+          
+          if(!confirm(`⚠️ 確定要清空這 ${tripsToClear.length} 筆「今日」的指派嗎？\n(跨日的歷史班表將被安全保留)`)) return;
+          
           try {
               const batch = writeBatch(db);
               tripsToClear.forEach(trip => batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver: "尚未指派", assigned_empid: "", assigned_vehicle: "尚未指派" }));
-              await batch.commit(); showToast("✅ 排班已全數清空！");
+              await batch.commit(); showToast("✅ 今日排班已全數清空！");
           } catch (err) { alert("清空失敗。"); }
       });
       
