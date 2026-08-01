@@ -122,6 +122,7 @@
         <tr>
           <th style="width: 15%;">車牌號碼</th>
           <th style="width: 25%;">車輛型號</th>
+          <th style="width: 15%;">專屬保管人</th>
           <th style="width: 15%;">目前狀態</th>
           <th style="width: 25%;">備註說明 / 保養紀錄</th>
           <th class="admin-action-col" style="width: 20%; text-align: center;">操作</th>
@@ -189,10 +190,24 @@
             document.getElementById('plateReturnGroup').style.display = isScrapped ? 'flex' : 'none';
         });
 
-        onSnapshot(query(vehiclesCol), (snapshot) => {
+        onSnapshot(query(vehiclesCol), async (snapshot) => {
           const tbody = document.getElementById('vehiclesBody');
           const scrappedTbody = document.getElementById('scrappedVehiclesBody');
           tbody.innerHTML = ''; scrappedTbody.innerHTML = '';
+
+          // 🌟 新增：讀取人事資料庫，建立【車號 ➔ 保管人姓名】的對應表
+          let vehicleToDriver = {};
+          try {
+              const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
+              driversSnap.forEach(d => {
+                  const data = d.data();
+                  if (data.assignedVehicle) {
+                      vehicleToDriver[data.assignedVehicle] = `${d.id} ${data.name}`;
+                  }
+              });
+          } catch (e) {
+              console.log("讀取人事資料庫失敗", e);
+          }
 
           let vehiclesData = [];
           snapshot.forEach(doc => { vehiclesData.push({ id: doc.id, ...doc.data() }); });
@@ -224,9 +239,16 @@
                 actionHtml = `<td>-</td>`;
             }
 
+            // 🌟 查詢這台車的保管人
+            const plateKey = data.plate_number || data.id;
+            const assignedDriverText = vehicleToDriver[plateKey] 
+                ? `<span class="text-blue-700 font-black">👨‍✈️ ${vehicleToDriver[plateKey]}</span>` 
+                : `<span class="text-gray-400">無專屬保管</span>`;
+
             tr.innerHTML = `
-              <td class="font-bold text-lg">${escapeHTML(data.plate_number || data.id)}</td>
+              <td class="font-bold text-lg">${escapeHTML(plateKey)}</td>
               <td>${data.status === 'scrapped' ? `<del>${escapeHTML(data.model)}</del>` : escapeHTML(data.model)}</td>
+              <td>${assignedDriverText}</td> <!-- 👈 新增這行印出保管人 -->
               <td>${statusHtml}</td>
               <td>${escapeHTML(data.notes || '-')}</td>
               ${actionHtml}
