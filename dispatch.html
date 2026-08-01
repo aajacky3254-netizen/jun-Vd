@@ -1193,7 +1193,7 @@ document.getElementById('addTripBtn').onclick = async () => {
           } catch (err) { alert("清空失敗。"); }
       });
       
-      // ✨ 智慧調度按鈕 (修復非法迴圈與跨日負數 Bug 版)
+     // ✨ 智慧調度 (專車專人 & 班別嚴格限制升級版)
       document.getElementById('btnAutoDispatch').addEventListener('click', async () => {
           const tripsToDispatch = currentTrips.filter(t => t.assigned_driver === "尚未指派" || t.assigned_vehicle === "尚未指派");
           if (tripsToDispatch.length === 0) return alert("畫面中無空缺車趟可調度！");
@@ -1203,54 +1203,100 @@ document.getElementById('addTripBtn').onclick = async () => {
           const batch = writeBatch(db); 
           let changes = 0;
 
-          // ⚠️ 嚴格使用 for...of 迴圈，絕對不能用 .forEach
+          // 1. 定義司機班別與車輛綁定字典
+          const driverShifts = {
+              '0001': 'Mid', '0002': 'Late', '0003': 'Night', '0004': 'Late', 
+              '0005': 'Early', '0006': 'Mid', '0007': 'Late', '0009': 'Late', 
+              '0010': 'Early', '0012': 'Early', '0013': 'Mid', '0017': 'Late', 
+              '0018': 'Mid', '0019': 'Early', '0025': 'Night', '0027': 'Mid' 
+          };
+
+          const driverToVehicle = {
+              '0005': '1000', '0002': '1000', 
+              '0010': '1001', '0004': '1001', 
+              '0012': '1002', '0003': '1002', 
+              '0019': '1003', '0001': '1004', 
+              '0006': '1005', '0013': '1006', 
+              '0018': '1007', '0007': '1008', 
+              '0009': '1009', '0017': '1010',
+              '0025': '1011', '0027': '1012'
+          };
+
+          // 檢查是否符合班別的輔助函數
+          const isValidShift = (empId, startMin, endMin) => {
+              const shift = driverShifts[empId] || 'Mid'; // 找不到預設給中班
+              if (shift === 'Early') return startMin < 15 * 60;
+              if (shift === 'Mid') return (startMin >= 6 * 60) && (endMin <= 21.5 * 60);
+              if (shift === 'Late') return startMin >= 12 * 60;
+              if (shift === 'Night') return (startMin >= 19 * 60) || (endMin <= 9 * 60);
+              return true;
+          };
+
+          // 開始派車
           for (let trip of tripsToDispatch) {
               let assigned_driver = trip.assigned_driver;
               let assigned_empid = trip.assigned_empid;
               let assigned_vehicle = trip.assigned_vehicle;
               
-              // 🚀 使用營業日函數處理時間，解決午夜跨日產生負數的 Bug
               let tStart = getBusinessMin(trip.departure_time);
               let tEnd = getBusinessMin(trip.arrival_time || trip.departure_time) + 20; 
-              if (tEnd < tStart) tEnd += 1440; // 雙重保險
+              if (tEnd < tStart) tEnd += 1440; 
               
               let tripDuration = tEnd - tStart; 
 
+              // [特殊處理] 老闆的專車
+              if (trip.departure_time === '09:34' && trip.route.trim() === '123') {
+                  assigned_driver = "JUN";
+                  assigned_empid = "0000";
+                  // 隨便找一台有空的車
+                  let freeVs = currentAvailableVehicles.filter(v => {
+                      let sched = vehicleSchedules[v.plate] || [];
+                      return !sched.some(s => (tStart < s.end && tEnd > s.start));
+                  });
+                  assigned_vehicle = freeVs.length > 0 ? freeVs[0].plate : "1000";
+                  if (!vehicleSchedules[assigned_vehicle]) vehicleSchedules[assigned_vehicle] = [];
+                  vehicleSchedules[assigned_vehicle].push({start: tStart, end: tEnd});
+                  batch.update(doc(db, "daily_dispatches", trip.id), { assigned_driver, assigned_empid, assigned_vehicle });
+                  changes++;
+                  continue;
+              }
+
+              // --- 尋找司機 ---
               if (assigned_driver === "尚未指派" && currentAvailableDrivers.length > 0) {
                   let bestDriver = null;
+                  let minWorkTime = Infinity;
                   
+                  // 第一輪：嚴格篩選 (有空 + 符合班別 + 工時低於 10 小時)
                   for (let d of currentAvailableDrivers) {
-                      let sched = driverSchedules[d.empId] || [];
+                      if (currentOffDrivers.some(od => od.empId === d.empId)) continue; // 跳過休假人員
                       
-                      if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue;
+                      let sched = driverSchedules[d.empId] || [];
+                      if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue; // 檢查時間重疊
+                      if (!isValidShift(d.empId, tStart, tEnd)) continue; // 檢查班別
                       
                       let totalDriving = sched.reduce((tot, s) => tot + (s.end - s.start), 0);
-                      if (totalDriving + tripDuration > 600) continue; 
+                      if (totalDriving + tripDuration > 600) continue; // 工時上限
                       
-                      let minStart = sched.length > 0 ? Math.min(...sched.map(s => s.start), tStart) : tStart;
-                      let maxEnd = sched.length > 0 ? Math.max(...sched.map(s => s.end), tEnd) : tEnd;
-                      if (maxEnd - minStart > 720) continue;
-
-                      let isValidContinuous = true;
-                      let combined = sched.length > 0 ? [...sched, {start: tStart, end: tEnd}].sort((a,b)=>a.start-b.start) : [{start: tStart, end: tEnd}];
-                      for (let i = 0; i < combined.length - 1; i++) {
-                          if (combined[i+1].start - combined[i].end > 180) { isValidContinuous = false; break; }
+                      // 找累積工時最少的人
+                      if (totalDriving < minWorkTime) {
+                          minWorkTime = totalDriving;
+                          bestDriver = d;
                       }
-                      if (!isValidContinuous) continue; 
-
-                      let currentBlockStart = combined[0].start;
-                      let isValidBreak = true;
-                      for (let i = 0; i < combined.length - 1; i++) {
-                          if (combined[i+1].start - combined[i].end >= 30) { 
-                              if (combined[i].end - currentBlockStart > 270) { isValidBreak = false; break; }
-                              currentBlockStart = combined[i+1].start; 
+                  }
+                  
+                  // 第二輪：放寬篩選 (如果上面找不到人，只要有空就抓)
+                  if (!bestDriver) {
+                       for (let d of currentAvailableDrivers) {
+                          if (currentOffDrivers.some(od => od.empId === d.empId)) continue;
+                          let sched = driverSchedules[d.empId] || [];
+                          if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue;
+                          
+                          let totalDriving = sched.reduce((tot, s) => tot + (s.end - s.start), 0);
+                          if (totalDriving < minWorkTime) {
+                              minWorkTime = totalDriving;
+                              bestDriver = d;
                           }
                       }
-                      if (combined[combined.length-1].end - currentBlockStart > 270) isValidBreak = false;
-                      if (!isValidBreak) continue; 
-
-                      bestDriver = d; 
-                      break; 
                   }
                   
                   if (bestDriver) {
@@ -1262,38 +1308,39 @@ document.getElementById('addTripBtn').onclick = async () => {
                   }
               }
               
+              // --- 尋找車輛 ---
               if (assigned_vehicle === "尚未指派" && currentAvailableVehicles.length > 0) {
-                  let bestVehicle = null;
-                  
-                  // 🔥 加入：計算這筆空缺車趟的絕對時間
                   const tripDate = trip.date || globalDateInput.value;
                   const absTripStart = new Date(`${tripDate}T${trip.departure_time}`).getTime();
                   let absTripEnd = new Date(`${tripDate}T${trip.arrival_time || trip.departure_time}`).getTime();
                   if (absTripEnd < absTripStart) absTripEnd += 86400000;
 
-                  for (let v of currentAvailableVehicles) {
+                  // 1. 先找出所有沒有被佔用的車輛
+                  let freeVehicles = currentAvailableVehicles.filter(v => {
                       let sched = vehicleSchedules[v.plate] || [];
-                      // 1. 檢查一般排班是否衝突
-                      if (sched.some(s => (tStart < s.end && tEnd > s.start))) continue;
-
-                      // 🔥 2. 檢查是否撞到該車的「維修時間」
+                      if (sched.some(s => (tStart < s.end && tEnd > s.start))) return false;
+                      
+                      // 檢查維修時間
                       if (v.isBreakdown && v.repairStart && v.repairEnd) {
                           const rStart = new Date(v.repairStart).getTime();
                           const rEnd = new Date(v.repairEnd).getTime();
-                          // 如果車趟時間與維修時間重疊，這台車不能派，直接跳過換下一台
-                          if (absTripStart < rEnd && absTripEnd > rStart) {
-                              continue;
-                          }
+                          if (absTripStart < rEnd && absTripEnd > rStart) return false;
                       }
+                      return true;
+                  });
+
+                  if (freeVehicles.length > 0) {
+                      // 2. 判斷是否使用專屬車輛
+                      let prefV = driverToVehicle[assigned_empid] || "1012";
                       
-                      bestVehicle = v; 
-                      break; 
-                  }
-                  if (bestVehicle) {
-                      assigned_vehicle = bestVehicle.plate;
+                      // 如果專屬車輛剛好在 freeVehicles 名單內，就用它；否則隨便抓清單裡的第一台
+                      let chosenVObj = freeVehicles.find(v => v.plate === prefV) || freeVehicles[0];
+                      
+                      assigned_vehicle = chosenVObj.plate;
                       if (!vehicleSchedules[assigned_vehicle]) vehicleSchedules[assigned_vehicle] = [];
                       vehicleSchedules[assigned_vehicle].push({start: tStart, end: tEnd});
-                      changes++;
+                      // 只要有派到車就算一次 change
+                      if (trip.assigned_vehicle === "尚未指派") changes++; 
                   }
               }
 
@@ -1304,9 +1351,9 @@ document.getElementById('addTripBtn').onclick = async () => {
           
           if (changes > 0) { 
               await batch.commit(); 
-              showToast(`✨ 智慧調度完成！已成功指派 ${changes} 個空缺。`); 
+              showToast(`✨ 智慧調度完成！已成功套用專車綁定邏輯指派空缺。`); 
           } else { 
-              alert("目前無符合勞基法規範之駕駛/車輛可供調度。"); 
+              alert("目前無符合條件之駕駛/車輛可供調度。"); 
           }
       });
       // ====== 📊 發車紀錄匯出 Excel 邏輯 ======
