@@ -205,7 +205,13 @@
                   if (data.assignedVehicle) {
                       // 移除多餘的空白，確保車號比對精準
                       const vPlate = data.assignedVehicle.trim();
-                      vehicleToDriver[vPlate] = `${d.id} ${data.name}`;
+                      
+                      // 如果這台車還沒有建立過名單，就先開一個空陣列給它
+                      if (!vehicleToDriver[vPlate]) {
+                          vehicleToDriver[vPlate] = [];
+                      }
+                      // 把這名駕駛「推進 (push)」這台車的名單裡
+                      vehicleToDriver[vPlate].push(`${d.id} ${data.name}`);
                   }
               });
               
