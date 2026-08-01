@@ -331,7 +331,15 @@
                   }
               });
           });
-        });
+          
+          // 🌟 這裡把我們最上面宣告的 try { 完美關閉！
+          } catch (error) {
+              console.error("載入車輛與人事資料時發生錯誤：", error);
+              dbStatusEl.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300";
+              dbStatusEl.innerText = "資料載入異常";
+          }
+          
+        }); // 👈 這裡才是 onSnapshot (監聽資料庫) 的正式結尾
 
         // 儲存邏輯
         saveBtn.addEventListener('click', async () => {
