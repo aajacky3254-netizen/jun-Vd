@@ -505,7 +505,7 @@ document.getElementById('addTripBtn').onclick = async () => {
           currentAvailableDrivers = []; currentStandbyDrivers = []; currentOffDrivers = []; currentAvailableVehicles = [];
           const addedDrivers = new Set();
           
-          // 1. 車輛載入 (保持原樣，不作更動)
+          // 1. 車輛載入
           const vSnap = await getDocs(collection(db, "Vehicles"));
           vSnap.forEach(v => { 
               const data = v.data();
@@ -521,54 +521,47 @@ document.getElementById('addTripBtn').onclick = async () => {
           });
           currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
 
-          // 2. 抓取 Drivers 資料庫 (讀取 baseShift 固定底班)
-       const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
+          // 2. 抓取 Drivers 資料庫 (讀取 baseShift 固定底班與專屬保管車)
+          const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
 
-       // 整理底班
-       let baseRoster = {};
-       driversSnap.forEach(d => {
-           let data = d.data();
-           if ((data.role || "駕駛長") === "駕駛長") {
-               let shift = data.baseShift || "M (早)"; 
-               if (d.id === "0000" || d.id === "0000(jun)" || data.name.toUpperCase().includes('JUN')) shift = "STB (待命)";
-               baseRoster[d.id] = { name: data.name, baseShift: shift };
+          // 整理底班 (只宣告一次 baseRoster)
+          let baseRoster = {};
+          driversSnap.forEach(d => {
+              let data = d.data();
+              if ((data.role || "駕駛長") === "駕駛長") {
+                  let shift = data.baseShift || "M (早)"; 
+                  if (d.id === "0000" || d.id === "0000(jun)" || data.name.toUpperCase().includes('JUN')) shift = "STB (待命)";
+                  baseRoster[d.id] = { name: data.name, baseShift: shift };
 
-               // 👇 新增這兩行：把資料庫裡的班別跟專屬車號存進全域變數
-               globalDriverShifts[d.id] = shift;
-               globalDriverToVehicle[d.id] = data.assignedVehicle || "無專屬車"; 
-           }
-       });
+                  // 將班別與專屬保管車寫入全域變數供智慧調度使用
+                  globalDriverShifts[d.id] = shift;
+                  globalDriverToVehicle[d.id] = data.assignedVehicle || "無專屬車"; 
+              }
+          });
           
-          // 3. 抓取請假單與「當日臨時修改」紀錄 (移除 where("date", "==", selectedDateStr))
+          // 3. 抓取請假單與「當日臨時修改」紀錄
           const leavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准")));
-          const overrideSnap = await getDoc(doc(db, "daily_roster_overrides", selectedDateStr)); // 讀取調度員的臨時修改
+          const overrideSnap = await getDoc(doc(db, "daily_roster_overrides", selectedDateStr));
           
           // 抓取昨日資料 (為了判斷昨夜續班)
           const prevD = new Date(selectedDateStr); prevD.setDate(prevD.getDate() - 1);
           const prevDateStr = prevD.toISOString().split('T')[0];
           const prevLeavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准"), where("date", "==", prevDateStr)));
           const prevOverrideSnap = await getDoc(doc(db, "daily_roster_overrides", prevDateStr));
-          });
 
-          let leaves = new Map(); // 🌟 改用 Map 來儲存起訖時間
-          // 定義當前畫布的 00:00 ~ 次日 00:00 時間範圍
+          let leaves = new Map();
           const viewStart = new Date(selectedDateStr + "T00:00:00");
           const viewEnd = new Date(viewStart.getTime() + 24 * 60 * 60 * 1000);
           
           leavesSnap.forEach(d => {
               const leaveData = d.data();
-              
               if (leaveData.startTime && leaveData.endTime) {
                   const ls = new Date(leaveData.startTime);
                   const le = new Date(leaveData.endTime);
-                  
                   if (le > viewStart && ls < viewEnd) {
-                      // 🌟 將時間一併存入
                       leaves.set(leaveData.empId, { start: leaveData.startTime, end: leaveData.endTime });
                   }
-              } 
-              else if (leaveData.date === selectedDateStr) {
-                  // 兼容舊單日請假，預設為整天 00:00 ~ 23:59
+              } else if (leaveData.date === selectedDateStr) {
                   leaves.set(leaveData.empId, { 
                       start: selectedDateStr + " 00:00:00", 
                       end: selectedDateStr + " 23:59:59" 
@@ -584,15 +577,14 @@ document.getElementById('addTripBtn').onclick = async () => {
           // 4. 計算每位駕駛今天的「最終出勤班別」
           for (let dId in baseRoster) {
               let currentShift = baseRoster[dId].baseShift;
-              if (leaves.has(dId)) currentShift = "OFF (休)";      // 請假強制蓋掉底班
-              if (overrides[dId]) currentShift = overrides[dId];   // 調度員臨時手動修改優先級最高
+              if (leaves.has(dId)) currentShift = "OFF (休)";
+              if (overrides[dId]) currentShift = overrides[dId];
 
               let prevShift = baseRoster[dId].baseShift;
               if (prevLeaves.has(dId)) prevShift = "OFF (休)";
               if (prevOverrides[dId]) prevShift = prevOverrides[dId];
 
               if (currentShift.includes("OFF") || currentShift.includes("休假") || currentShift.includes("休")) {
-                  // 🌟 嘗試取得這名駕駛的請假時間，如果沒有(例如手動排休)，則為 null
                   const leaveTimes = leaves.get(dId) || null;
                   currentOffDrivers.push({ 
                       empId: dId, 
@@ -627,7 +619,6 @@ document.getElementById('addTripBtn').onclick = async () => {
               currentAvailableDrivers.push(d);
           }
           
-          // 🌟 定義班別的排序權重：早=1 -> 中=2 -> 晚=3 -> 夜=4 -> 其他=99
           const getShiftWeight = (shiftStr) => {
               if (!shiftStr) return 99;
               if (shiftStr.includes('早') || shiftStr.includes('M')) return 1;
@@ -635,25 +626,19 @@ document.getElementById('addTripBtn').onclick = async () => {
               if (shiftStr.includes('晚') || shiftStr.includes('E')) return 3;
               if (shiftStr.includes('夜') || shiftStr.includes('N')) return 4;
               if (shiftStr.includes('待命') || shiftStr.includes('STB') || shiftStr.includes('替班') || shiftStr.includes('REL')) return 5;
-              return 99; // 跨日續班或未定義的放最後面
+              return 99;
           };
 
-          // 🌟 執行自訂排序
           currentAvailableDrivers.sort((a, b) => {
               let weightA = getShiftWeight(a.shift);
               let weightB = getShiftWeight(b.shift);
-              
-              // 1. 先比對班別權重
-              if (weightA !== weightB) {
-                  return weightA - weightB;
-              }
-              // 2. 如果班別相同(例如都是早班)，則依照員工編號小到大排序
+              if (weightA !== weightB) return weightA - weightB;
               return a.empId.localeCompare(b.empId);
           });
           
           document.getElementById('stbDriver').innerHTML = '<option value="">2. 選擇替班/待命駕駛</option>' + 
             currentStandbyDrivers.map(d => `<option value="${d.empId}" data-name="${d.name}">🔄 ${d.empId} ${d.name} (${getChineseShift(d.shift)})</option>`).join('');
-    } // loadGlobalResources 的結尾
+      } // loadGlobalResources 的結尾
 
       let unsubTodayDispatch = null;
       let unsubYesterdayDispatch = null;
