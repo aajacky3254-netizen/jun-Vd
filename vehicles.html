@@ -195,65 +195,66 @@
           const scrappedTbody = document.getElementById('scrappedVehiclesBody');
           tbody.innerHTML = ''; scrappedTbody.innerHTML = '';
 
-          // 🌟 新增：讀取人事資料庫，建立【車號 ➔ 保管人姓名】的對應表
           let vehicleToDriver = {};
+          
           try {
+              // 1. 先等待人事資料庫下載完成
               const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
               driversSnap.forEach(d => {
                   const data = d.data();
                   if (data.assignedVehicle) {
-                      vehicleToDriver[data.assignedVehicle] = `${d.id} ${data.name}`;
+                      // 移除多餘的空白，確保車號比對精準
+                      const vPlate = data.assignedVehicle.trim();
+                      vehicleToDriver[vPlate] = `${d.id} ${data.name}`;
                   }
               });
-          } catch (e) {
-              console.log("讀取人事資料庫失敗", e);
-          }
+              
+              // 2. 人事資料準備好後，才開始整理與渲染車輛資料
+              let vehiclesData = [];
+              snapshot.forEach(doc => { vehiclesData.push({ id: doc.id, ...doc.data() }); });
+              vehiclesData.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
 
-          let vehiclesData = [];
-          snapshot.forEach(doc => { vehiclesData.push({ id: doc.id, ...doc.data() }); });
-          vehiclesData.sort((a, b) => (a.plate_number || a.id).localeCompare(b.plate_number || b.id));
+              let scrappedCount = 0;
 
-          let scrappedCount = 0;
+              vehiclesData.forEach((data) => {
+                // ... 保持您原本這裡的渲染邏輯 ...
+                const tr = document.createElement('tr');
+                if (data.status === 'maintenance') tr.className = 'status-maintenance';
+                if (data.status === 'breakdown') tr.className = 'status-breakdown';
+                if (data.status === 'scrapped') tr.style.opacity = "0.6"; 
 
-          vehiclesData.forEach((data) => {
-            // --- 處理主表格渲染 (包含所有車輛) ---
-            const tr = document.createElement('tr');
-            if (data.status === 'maintenance') tr.className = 'status-maintenance';
-            if (data.status === 'breakdown') tr.className = 'status-breakdown';
-            if (data.status === 'scrapped') tr.style.opacity = "0.6"; // 報廢車在主表顯示半透明
+                let statusHtml = '';
+                if (data.status === 'ready') statusHtml = '<span class="badge badge-ready">正常營運</span>';
+                else if (data.status === 'maintenance') statusHtml = '<span class="badge badge-maintenance">定保中</span>';
+                else if (data.status === 'breakdown') statusHtml = '<span class="badge badge-breakdown">故障維修</span>';
+                else if (data.status === 'scrapped') statusHtml = '<span class="badge badge-scrapped">⚫ 已報廢</span>';
 
-            let statusHtml = '';
-            if (data.status === 'ready') statusHtml = '<span class="badge badge-ready">正常營運</span>';
-            else if (data.status === 'maintenance') statusHtml = '<span class="badge badge-maintenance">定保中</span>';
-            else if (data.status === 'breakdown') statusHtml = '<span class="badge badge-breakdown">故障維修</span>';
-            else if (data.status === 'scrapped') statusHtml = '<span class="badge badge-scrapped">⚫ 已報廢</span>';
+                let actionHtml = '';
+                if (user.role !== '駕駛長') {
+                    actionHtml = `
+                    <td class="admin-action-col" style="text-align: center;">
+                      <button class="btn-edit bg-teal-500 text-white px-3 py-1 rounded" data-id="${data.id}" data-plate="${data.plate_number}" data-model="${data.model}" data-status="${data.status}" data-notes="${data.notes || ''}">編輯</button>
+                      ${data.status !== 'scrapped' ? `<button class="btn-archive bg-slate-700 text-white px-3 py-1 rounded" data-id="${data.id}" data-plate="${data.plate_number}">報廢</button>` : ''}
+                    </td>`;
+                } else {
+                    actionHtml = `<td>-</td>`;
+                }
 
-            let actionHtml = '';
-            if (user.role !== '駕駛長') {
-                actionHtml = `
-                <td class="admin-action-col" style="text-align: center;">
-                  <button class="btn-edit bg-teal-500 text-white px-3 py-1 rounded" data-id="${data.id}" data-plate="${data.plate_number}" data-model="${data.model}" data-status="${data.status}" data-notes="${data.notes || ''}">編輯</button>
-                  ${data.status !== 'scrapped' ? `<button class="btn-archive bg-slate-700 text-white px-3 py-1 rounded" data-id="${data.id}" data-plate="${data.plate_number}">報廢</button>` : ''}
-                </td>`;
-            } else {
-                actionHtml = `<td>-</td>`;
-            }
+                // 🌟 這裡就會正確印出對應的駕駛了！
+                const plateKey = (data.plate_number || data.id).trim();
+                const assignedDriverText = vehicleToDriver[plateKey] 
+                    ? `<span class="text-blue-700 font-black">👨‍✈️ ${vehicleToDriver[plateKey]}</span>` 
+                    : `<span class="text-gray-400">無專屬保管</span>`;
 
-            // 🌟 查詢這台車的保管人
-            const plateKey = data.plate_number || data.id;
-            const assignedDriverText = vehicleToDriver[plateKey] 
-                ? `<span class="text-blue-700 font-black">👨‍✈️ ${vehicleToDriver[plateKey]}</span>` 
-                : `<span class="text-gray-400">無專屬保管</span>`;
-
-            tr.innerHTML = `
-              <td class="font-bold text-lg">${escapeHTML(plateKey)}</td>
-              <td>${data.status === 'scrapped' ? `<del>${escapeHTML(data.model)}</del>` : escapeHTML(data.model)}</td>
-              <td>${assignedDriverText}</td> <!-- 👈 新增這行印出保管人 -->
-              <td>${statusHtml}</td>
-              <td>${escapeHTML(data.notes || '-')}</td>
-              ${actionHtml}
-            `;
-            tbody.appendChild(tr);
+                tr.innerHTML = `
+                  <td class="font-bold text-lg">${escapeHTML(plateKey)}</td>
+                  <td>${data.status === 'scrapped' ? `<del>${escapeHTML(data.model)}</del>` : escapeHTML(data.model)}</td>
+                  <td>${assignedDriverText}</td> <!-- 👈 新增這行印出保管人 -->
+                  <td>${statusHtml}</td>
+                  <td>${escapeHTML(data.notes || '-')}</td>
+                  ${actionHtml}
+                `;
+                tbody.appendChild(tr);
 
             // --- 處理獨立報廢專區 ---
             if (data.status === 'scrapped') {
