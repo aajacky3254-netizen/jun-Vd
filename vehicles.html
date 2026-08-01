@@ -206,8 +206,7 @@
                       // 移除多餘的空白，確保車號比對精準
                       const vPlate = data.assignedVehicle.trim();
                       vehicleToDriver[vPlate] = `${d.id} ${data.name}`;
-                  }catch (err) {
-                    console.error("歸檔失敗:", err);
+                  }
               });
               
               // 2. 人事資料準備好後，才開始整理與渲染車輛資料
