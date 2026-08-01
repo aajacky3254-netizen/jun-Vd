@@ -548,17 +548,6 @@ document.getElementById('addTripBtn').onclick = async () => {
           const prevDateStr = prevD.toISOString().split('T')[0];
           const prevLeavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准"), where("date", "==", prevDateStr)));
           const prevOverrideSnap = await getDoc(doc(db, "daily_roster_overrides", prevDateStr));
-
-          // 整理底班
-          let baseRoster = {};
-          driversSnap.forEach(d => {
-              let data = d.data();
-              if ((data.role || "駕駛長") === "駕駛長") {
-                  let shift = data.baseShift || "M (早)"; // 如果資料庫沒設，預設早班
-                  // 🎯 老闆 0000 強制待命
-                  if (d.id === "0000" || d.id === "0000(jun)" || data.name.toUpperCase().includes('JUN')) shift = "STB (待命)";
-                  baseRoster[d.id] = { name: data.name, baseShift: shift };
-              }
           });
 
           let leaves = new Map(); // 🌟 改用 Map 來儲存起訖時間
