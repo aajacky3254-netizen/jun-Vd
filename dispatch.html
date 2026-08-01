@@ -180,6 +180,8 @@ let editingTripId = null;
   let currentAvailableVehicles = [];
   let currentTrips = []; 
   let currentGanttView = 'driver';
+  let globalDriverShifts = {};     
+  let globalDriverToVehicle = {};
   let unsubscribeDispatch = null; 
 
   const globalDateInput = document.getElementById('globalDate');
@@ -520,7 +522,22 @@ document.getElementById('addTripBtn').onclick = async () => {
           currentAvailableVehicles.sort((a, b) => a.plate.localeCompare(b.plate));
 
           // 2. 抓取 Drivers 資料庫 (讀取 baseShift 固定底班)
-          const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
+       const driversSnap = await getDocs(query(collection(db, "Drivers"), where("status", "==", "active")));
+
+       // 整理底班
+       let baseRoster = {};
+       driversSnap.forEach(d => {
+           let data = d.data();
+           if ((data.role || "駕駛長") === "駕駛長") {
+               let shift = data.baseShift || "M (早)"; 
+               if (d.id === "0000" || d.id === "0000(jun)" || data.name.toUpperCase().includes('JUN')) shift = "STB (待命)";
+               baseRoster[d.id] = { name: data.name, baseShift: shift };
+
+               // 👇 新增這兩行：把資料庫裡的班別跟專屬車號存進全域變數
+               globalDriverShifts[d.id] = shift;
+               globalDriverToVehicle[d.id] = data.assignedVehicle || "無專屬車"; 
+           }
+       });
           
           // 3. 抓取請假單與「當日臨時修改」紀錄 (移除 where("date", "==", selectedDateStr))
           const leavesSnap = await getDocs(query(collection(db, "leave_requests"), where("status", "==", "已核准")));
@@ -1203,33 +1220,15 @@ document.getElementById('addTripBtn').onclick = async () => {
           const batch = writeBatch(db); 
           let changes = 0;
 
-          // 1. 定義司機班別與車輛綁定字典
-          const driverShifts = {
-              '0001': 'Mid', '0002': 'Late', '0003': 'Night', '0004': 'Late', 
-              '0005': 'Early', '0006': 'Mid', '0007': 'Late', '0009': 'Late', 
-              '0010': 'Early', '0012': 'Early', '0013': 'Mid', '0017': 'Late', 
-              '0018': 'Mid', '0019': 'Early', '0025': 'Night', '0027': 'Mid' 
-          };
-
-          const driverToVehicle = {
-              '0005': '1000', '0002': '1000', 
-              '0010': '1001', '0004': '1001', 
-              '0012': '1002', '0003': '1002', 
-              '0019': '1003', '0001': '1004', 
-              '0006': '1005', '0013': '1006', 
-              '0018': '1007', '0007': '1008', 
-              '0009': '1009', '0017': '1010',
-              '0025': '1011', '0027': '1012'
-          };
-
           // 檢查是否符合班別的輔助函數
           const isValidShift = (empId, startMin, endMin) => {
-              const shift = driverShifts[empId] || 'Mid'; // 找不到預設給中班
-              if (shift === 'Early') return startMin < 15 * 60;
-              if (shift === 'Mid') return (startMin >= 6 * 60) && (endMin <= 21.5 * 60);
-              if (shift === 'Late') return startMin >= 12 * 60;
-              if (shift === 'Night') return (startMin >= 19 * 60) || (endMin <= 9 * 60);
-              return true;
+              const shiftStr = globalDriverShifts[empId] || 'M (早)';
+             // 為了相容字串格式，我們檢查裡面是否包含英文代號
+           if (shiftStr.includes('Early') || shiftStr.includes('M')) return startMin < 15 * 60;
+           if (shiftStr.includes('Mid') || shiftStr.includes('A')) return (startMin >= 6 * 60) && (endMin <= 21.5 * 60);
+           if (shiftStr.includes('Late') || shiftStr.includes('E')) return startMin >= 12 * 60;
+           if (shiftStr.includes('Night') || shiftStr.includes('N')) return (startMin >= 19 * 60) || (endMin <= 9 * 60);
+           return true;
           };
 
           // 開始派車
@@ -1331,7 +1330,7 @@ document.getElementById('addTripBtn').onclick = async () => {
 
                   if (freeVehicles.length > 0) {
                       // 2. 判斷是否使用專屬車輛
-                      let prefV = driverToVehicle[assigned_empid] || "1012";
+                      let prefV = globalDriverToVehicle[assigned_empid] !== "無專屬車" ? globalDriverToVehicle[assigned_empid] : "1012";
                       
                       // 如果專屬車輛剛好在 freeVehicles 名單內，就用它；否則隨便抓清單裡的第一台
                       let chosenVObj = freeVehicles.find(v => v.plate === prefV) || freeVehicles[0];
