@@ -92,6 +92,10 @@
           <option value="N (夜)">N (夜班)</option>
         </select>
       </div>
+      <div class="input-group" style="width: 140px;">
+     <label>專屬保管車 (車號)</label>
+     <input type="text" id="inpAssignedVehicle" placeholder="例: 1000" class="font-bold text-gray-700">
+   </div>
     </div>
 
     <div class="control-panel">
@@ -130,7 +134,8 @@
           <th style="width: 10%;">員工編號</th>
           <th style="width: 15%;">員工姓名</th>
           <th style="width: 12%;">所屬場站</th>
-          <th style="width: 12%;">固定班別</th> <!-- 新增這行 -->
+          <th style="width: 12%;">固定班別</th> 
+          <th style="width: 10%;">專屬保管車</th> 
           <th style="width: 20%;">實際職稱 / 專案進度</th>
           <th style="width: 11%;">系統權限</th>
           <th style="width: 10%;">在職狀態</th>
@@ -223,8 +228,8 @@
                     <td style="font-family: monospace; font-size: 16px; font-weight: bold; color: #475569;">${escapeHTML(driver.id)}</td>
                     <td style="font-weight: bold; color: #0f172a; font-size: 16px;">${escapeHTML(driver.name)}</td>
                     <td style="color: #475569; font-weight: 600;">${escapeHTML(driver.station) || '未指定'}</td>
-                    <!-- 新增這行，顯示固定班別 -->
                     <td style="color: #2563eb; font-weight: 800;">${escapeHTML(driver.baseShift) || 'M (早)'}</td>
+                    <td style="color: #ea580c; font-weight: 800;">${escapeHTML(driver.assignedVehicle) || '無'}</td> <!-- 👈 新增這行印出車號 -->
                     <td style="color: #047857; font-weight: 600; font-size: 15px;">${escapeHTML(driver.empRole) || '駕駛長'}${milestoneText}</td>
                     <td style="color: #3b82f6; font-weight: 600;">${escapeHTML(driver.role) || '駕駛長'}</td>
                     <td>${statusHtml}</td>
@@ -237,7 +242,8 @@
                                 data-role="${escapeHTML(driver.role)}"
                                 data-emprole="${escapeHTML(driver.empRole) || '駕駛長'}"
                                 data-empmilestone="${escapeHTML(driver.empMilestone) || 'none'}"
-                                data-baseshift="${escapeHTML(driver.baseShift) || 'M (早)'}">編輯</button> <!-- 新增 data-baseshift -->
+                                data-baseshift="${escapeHTML(driver.baseShift) || 'M (早)'}"
+                                data-assignedvehicle="${escapeHTML(driver.assignedVehicle) || ''}">編輯</button> <!-- 👈 新增 data-assignedvehicle -->
                         <button class="btn-delete bg-rose-500 hover:bg-rose-600 text-white px-3 py-1.5 rounded text-sm font-bold transition-colors" data-id="${escapeHTML(driver.id)}">刪除</button>
                     </td>
                 `;
@@ -257,7 +263,10 @@
                 
                 // 新增這行：帶入班別
                 document.getElementById('inpBaseShift').value = btnData.baseshift; 
-                
+
+                const inpAssignedVehicle = document.getElementById('inpAssignedVehicle');
+                if (inpAssignedVehicle) inpAssignedVehicle.value = btnData.assignedvehicle;
+              
                 const milestoneGroup = document.getElementById('milestoneGroup');
                 if (btnData.emprole === '駕駛長') {
                     milestoneGroup.style.display = 'flex';
@@ -289,6 +298,7 @@
             const empRole = document.getElementById('empRole').value;
             const empMilestone = document.getElementById('empMilestone').value;
             const baseShift = document.getElementById('inpBaseShift').value;
+            const assignedVehicle = document.getElementById('inpAssignedVehicle').value.trim();
 
             if(!empId || !name) { alert("請填寫員工編號與姓名！"); return; }
 
@@ -309,6 +319,7 @@
                     empRole: empRole,
                     empMilestone: empMilestone, // <-- Added missing comma here
                     baseShift: baseShift
+                    assignedVehicle: assignedVehicle
                 };
 
                 // 🚨 這裡只做單純的 Firestore 資料寫入，不觸碰 Auth
@@ -323,7 +334,9 @@
                 document.getElementById('empMilestone').value = 'none';
                 document.getElementById('inpBaseShift').value = 'M (早)';
                 document.getElementById('milestoneGroup').style.display = 'flex';
-                
+                const inpAssignedVehicle = document.getElementById('inpAssignedVehicle');
+                if (inpAssignedVehicle) inpAssignedVehicle.value = '';
+          
                 if (!docSnap.exists()) {
                     alert(`✅ 員工資料建檔成功！\n\n注意：此步驟僅建立員工檔案。\n請系統管理員至 Firebase Auth 後台或透過後端管理系統，建立對應的登入帳號 (${empId}@fengdong.com)。`);
                 } else {
@@ -338,9 +351,6 @@
                 btn.className = "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 font-bold ml-auto";
             }
         });
-
-        // 🚨 徹底移除了 setTimeout 產生「一鍵批次開通全體員工登入帳號」的程式碼區塊
-
     }).catch((err) => {
         console.error("驗證失敗或未登入", err);
     });
