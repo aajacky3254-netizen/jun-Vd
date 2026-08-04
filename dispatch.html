@@ -1519,16 +1519,29 @@ document.getElementById('addTripBtn').onclick = async () => {
                               end_point: data.endPt || '',
                               assigned_driver: finalEmpId ? "系統匯入綁定" : "尚未指派", 
                               assigned_empid: finalEmpId,
-                              assigned_vehicle: finalVeh,
-                              status: "pending"
+                              assigned_vehicle: finalVeh
                           };
                           
-                          const newDocRef = doc(collection(db, "daily_dispatches"));
-                          batch.set(newDocRef, payload);
+                          // 🌟 智慧防重複：尋找今日畫面上是否已有相同「發車時間」與「路線」的車趟
+                          const existingTrip = todayDispatches.find(t => 
+                              t.departure_time === formattedDepTime && 
+                              t.route === String(data.route)
+                          );
+
+                          if (existingTrip) {
+                              // 已存在：進行「覆蓋更新」(指派新駕駛/車輛，並保留原本的報到狀態)
+                              const tripRef = doc(db, "daily_dispatches", existingTrip.id);
+                              batch.update(tripRef, payload);
+                          } else {
+                              // 不存在：當作全新的車趟「新增寫入」
+                              payload.status = "pending";
+                              const newDocRef = doc(collection(db, "daily_dispatches"));
+                              batch.set(newDocRef, payload);
+                          }
                       });
 
                       await batch.commit();
-                      showToast(`✅ 成功匯入 ${validDataRows.length} 筆車趟！`);
+                      showToast(`✅ 匯入與資料同步完成！共處理 ${validDataRows.length} 筆車趟。`);
 
                   } catch (err) {
                       console.error(err);
