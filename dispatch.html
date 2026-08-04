@@ -99,6 +99,8 @@
                 <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-4 rounded-lg font-bold transition shadow-sm h-[46px]">🧹 清空</button>
                 <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-orange-700 h-[46px]">🖨️ 列印</button>
                 <button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-green-700 h-[46px]">📊 匯出</button>
+                <button id="btnImportExcel" class="bg-purple-600 hover:bg-purple-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-purple-700 h-[46px]">📥 匯入</button>
+                <input type="file" id="importFileInput" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden">
             </div>
         </div>
 
@@ -1386,6 +1388,102 @@ document.getElementById('addTripBtn').onclick = async () => {
           // 4. 觸發下載
           XLSX.writeFile(workbook, fileName);
       });
+    // ====== 📥 CSV / Excel 匯入邏輯 ======
+      const btnImportExcel = document.getElementById('btnImportExcel');
+      const importFileInput = document.getElementById('importFileInput');
+
+      if (btnImportExcel && importFileInput) {
+          btnImportExcel.addEventListener('click', () => importFileInput.click());
+
+          importFileInput.addEventListener('change', (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+
+              const reader = new FileReader();
+              reader.onload = async (e) => {
+                  try {
+                      dbStatusEl.innerText = "⏳ 匯入讀取中...";
+                      dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300 shadow-sm";
+
+                      // 借助已有的 SheetJS (XLSX) 函式庫解析檔案
+                      const data = new Uint8Array(e.target.result);
+                      const workbook = XLSX.read(data, { type: 'array' });
+                      const firstSheetName = workbook.SheetNames[0];
+                      const worksheet = workbook.Sheets[firstSheetName];
+                      const json = XLSX.utils.sheet_to_json(worksheet);
+
+                      if (json.length === 0) {
+                          alert("檔案為空！");
+                          return;
+                      }
+
+                      if (!confirm(`找到 ${json.length} 筆資料，確定要將新車趟匯入到【${globalDateInput.value}】的畫面上嗎？`)) {
+                          importFileInput.value = ''; // 取消就清空 input
+                          return;
+                      }
+
+                      const batch = writeBatch(db);
+                      let importCount = 0;
+
+                      json.forEach(row => {
+                          const route = row['路線 (Tour)'] || row['路線'];
+                          const depTime = row['發車時間'];
+                          
+                          // 🌟 智慧過濾：略過標記為昨日班表的資料，避免重複建檔
+                          if (route && String(route).includes('昨日班表')) return;
+                          
+                          if (route && depTime) {
+                              // 解析駕駛，從 "0037 (N)" 萃取出 "0037"
+                              let empId = row['駕駛編號 (班別)'] || row['駕駛編號'] || '';
+                              if (empId) empId = String(empId).split(' ')[0].trim();
+                              if (empId === '無' || empId === 'NaN') empId = '';
+
+                              // 解析車輛，從 "1001 (18M)" 萃取出 "1001"
+                              let veh = row['指派車輛'] || '尚未指派';
+                              if (veh !== '尚未指派' && String(veh).includes(' ')) {
+                                  veh = String(veh).split(' ')[0].trim();
+                              }
+
+                              const payload = {
+                                  date: globalDateInput.value, 
+                                  departure_time: depTime,
+                                  arrival_time: row['到達時間'] || '',
+                                  route: String(route),
+                                  trip_count: row['趟數'] || 1,
+                                  start_point: row['起站'] || '',
+                                  end_point: row['終站'] || '',
+                                  assigned_driver: empId ? "系統匯入綁定" : "尚未指派", 
+                                  assigned_empid: empId,
+                                  assigned_vehicle: veh,
+                                  status: "pending"
+                              };
+                              
+                              const newDocRef = doc(collection(db, "daily_dispatches"));
+                              batch.set(newDocRef, payload);
+                              importCount++;
+                          }
+                      });
+
+                      if (importCount > 0) {
+                          await batch.commit();
+                          showToast(`✅ 成功匯入 ${importCount} 筆車趟！`);
+                      } else {
+                          alert("找不到有效的車趟資料（可能格式不符，或全為昨日班表）。");
+                      }
+                      
+                  } catch (err) {
+                      console.error(err);
+                      alert("匯入失敗，請確認檔案格式是否正確。");
+                  } finally {
+                      importFileInput.value = '';
+                      // 恢復狀態顯示
+                      dbStatusEl.innerText = "連線正常 (即時同步)";
+                      dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+                  }
+              };
+              reader.readAsArrayBuffer(file);
+          });
+      }
       // 🆕 監聽甘特圖左側的「當日臨時改班」下拉選單 (移進來裡面！)
       ganttBody.addEventListener('change', async (e) => {
           if (e.target.classList.contains('shift-override-select')) {
