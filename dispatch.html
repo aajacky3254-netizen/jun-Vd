@@ -1553,10 +1553,7 @@ document.getElementById('addTripBtn').onclick = async () => {
               reader.readAsArrayBuffer(file);
           });
       }
-              };
-              reader.readAsArrayBuffer(file);
-          });
-      }
+      
       // 🆕 監聽甘特圖左側的「當日臨時改班」下拉選單 (移進來裡面！)
       ganttBody.addEventListener('change', async (e) => {
           if (e.target.classList.contains('shift-override-select')) {
