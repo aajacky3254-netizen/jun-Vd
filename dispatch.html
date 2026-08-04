@@ -1413,8 +1413,8 @@ document.getElementById('addTripBtn').onclick = async () => {
                       // 🌟 1. 智慧編碼轉換：解決 Excel 繁體中文 CSV 產生的亂碼問題
                       if (isCSV) {
                           let text = new TextDecoder('utf-8').decode(buffer);
-                          // 如果解碼出錯出現標記，或找不到常見的中文字，就改用 Big5 重新解碼
-                          if (text.includes('') || (!text.includes('車') && !text.includes('路') && !text.includes('站'))) {
+                          // 如果解碼出錯找不到常見的中文字，就改用 Big5 重新解碼
+                          if (!text.includes('車') && !text.includes('路') && !text.includes('站')) {
                               text = new TextDecoder('big5').decode(buffer);
                           }
                           workbook = XLSX.read(text, { type: 'string', raw: false });
