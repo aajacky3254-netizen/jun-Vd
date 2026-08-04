@@ -1505,9 +1505,20 @@ document.getElementById('addTripBtn').onclick = async () => {
                       alert("匯入失敗，請確認檔案格式是否正確。");
                   } finally {
                       importFileInput.value = '';
-                      // 恢復狀態顯示
+                      
+                      // 🌟 保護機制：確保 globalDateInput.value 有值，否則填入今天日期
+                      let targetDate = globalDateInput.value;
+                      if (!targetDate) {
+                          targetDate = new Date().toISOString().split('T')[0];
+                          globalDateInput.value = targetDate;
+                      }
+
+                      // 恢復狀態顯示並重新觸發當日資料流
                       dbStatusEl.innerText = "連線正常 (即時同步)";
                       dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+                      
+                      // 重新載入畫面，讓剛剛匯入的資料立刻顯示出來
+                      streamDispatchData(targetDate);
                   }
               };
               reader.readAsArrayBuffer(file);
