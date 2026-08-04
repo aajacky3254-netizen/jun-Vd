@@ -658,7 +658,15 @@ document.getElementById('addTripBtn').onclick = async () => {
 
           function mergeAndRender() {
               currentTrips = [...yesterdayCrossDispatches, ...todayDispatches];
-              currentTrips.sort((a, b) => (a.departure_time || "").localeCompare(b.departure_time || ""));
+            // 🌟 修改排序邏輯：優先把「昨日班表 (isCrossDay)」排在最前面，同屬性再按時間排序
+              currentTrips.sort((a, b) => {
+                  if (a.isCrossDay && !b.isCrossDay) return -1; // a 是昨天，排前面
+                  if (!a.isCrossDay && b.isCrossDay) return 1;  // b 是昨天，排前面
+                  
+                  // 如果都是昨天，或都是今天，則正常依照發車時間排序
+                  return (a.departure_time || "").localeCompare(b.departure_time || "");
+              });
+              
               renderGantt();
               renderTable();
           }
