@@ -1391,6 +1391,11 @@ document.getElementById('addTripBtn').onclick = async () => {
     // ====== 📥 CSV / Excel 匯入邏輯 ======
       const btnImportExcel = document.getElementById('btnImportExcel');
       const importFileInput = document.getElementById('importFileInput');
+      const data = new Uint8Array(e.target.result);
+                      const workbook = XLSX.read(data, { type: 'array' });
+                      const firstSheetName = workbook.SheetNames[0];
+                      const worksheet = workbook.Sheets[firstSheetName];
+                      const json = XLSX.utils.sheet_to_json(worksheet);
 
       if (btnImportExcel && importFileInput) {
           btnImportExcel.addEventListener('click', () => importFileInput.click());
