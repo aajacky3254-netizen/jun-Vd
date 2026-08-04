@@ -1399,127 +1399,160 @@ document.getElementById('addTripBtn').onclick = async () => {
               const file = e.target.files[0];
               if (!file) return;
 
+              const isCSV = file.name.toLowerCase().endsWith('.csv');
               const reader = new FileReader();
+              
               reader.onload = async (e) => {
                   try {
                       dbStatusEl.innerText = "⏳ 匯入讀取中...";
                       dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300 shadow-sm";
 
-                      // 借助已有的 SheetJS (XLSX) 函式庫解析檔案
-                      const data = new Uint8Array(e.target.result);
-                      const workbook = XLSX.read(data, { type: 'array' });
+                      let workbook;
+                      const buffer = e.target.result;
+
+                      // 🌟 1. 智慧編碼轉換：解決 Excel 繁體中文 CSV 產生的亂碼問題
+                      if (isCSV) {
+                          let text = new TextDecoder('utf-8').decode(buffer);
+                          // 如果解碼出錯出現標記，或找不到常見的中文字，就改用 Big5 重新解碼
+                          if (text.includes('') || (!text.includes('車') && !text.includes('路') && !text.includes('站'))) {
+                              text = new TextDecoder('big5').decode(buffer);
+                          }
+                          workbook = XLSX.read(text, { type: 'string', raw: false });
+                      } else {
+                          const data = new Uint8Array(buffer);
+                          workbook = XLSX.read(data, { type: 'array', raw: false });
+                      }
+
                       const firstSheetName = workbook.SheetNames[0];
                       const worksheet = workbook.Sheets[firstSheetName];
                       
-                      // 🌟 新增 raw: false，確保 Excel 的時間不會變成小數點數字
-                      const json = XLSX.utils.sheet_to_json(worksheet, { raw: false });
+                      // 🌟 2. 轉換為二維陣列 (防呆：防止使用者在 Excel 第一列加了標題大字)
+                      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
 
-                      if (json.length === 0) {
+                      if (rows.length === 0) {
                           alert("檔案為空！");
                           return;
                       }
 
-                      if (!confirm(`找到 ${json.length} 筆資料，確定要將新車趟匯入到【${globalDateInput.value}】的畫面上嗎？`)) {
-                          importFileInput.value = ''; 
+                      // 🌟 3. 自動尋找真正的標題列
+                      let headerRowIndex = -1;
+                      for (let i = 0; i < rows.length; i++) {
+                          const rowString = rows[i].join('').replace(/\s+/g, ''); 
+                          if (rowString.includes('路線') && (rowString.includes('發車') || rowString.includes('時間'))) {
+                              headerRowIndex = i;
+                              break;
+                          }
+                      }
+
+                      if (headerRowIndex === -1) {
+                          alert("找不到表格標題列！請確定檔案內包含「發車時間」與「路線」等欄位。\n(系統已嘗試自動修正編碼，請檢查檔案格式)");
+                          return;
+                      }
+
+                      const headers = rows[headerRowIndex];
+                      let validDataRows = [];
+
+                      // 🌟 4. 收集有效資料列
+                      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+                          const rowData = rows[i];
+                          if (!rowData || rowData.length === 0) continue;
+
+                          let route = '', depTime = '', arrTime = '', startPt = '', endPt = '', empId = '', veh = '', trips = 1;
+
+                          headers.forEach((colName, index) => {
+                              if (!colName) return;
+                              const val = rowData[index];
+                              if (val === undefined || val === null || val === '') return;
+                              
+                              const colStr = String(colName);
+                              if (colStr.includes('路線')) route = val;
+                              if (colStr.includes('發車時間')) depTime = val;
+                              if (colStr.includes('到達時間')) arrTime = val;
+                              if (colStr.includes('起站')) startPt = val;
+                              if (colStr.includes('終站')) endPt = val;
+                              if (colStr.includes('駕駛編號')) empId = val;
+                              if (colStr.includes('指派車輛')) veh = val;
+                              if (colStr.includes('趟數')) trips = val;
+                          });
+
+                          // 略過昨日班表
+                          if (route && String(route).includes('昨日班表')) continue;
+
+                          if (route && depTime) {
+                              validDataRows.push({ route, depTime, arrTime, startPt, endPt, empId, veh, trips });
+                          }
+                      }
+
+                      if (validDataRows.length === 0) {
+                          alert("找不到有效的車趟資料（可能全為昨日班表，或無發車時間）。");
+                          return;
+                      }
+
+                      if (!confirm(`成功解析 ${validDataRows.length} 筆有效車趟，確定要匯入到【${globalDateInput.value}】的畫面上嗎？`)) {
                           return;
                       }
 
                       const batch = writeBatch(db);
-                      let importCount = 0;
-
-                      json.forEach(row => {
-                          // 🌟 使用「模糊比對」來尋找欄位，徹底無視 Excel 產生的隱形字元 (BOM) 或多餘空白
-                          let route = '';
-                          let depTime = '';
-                          let arrTime = '';
-                          let startPt = '';
-                          let endPt = '';
-                          let empId = '';
-                          let veh = '';
-                          let trips = 1;
-
-                          for (let key in row) {
-                              if (key.includes('路線')) route = row[key];
-                              if (key.includes('發車時間')) depTime = row[key];
-                              if (key.includes('到達時間')) arrTime = row[key];
-                              if (key.includes('起站')) startPt = row[key];
-                              if (key.includes('終站')) endPt = row[key];
-                              if (key.includes('駕駛編號')) empId = row[key];
-                              if (key.includes('指派車輛')) veh = row[key];
-                              if (key.includes('趟數')) trips = row[key];
-                          }
+                      
+                      // 🌟 5. 格式化寫入資料庫
+                      validDataRows.forEach(data => {
+                          let formattedDepTime = String(data.depTime).trim();
+                          if (formattedDepTime.includes(':')) formattedDepTime = formattedDepTime.split(':').slice(0, 2).join(':');
                           
-                          // 🌟 智慧過濾：略過標記為昨日班表的資料，避免重複建檔
-                          if (route && String(route).includes('昨日班表')) return;
+                          let formattedArrTime = String(data.arrTime).trim();
+                          if (formattedArrTime.includes(':')) formattedArrTime = formattedArrTime.split(':').slice(0, 2).join(':');
+
+                          let finalEmpId = String(data.empId).split(' ')[0].trim();
+                          if (finalEmpId === '無' || finalEmpId === 'NaN' || !finalEmpId) finalEmpId = '';
+
+                          let finalVeh = String(data.veh).trim();
+                          if (finalVeh !== '尚未指派' && finalVeh.includes(' ')) finalVeh = finalVeh.split(' ')[0].trim();
+                          if (!finalVeh) finalVeh = '尚未指派';
+
+                          const payload = {
+                              date: globalDateInput.value, 
+                              departure_time: formattedDepTime,
+                              arrival_time: formattedArrTime,
+                              route: String(data.route),
+                              trip_count: parseInt(data.trips) || 1,
+                              start_point: data.startPt || '',
+                              end_point: data.endPt || '',
+                              assigned_driver: finalEmpId ? "系統匯入綁定" : "尚未指派", 
+                              assigned_empid: finalEmpId,
+                              assigned_vehicle: finalVeh,
+                              status: "pending"
+                          };
                           
-                          if (route && depTime) {
-                              // 處理時間格式 (確保 06:00:00 變成 06:00)
-                              let formattedDepTime = String(depTime).trim();
-                              if (formattedDepTime.includes(':')) {
-                                  formattedDepTime = formattedDepTime.split(':').slice(0, 2).join(':');
-                              }
-                              let formattedArrTime = String(arrTime).trim();
-                              if (formattedArrTime.includes(':')) {
-                                  formattedArrTime = formattedArrTime.split(':').slice(0, 2).join(':');
-                              }
-
-                              // 解析駕駛，從 "0037 (N)" 萃取出 "0037"
-                              if (empId) empId = String(empId).split(' ')[0].trim();
-                              if (empId === '無' || empId === 'NaN' || !empId) empId = '';
-
-                              // 解析車輛，從 "1001 (18M)" 萃取出 "1001"
-                              if (veh && veh !== '尚未指派' && String(veh).includes(' ')) {
-                                  veh = String(veh).split(' ')[0].trim();
-                              }
-                              if (!veh) veh = '尚未指派';
-
-                              const payload = {
-                                  date: globalDateInput.value, 
-                                  departure_time: formattedDepTime,
-                                  arrival_time: formattedArrTime,
-                                  route: String(route),
-                                  trip_count: parseInt(trips) || 1,
-                                  start_point: startPt || '',
-                                  end_point: endPt || '',
-                                  assigned_driver: empId ? "系統匯入綁定" : "尚未指派", 
-                                  assigned_empid: empId,
-                                  assigned_vehicle: veh,
-                                  status: "pending"
-                              };
-                              
-                              const newDocRef = doc(collection(db, "daily_dispatches"));
-                              batch.set(newDocRef, payload);
-                              importCount++;
-                          }
+                          const newDocRef = doc(collection(db, "daily_dispatches"));
+                          batch.set(newDocRef, payload);
                       });
 
-                      if (importCount > 0) {
-                          await batch.commit();
-                          showToast(`✅ 成功匯入 ${importCount} 筆車趟！`);
-                      } else {
-                          alert("找不到有效的車趟資料（可能格式不符，或全為昨日班表）。");
-                      }
-                      
+                      await batch.commit();
+                      showToast(`✅ 成功匯入 ${validDataRows.length} 筆車趟！`);
+
                   } catch (err) {
                       console.error(err);
                       alert("匯入失敗，請確認檔案格式是否正確。");
                   } finally {
                       importFileInput.value = '';
                       
-                      // 🌟 保護機制：確保 globalDateInput.value 有值，否則填入今天日期
+                      // 🌟 保護機制：確保 globalDateInput 有值，防止 Invalid time value
                       let targetDate = globalDateInput.value;
                       if (!targetDate) {
                           targetDate = new Date().toISOString().split('T')[0];
                           globalDateInput.value = targetDate;
                       }
 
-                      // 恢復狀態顯示並重新觸發當日資料流
                       dbStatusEl.innerText = "連線正常 (即時同步)";
                       dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
                       
-                      // 重新載入畫面，讓剛剛匯入的資料立刻顯示出來
+                      // 重新載入畫面
                       streamDispatchData(targetDate);
                   }
+              };
+              reader.readAsArrayBuffer(file);
+          });
+      }
               };
               reader.readAsArrayBuffer(file);
           });
