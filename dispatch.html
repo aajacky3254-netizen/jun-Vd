@@ -1391,11 +1391,6 @@ document.getElementById('addTripBtn').onclick = async () => {
     // ====== 📥 CSV / Excel 匯入邏輯 ======
       const btnImportExcel = document.getElementById('btnImportExcel');
       const importFileInput = document.getElementById('importFileInput');
-      const data = new Uint8Array(e.target.result);
-                      const workbook = XLSX.read(data, { type: 'array' });
-                      const firstSheetName = workbook.SheetNames[0];
-                      const worksheet = workbook.Sheets[firstSheetName];
-                      const json = XLSX.utils.sheet_to_json(worksheet);
 
       if (btnImportExcel && importFileInput) {
           btnImportExcel.addEventListener('click', () => importFileInput.click());
@@ -1415,7 +1410,9 @@ document.getElementById('addTripBtn').onclick = async () => {
                       const workbook = XLSX.read(data, { type: 'array' });
                       const firstSheetName = workbook.SheetNames[0];
                       const worksheet = workbook.Sheets[firstSheetName];
-                      const json = XLSX.utils.sheet_to_json(worksheet);
+                      
+                      // 🌟 新增 raw: false，確保 Excel 的時間不會變成小數點數字
+                      const json = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
                       if (json.length === 0) {
                           alert("檔案為空！");
@@ -1423,7 +1420,7 @@ document.getElementById('addTripBtn').onclick = async () => {
                       }
 
                       if (!confirm(`找到 ${json.length} 筆資料，確定要將新車趟匯入到【${globalDateInput.value}】的畫面上嗎？`)) {
-                          importFileInput.value = ''; // 取消就清空 input
+                          importFileInput.value = ''; 
                           return;
                       }
 
@@ -1431,32 +1428,59 @@ document.getElementById('addTripBtn').onclick = async () => {
                       let importCount = 0;
 
                       json.forEach(row => {
-                          const route = row['路線 (Tour)'] || row['路線'];
-                          const depTime = row['發車時間'];
+                          // 🌟 使用「模糊比對」來尋找欄位，徹底無視 Excel 產生的隱形字元 (BOM) 或多餘空白
+                          let route = '';
+                          let depTime = '';
+                          let arrTime = '';
+                          let startPt = '';
+                          let endPt = '';
+                          let empId = '';
+                          let veh = '';
+                          let trips = 1;
+
+                          for (let key in row) {
+                              if (key.includes('路線')) route = row[key];
+                              if (key.includes('發車時間')) depTime = row[key];
+                              if (key.includes('到達時間')) arrTime = row[key];
+                              if (key.includes('起站')) startPt = row[key];
+                              if (key.includes('終站')) endPt = row[key];
+                              if (key.includes('駕駛編號')) empId = row[key];
+                              if (key.includes('指派車輛')) veh = row[key];
+                              if (key.includes('趟數')) trips = row[key];
+                          }
                           
                           // 🌟 智慧過濾：略過標記為昨日班表的資料，避免重複建檔
                           if (route && String(route).includes('昨日班表')) return;
                           
                           if (route && depTime) {
+                              // 處理時間格式 (確保 06:00:00 變成 06:00)
+                              let formattedDepTime = String(depTime).trim();
+                              if (formattedDepTime.includes(':')) {
+                                  formattedDepTime = formattedDepTime.split(':').slice(0, 2).join(':');
+                              }
+                              let formattedArrTime = String(arrTime).trim();
+                              if (formattedArrTime.includes(':')) {
+                                  formattedArrTime = formattedArrTime.split(':').slice(0, 2).join(':');
+                              }
+
                               // 解析駕駛，從 "0037 (N)" 萃取出 "0037"
-                              let empId = row['駕駛編號 (班別)'] || row['駕駛編號'] || '';
                               if (empId) empId = String(empId).split(' ')[0].trim();
-                              if (empId === '無' || empId === 'NaN') empId = '';
+                              if (empId === '無' || empId === 'NaN' || !empId) empId = '';
 
                               // 解析車輛，從 "1001 (18M)" 萃取出 "1001"
-                              let veh = row['指派車輛'] || '尚未指派';
-                              if (veh !== '尚未指派' && String(veh).includes(' ')) {
+                              if (veh && veh !== '尚未指派' && String(veh).includes(' ')) {
                                   veh = String(veh).split(' ')[0].trim();
                               }
+                              if (!veh) veh = '尚未指派';
 
                               const payload = {
                                   date: globalDateInput.value, 
-                                  departure_time: depTime,
-                                  arrival_time: row['到達時間'] || '',
+                                  departure_time: formattedDepTime,
+                                  arrival_time: formattedArrTime,
                                   route: String(route),
-                                  trip_count: row['趟數'] || 1,
-                                  start_point: row['起站'] || '',
-                                  end_point: row['終站'] || '',
+                                  trip_count: parseInt(trips) || 1,
+                                  start_point: startPt || '',
+                                  end_point: endPt || '',
                                   assigned_driver: empId ? "系統匯入綁定" : "尚未指派", 
                                   assigned_empid: empId,
                                   assigned_vehicle: veh,
