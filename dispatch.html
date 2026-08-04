@@ -97,6 +97,7 @@
             <div class="flex gap-2">
                 <button id="btnAutoDispatch" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 rounded-lg font-bold transition shadow-sm h-[46px]">✨ 智慧調度</button>
                 <button id="btnClearDispatch" class="bg-gray-500 hover:bg-gray-600 text-white px-4 rounded-lg font-bold transition shadow-sm h-[46px]">🧹 清空</button>
+                <button id="btnResetToday" class="bg-rose-600 hover:bg-rose-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-rose-700 h-[46px]">🧨 刪除今日</button>
                 <button id="btnPrintAll" class="bg-orange-600 hover:bg-orange-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-orange-700 h-[46px]">🖨️ 列印</button>
                 <button id="btnExportExcel" class="bg-green-600 hover:bg-green-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-green-700 h-[46px]">📊 匯出</button>
                 <button id="btnImportExcel" class="bg-purple-600 hover:bg-purple-700 text-white px-4 rounded-lg font-bold transition shadow-sm border border-purple-700 h-[46px]">📥 匯入</button>
@@ -1344,6 +1345,39 @@ document.getElementById('addTripBtn').onclick = async () => {
               showToast(`✨ 智慧調度完成！已成功套用專車綁定邏輯指派空缺。`); 
           } else { 
               alert("目前無符合條件之駕駛/車輛可供調度。"); 
+          }
+      });
+    // 🧨 一鍵徹底刪除今日所有車趟 (重置畫面)
+      document.getElementById('btnResetToday').addEventListener('click', async () => {
+          // 篩選出「今天」建立的車趟（自動排除受保護的昨日跨日遺留班表）
+          const tripsToDelete = currentTrips.filter(t => !t.isCrossDay);
+
+          if(tripsToDelete.length === 0) return alert("畫面上目前沒有今日的車趟可以刪除！");
+
+          // 加入打字防呆確認框，避免手滑點到整個不見
+          const confirmText = prompt(`⚠️ 嚴重警告！\n這將會「徹底刪除」畫面上 ${tripsToDelete.length} 筆今日的所有車趟資料！\n(昨日跨夜班表會被安全保留)\n\n若您確定要刪除以便重新匯入，請在下方輸入「刪除」：`);
+
+          if (confirmText === "刪除") {
+              try {
+                  dbStatusEl.innerText = "⏳ 刪除中...";
+                  dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-600 border border-yellow-300 shadow-sm";
+                  
+                  const batch = writeBatch(db);
+                  // 逐筆加入刪除佇列
+                  tripsToDelete.forEach(trip => {
+                      batch.delete(doc(db, "daily_dispatches", trip.id));
+                  });
+                  
+                  // 一次性送出刪除指令
+                  await batch.commit();
+                  showToast("🧨 今日車趟已全數抹除！現在您可以重新匯入了。");
+              } catch (err) {
+                  console.error(err);
+                  alert("刪除失敗，請檢查網路。");
+              } finally {
+                  dbStatusEl.innerText = "連線正常 (即時同步)";
+                  dbStatusEl.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300";
+              }
           }
       });
       // ====== 📊 發車紀錄匯出 Excel 邏輯 ======
