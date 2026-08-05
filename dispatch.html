@@ -616,19 +616,27 @@ document.getElementById('addTripBtn').onclick = async () => {
               }
           }
 
+          // 🌟 清空陣列確保乾淨，並使用 Set 防止重複推入
+          currentAvailableDrivers = []; 
+          const uniqueDriversSet = new Set();
+
           for(let key in tempDrivers) {
               const d = tempDrivers[key];
-              d.subtitle = `昨[${getChineseShift(d.prevShift)}] ➔ 今[${getChineseShift(d.shift)}]`; 
-              currentAvailableDrivers.push(d);
+              // 檢查這名駕駛是否已經加入過名單了？
+              if (!uniqueDriversSet.has(d.empId)) {
+                  uniqueDriversSet.add(d.empId);
+                  d.subtitle = `昨[${getChineseShift(d.prevShift)}] ➔ 今[${getChineseShift(d.shift)}]`; 
+                  currentAvailableDrivers.push(d);
+              }
           }
           
           const getShiftWeight = (shiftStr) => {
               if (!shiftStr) return 99;
+              if (shiftStr.includes('待命') || shiftStr.includes('STB') || shiftStr.includes('替班') || shiftStr.includes('REL')) return 5;
+              if (shiftStr.includes('夜') || shiftStr.includes('N')) return 4;
               if (shiftStr.includes('早') || shiftStr.includes('M')) return 1;
               if (shiftStr.includes('中') || shiftStr.includes('A')) return 2;
               if (shiftStr.includes('晚') || shiftStr.includes('E')) return 3;
-              if (shiftStr.includes('夜') || shiftStr.includes('N')) return 4;
-              if (shiftStr.includes('待命') || shiftStr.includes('STB') || shiftStr.includes('替班') || shiftStr.includes('REL')) return 5;
               return 99;
           };
 
