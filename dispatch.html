@@ -1547,6 +1547,13 @@ document.getElementById('addTripBtn').onclick = async () => {
                           let finalEmpId = String(data.empId).split(' ')[0].trim();
                           if (finalEmpId === '無' || finalEmpId === 'NaN' || !finalEmpId) finalEmpId = '';
 
+                          // 👇 🌟 新增這段：去現有員工名單中尋找真正的駕駛姓名
+                          let finalDriverName = "尚未指派";
+                          if (finalEmpId) {
+                              const matchedDriver = currentAvailableDrivers.find(d => d.empId === finalEmpId) || currentOffDrivers.find(d => d.empId === finalEmpId);
+                              finalDriverName = matchedDriver ? matchedDriver.name : "系統匯入綁定";
+                          }
+
                           let finalVeh = String(data.veh).trim();
                           if (finalVeh !== '尚未指派' && finalVeh.includes(' ')) finalVeh = finalVeh.split(' ')[0].trim();
                           if (!finalVeh) finalVeh = '尚未指派';
@@ -1559,7 +1566,7 @@ document.getElementById('addTripBtn').onclick = async () => {
                               trip_count: parseInt(data.trips) || 1,
                               start_point: data.startPt || '',
                               end_point: data.endPt || '',
-                              assigned_driver: finalEmpId ? "系統匯入綁定" : "尚未指派", 
+                              assigned_driver: finalDriverName, // 👈 將這裡改成真正的名字
                               assigned_empid: finalEmpId,
                               assigned_vehicle: finalVeh
                           };
